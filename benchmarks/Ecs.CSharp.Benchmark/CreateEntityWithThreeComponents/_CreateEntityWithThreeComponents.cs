@@ -1,20 +1,19 @@
 using BenchmarkDotNet.Attributes;
 
-namespace Ecs.CSharp.Benchmark
-{
-    [BenchmarkCategory(Categories.CreateEntity, Categories.SingleThread)]
-    [MemoryDiagnoser]
+namespace Ecs.CSharp.Benchmark;
+
+[BenchmarkCategory(Categories.CreateEntity, Categories.SingleThread)]
+[MemoryDiagnoser]
 #if CHECK_CACHE_MISSES
-    [HardwareCounters(BenchmarkDotNet.Diagnosers.HardwareCounter.CacheMisses)]
+[HardwareCounters(BenchmarkDotNet.Diagnosers.HardwareCounter.CacheMisses)]
 #endif
-    public partial class CreateEntityWithThreeComponents
-    {
-        public int EntityCount { get; set; } = BenchmarkConfiguration.EntityCount;
+public partial class CreateEntityWithThreeComponents
+{
+    public int EntityCount { get; set; } = BenchmarkConfiguration.EntityCount;
 
-        [IterationSetup]
-        public void Setup() => BenchmarkOperations.SetupContexts(this);
+    [IterationSetup]
+    public void Setup() => BenchmarkOperations.SetupContexts(this);
 
-        [IterationCleanup]
-        public void Cleanup() => BenchmarkOperations.CleanupContexts(this);
-    }
+    [IterationCleanup]
+    public void Cleanup() => BenchmarkOperations.CleanupContexts(this);
 }

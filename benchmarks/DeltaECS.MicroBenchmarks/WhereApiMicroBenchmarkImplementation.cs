@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.MicroBenchmarks;
 
 /// <summary>Measures query-wide read-only predicates and stable structural mutation rounds.</summary>
@@ -30,7 +28,7 @@ public class WhereApiMicroBenchmarkImplementation
         ComponentId deadId = layouts.Register<WhereApiDead>(new SchemaId(92_003));
         _world = new World(layouts, initialEntityCapacity: Amount);
         _entities = new Entity[Amount];
-        _world.Create(stackalloc[] { _valueId, accumulatorId }, Amount, _entities);
+        _world.Create([_valueId, accumulatorId], Amount, _entities);
         ExpectedIterationCount = (Amount + 1) / 2;
 
         for (int index = 0; index < _entities.Length; index++)
@@ -38,9 +36,9 @@ public class WhereApiMicroBenchmarkImplementation
             _world.GetRef<WhereApiValue>(_entities[index], _valueId) = new WhereApiValue { Value = (index & 1) == 0 ? -1 : 1 };
         }
 
-        QuerySpec description = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, accumulatorId });
+        QuerySpec description = QuerySpec.WhereAll([_valueId, accumulatorId]);
         _query = _world.CreateQuery(in description);
-        QuerySpec deadDescription = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, accumulatorId, deadId });
+        QuerySpec deadDescription = QuerySpec.WhereAll([_valueId, accumulatorId, deadId]);
         _deadQuery = _world.CreateQuery(in deadDescription);
     }
 
@@ -87,6 +85,7 @@ public class WhereApiMicroBenchmarkImplementation
             .Remove<WhereApiDead>().Invoke();
         return added + removed;
     }
+
 }
 
 internal struct WhereApiValue

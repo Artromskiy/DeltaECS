@@ -29,14 +29,9 @@ internal struct NamedRef
     public int Id;
 }
 
-internal sealed class RefPayload
+internal sealed class RefPayload(int id)
 {
-    public int Id { get; }
-
-    public RefPayload(int id)
-    {
-        Id = id;
-    }
+    public int Id { get; } = id;
 }
 
 internal sealed class ReferenceComponent

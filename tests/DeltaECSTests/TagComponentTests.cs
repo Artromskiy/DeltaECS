@@ -1,7 +1,6 @@
 namespace Delta.ECS.Tests;
 
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 using NUnit.Framework;
@@ -9,6 +8,8 @@ using NUnit.Framework;
 [TestFixture]
 internal sealed class TagComponentTests
 {
+
+    internal static readonly int[] expected = [1, 2, 5, 6, 7, 12];
     [Test]
     public void TagsAreStoredWithoutRowsAndFilterGeneratedQueries()
     {
@@ -21,7 +22,7 @@ internal sealed class TagComponentTests
         using var world = new World(layouts);
 
         var entities = new Entity[Chunk.Capacity + 3];
-        world.Create(new[] { positionId }, entities);
+        world.Create([positionId], entities);
         Query query = world
             .WhereAll<Position>()
             .WhereAny<MarkedTag, OtherTag, ExtraData>()
@@ -31,21 +32,21 @@ internal sealed class TagComponentTests
         {
             if (index % 3 == 0)
             {
-                world.Add(entities[index], new[] { markedId });
+                world.Add(entities[index], [markedId]);
             }
 
             if (index % 5 == 0)
             {
-                world.Add(entities[index], new[] { otherId });
+                world.Add(entities[index], [otherId]);
             }
 
             if (index % 7 == 0)
             {
-                world.Add(entities[index], new[] { blockedId });
+                world.Add(entities[index], [blockedId]);
             }
         }
 
-        world.Add(entities[1], new[] { extraId });
+        world.Add(entities[1], [extraId]);
 
         Assert.That(world.Has<MarkedTag>(entities[3]), Is.True);
         Assert.That(world.Has<MarkedTag>(entities[4]), Is.False);
@@ -65,22 +66,22 @@ internal sealed class TagComponentTests
 
         Query markedOnly = world.WhereAll<MarkedTag>();
         int markedOnlyCount = 0;
-        ForEachContextEntityAction<int> countTaggedEntity = static (ref int count, EntityRef _) => count++;
+        ForEachContextEntityAction<int> countTaggedEntity = static (ref count, _) => count++;
         world.ForEachEntity(in markedOnly, ref markedOnlyCount, countTaggedEntity).Invoke(ref markedOnlyCount);
         Assert.That(markedOnlyCount, Is.EqualTo(CountMatches(entities.Length, static index => index % 3 == 0)));
 
-        world.Add(entities[3], new[] { extraId });
+        world.Add(entities[3], [extraId]);
         Assert.That(world.Has<MarkedTag>(entities[3]), Is.True);
         Assert.That(Count(world, in query), Is.EqualTo(expected));
-        world.Remove(entities[3], new[] { extraId });
+        world.Remove(entities[3], [extraId]);
         Assert.That(world.Has<MarkedTag>(entities[3]), Is.True);
 
         var functor = new CountPositionFunctor();
         world.ForEach(in query, ref functor).Invoke(ref functor);
         Assert.That(functor.Count, Is.EqualTo(expected));
 
-        world.Remove(entities[3], new[] { markedId });
-        world.Add(entities[4], new[] { markedId });
+        world.Remove(entities[3], [markedId]);
+        world.Add(entities[4], [markedId]);
         expected = CountMatches(entities.Length, static index =>
             ((index % 3 == 0 && index != 3) || index % 5 == 0 || index == 4 || index == 1)
             && index % 7 != 0);
@@ -105,15 +106,15 @@ internal sealed class TagComponentTests
         _ = layouts.Register<OtherTag>(new SchemaId(98_014));
         using var world = new World(layouts);
         var entities = new Entity[8];
-        world.Create(new[] { positionId }, entities);
+        world.Create([positionId], entities);
         for (int index = 0; index < entities.Length; index += 2)
         {
-            world.Add(entities[index], new[] { markedId });
+            world.Add(entities[index], [markedId]);
         }
 
         Query marked = world.WhereAll<Position>().WhereAll<MarkedTag>();
-        Assert.That(world.Add(in marked, new[] { blockedId }), Is.EqualTo(4));
-        Assert.That(world.Remove(in marked, new[] { markedId }), Is.EqualTo(4));
+        Assert.That(world.Add(in marked, [blockedId]), Is.EqualTo(4));
+        Assert.That(world.Remove(in marked, [markedId]), Is.EqualTo(4));
         foreach (Entity entity in entities)
         {
             Assert.That(world.Has<BlockedTag>(entity), Is.EqualTo((entity.Index & 1) == 0));
@@ -139,10 +140,10 @@ internal sealed class TagComponentTests
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_032));
         using var world = new World(layouts);
         var entities = new Entity[Chunk.Capacity + 6];
-        world.Create(new[] { valueId }, entities);
+        world.Create([valueId], entities);
         for (int index = 0; index < entities.Length; index += 2)
         {
-            world.Add(entities[index], new[] { markedId });
+            world.Add(entities[index], [markedId]);
         }
 
         Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
@@ -169,10 +170,10 @@ internal sealed class TagComponentTests
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_034));
         using var world = new World(layouts);
         var entities = new Entity[Chunk.Capacity + 4];
-        world.Create(new[] { valueId }, entities);
+        world.Create([valueId], entities);
         for (int index = 0; index < Chunk.Capacity + 2; index++)
         {
-            world.Add(entities[index], new[] { markedId });
+            world.Add(entities[index], [markedId]);
         }
 
         Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
@@ -193,10 +194,10 @@ internal sealed class TagComponentTests
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_036));
         using var world = new World(layouts);
         var entities = new Entity[16];
-        world.Create(new[] { valueId }, entities);
+        world.Create([valueId], entities);
         foreach (int index in new[] { 1, 2, 5, 6, 7, 12 })
         {
-            world.Add(entities[index], new[] { markedId });
+            world.Add(entities[index], [markedId]);
         }
 
         Query query = world.WhereAll<TagValue>().WhereAll<MarkedTag>();
@@ -205,7 +206,7 @@ internal sealed class TagComponentTests
         bool hasSparseSlots = query.Cached.TryGetTagSlots(chunks[0].Chunk, out ReadOnlySpan<int> slots);
 
         Assert.That(hasSparseSlots, Is.True);
-        Assert.That(slots.ToArray(), Is.EqualTo(new[] { 1, 2, 5, 6, 7, 12 }));
+        Assert.That(slots.ToArray(), Is.EqualTo(expected));
     }
 
     [Test]
@@ -218,13 +219,13 @@ internal sealed class TagComponentTests
         layouts.Register<ExtraData>(new SchemaId(98_044));
         using var world = new World(layouts);
         var entities = new Entity[12];
-        world.Create(new[] { valueId }, entities);
+        world.Create([valueId], entities);
         for (int index = 0; index < entities.Length; index++)
         {
             world.GetRef<TagValue>(entities[index], valueId).Value = index;
             if ((index & 1) == 0)
             {
-                world.Add(entities[index], new[] { markedId });
+                world.Add(entities[index], [markedId]);
             }
         }
 
@@ -336,7 +337,7 @@ internal sealed class TagComponentTests
         _ = layouts.Register<OtherTag>(new SchemaId(98_037));
         using var world = new World(layouts);
         var entities = new Entity[5];
-        world.Create(stackalloc[] { layouts.GetPrimary<MarkedTag>(), layouts.GetPrimary<OtherTag>() }, entities.Length, entities);
+        world.Create([layouts.GetPrimary<MarkedTag>(), layouts.GetPrimary<OtherTag>()], entities.Length, entities);
         Query tags = world.WhereAll<MarkedTag, OtherTag>();
 
         int visits = 0;
@@ -429,13 +430,8 @@ internal sealed class TagComponentTests
         None
     }
 
-    private readonly struct TagWithData
+    private readonly struct TagWithData(int value)
     {
-        public readonly int Value;
-
-        public TagWithData(int value)
-        {
-            Value = value;
-        }
+        public readonly int Value = value;
     }
 }

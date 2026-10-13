@@ -5,55 +5,54 @@ using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
 
 using TinyEcs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithOneComponent
 {
-    public partial class SystemWithOneComponent
+    [Context] private readonly TinyEcsContext _tinyEcs;
+
+    [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int TinyEcsEach()
     {
-        [Context] private readonly TinyEcsContext _tinyEcs;
-
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEach()
+        var data = Data<Component1>.CreateIterator(_tinyEcs.Query.Iter());
+        while (data.MoveNext())
         {
-            var data = Data<Component1>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1);
-                c1.Ref.Value++;
-            }
-            return EntityCount;
+            data.Deconstruct(out Ptr<Component1> c1);
+            c1.Ref.Value++;
         }
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEachJob()
+    [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int TinyEcsEachJob()
+    {
+        var data = Data<Component1>.CreateIterator(_tinyEcs.Query.Iter());
+        while (data.MoveNext())
         {
-            var data = Data<Component1>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1);
-                c1.Ref.Value++;
-            }
-            return EntityCount;
+            data.Deconstruct(out Ptr<Component1> c1);
+            c1.Ref.Value++;
         }
+        return EntityCount;
+    }
 
-        private sealed class TinyEcsContext : TinyEcsBaseContext
+    private sealed class TinyEcsContext : TinyEcsBaseContext
+    {
+        public Query Query { get; }
+        public TinyEcsContext(int entityCount, int entityPadding) : base()
         {
-            public Query Query { get; }
-            public TinyEcsContext(int entityCount, int entityPadding) : base()
+            for (int i = 0; i < entityCount; ++i)
             {
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.Entity();
-                    }
-
-                    World.Entity().Set(new Component1());
+                    _ = World.Entity();
                 }
 
-                Query = World.QueryBuilder().Data<Component1>().Build();
+                _ = World.Entity().Set(new Component1());
             }
+
+            Query = World.QueryBuilder().Data<Component1>().Build();
         }
     }
 }

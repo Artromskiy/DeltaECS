@@ -5,26 +5,25 @@ using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
 
 using Flecs.NET.Core;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class CreateEntityWithTwoComponents
 {
-    public partial class CreateEntityWithTwoComponents
+    [Context]
+    private readonly FlecsNetBaseContext _flecs;
+
+    [BenchmarkCategory(Categories.FlecsNet)]
+    [Benchmark]
+    public int FlecsNet()
     {
-        [Context]
-        private readonly FlecsNetBaseContext _flecs;
+        World world = _flecs.World;
 
-        [BenchmarkCategory(Categories.FlecsNet)]
-        [Benchmark]
-        public int FlecsNet()
+        for (int i = 0; i < EntityCount; ++i)
         {
-            World world = _flecs.World;
-
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                world.Entity()
-                    .Set<Component1>(new())
-                    .Set<Component2>(new());
-            }
-            return EntityCount;
+            _ = world.Entity()
+                .Set<Component1>(new())
+                .Set<Component2>(new());
         }
+        return EntityCount;
     }
 }

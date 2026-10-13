@@ -5,78 +5,79 @@ using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
 
 using TinyEcs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithTwoComponentsMultipleComposition
 {
-    public partial class SystemWithTwoComponentsMultipleComposition
+    [Context] private readonly TinyEcsContext _tinyEcs;
+
+    [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int TinyEcsEach()
     {
-        [Context] private readonly TinyEcsContext _tinyEcs;
-
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEach()
+        var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
+        while (data.MoveNext())
         {
-            var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
-                c1.Ref.Value += c2.Ref.Value;
-            }
-            return EntityCount;
+            data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
+            c1.Ref.Value += c2.Ref.Value;
         }
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEachJob()
+    [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int TinyEcsEachJob()
+    {
+        var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
+        while (data.MoveNext())
         {
-            var data = Data<Component1, Component2>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
-                c1.Ref.Value += c2.Ref.Value;
-            }
-            return EntityCount;
+            data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2);
+            c1.Ref.Value += c2.Ref.Value;
         }
+        return EntityCount;
+    }
 
-        private sealed class TinyEcsContext : TinyEcsBaseContext
+    private sealed class TinyEcsContext : TinyEcsBaseContext
+    {
+        public Query Query { get; }
+
+
+        public TinyEcsContext(int entityCount) : base()
         {
-            public Query Query { get; }
-
-
-            public TinyEcsContext(int entityCount) : base()
+            for (int i = 0; i < entityCount; ++i)
             {
-                for (int i = 0; i < entityCount; ++i)
+                var entity = World.Entity();
+                _ = entity.Set(new Component1());
+                _ = entity.Set(new Component2 { Value = 1 });
+
+                switch (i % 4)
                 {
-                    var entity = World.Entity();
-                    entity.Set(new Component1());
-                    entity.Set(new Component2 { Value = 1 });
+                    case 0:
+                        _ = entity.Set(new Padding1());
+                        break;
 
-                    switch (i % 4)
-                    {
-                        case 0:
-                            entity.Set(new Padding1());
-                            break;
+                    case 1:
+                        _ = entity.Set(new Padding2());
+                        break;
 
-                        case 1:
-                            entity.Set(new Padding2());
-                            break;
+                    case 2:
+                        _ = entity.Set(new Padding3());
+                        break;
 
-                        case 2:
-                            entity.Set(new Padding3());
-                            break;
-
-                        case 3:
-                            entity.Set(new Padding4());
-                            break;
-                    }
+                    case 3:
+                        _ = entity.Set(new Padding4());
+                        break;
+                    default:
+                        break;
                 }
-
-                Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Build();
             }
 
-            private record struct Padding1(int Value);
-            private record struct Padding2(int Value);
-            private record struct Padding3(int Value);
-            private record struct Padding4(int Value);
+            Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Build();
         }
+
+        private record struct Padding1(int Value);
+        private record struct Padding2(int Value);
+        private record struct Padding3(int Value);
+        private record struct Padding4(int Value);
     }
 }

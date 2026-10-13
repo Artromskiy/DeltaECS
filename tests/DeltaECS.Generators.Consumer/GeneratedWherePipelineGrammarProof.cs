@@ -9,7 +9,7 @@ internal static class GeneratedWherePipelineGrammarProof
     internal static void Run(World world, in Query query, ComponentId deadId, ComponentId aliveId, ref Context context)
     {
         ComponentId needsRespawnId = world.Components.GetPrimary<NeedsRespawn>();
-        ReadOnlySpan<ComponentId> tagIds = stackalloc ComponentId[] { deadId, aliveId };
+        ReadOnlySpan<ComponentId> tagIds = [deadId, aliveId];
 
         // Component-only/entity-aware predicates: delegates, contexts, and functors.
         var simplePredicate = new WherePredicate();
@@ -71,7 +71,7 @@ internal static class GeneratedWherePipelineGrammarProof
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .ForEachEntity(ref terminalState, ref entityAction).Invoke(ref terminalState, ref entityAction);
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
-            .ForEachEntity(static (EntityRef entity) => _ = entity.Index).Invoke();
+            .ForEachEntity(static entity => _ = entity.Index).Invoke();
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .ForEachEntity(ref entityActionWithoutContext).Invoke(ref entityActionWithoutContext);
     }

@@ -2,35 +2,34 @@ using System;
 
 using HypEcs;
 
-namespace Ecs.CSharp.Benchmark.Contexts
+namespace Ecs.CSharp.Benchmark.Contexts;
+
+internal class HypEcsBaseContext : IDisposable
 {
-    internal class HypEcsBaseContext : IDisposable
+
+    public World World { get; }
+
+    public HypEcsBaseContext()
     {
+        World = new World();
+    }
 
-        public World World { get; }
+    public virtual void Dispose()
+    {
+        // World.Destroy();
+    }
+    internal struct Component1
+    {
+        public int Value;
+    }
 
-        public HypEcsBaseContext()
-        {
-            World = new World();
-        }
+    internal struct Component2
+    {
+        public int Value;
+    }
 
-        public virtual void Dispose()
-        {
-            // World.Destroy();
-        }
-        public struct Component1
-        {
-            public int Value;
-        }
-
-        public struct Component2
-        {
-            public int Value;
-        }
-
-        public struct Component3
-        {
-            public int Value;
-        }
+    internal struct Component3
+    {
+        public int Value;
     }
 }

@@ -64,7 +64,7 @@ internal sealed class EntityRefTests
         using var world = new World(layouts);
 
         var entities = new Entity[8];
-        world.Create(stackalloc[] { positionId }, entities);
+        world.Create([positionId], entities);
         world.Add(entities[0], healthId);
         world.Add(entities[2], healthId);
         world.GetRef<Health>(entities[0], healthId).Value = 10;
@@ -78,7 +78,7 @@ internal sealed class EntityRefTests
 
         Query query = world.CreateQuery(
             QuerySpec.WhereAll(positionId)
-                .WithAny(stackalloc[] { firstTagId, secondTagId }));
+                .WithAny([firstTagId, secondTagId]));
         var state = new ProbeState
         {
             Entities = entities,
@@ -111,7 +111,7 @@ internal sealed class EntityRefTests
 
         int entityCount = Chunk.Capacity * 2 + 3;
         var entities = new Entity[entityCount];
-        world.Create(stackalloc[] { positionId }, entities);
+        world.Create([positionId], entities);
         for (int index = 1; index < entities.Length; index += 2)
         {
             world.Add(entities[index], healthId);
@@ -142,7 +142,7 @@ internal sealed class EntityRefTests
         }
 
         Query taggedPositions = world.CreateQuery(
-            QuerySpec.WhereAll(positionId).WithAny(stackalloc[] { tagId }));
+            QuerySpec.WhereAll(positionId).WithAny([tagId]));
         int[] taggedVisits = new int[entityCount];
         int taggedVisitCount = 0;
         world.ForEachEntity(in taggedPositions, entity =>
@@ -173,7 +173,7 @@ internal sealed class EntityRefTests
         ComponentId tagId = layouts.Register<FirstTag>(new SchemaId(40_080));
         using var world = new World(layouts);
         var entities = new Entity[8];
-        world.Create(stackalloc[] { positionId }, entities);
+        world.Create([positionId], entities);
         for (int index = 0; index < entities.Length; index++)
         {
             world.GetRef<Position>(entities[index], positionId).X = index;
@@ -188,7 +188,7 @@ internal sealed class EntityRefTests
             }
         }
 
-        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId).WithAny(stackalloc[] { tagId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(positionId).WithAny([tagId]));
         int visits = 0;
         world.ForEachEntity(in query, (EntityRef entity, ref Position position) =>
         {
@@ -217,12 +217,12 @@ internal sealed class EntityRefTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_083));
         using var world = new World(layouts);
         Entity first = world.Create(
-            stackalloc[] { positionId, healthId },
+            [positionId, healthId],
             new Position { X = 1 },
             new Health { Value = 10 });
         Query query = world.CreateQuery(
             QuerySpec.WhereAll(positionId)
-                .WithAny(stackalloc[] { healthId, velocityId }));
+                .WithAny([healthId, velocityId]));
         var state = new AnyComponentState
         {
             HealthId = healthId,
@@ -238,7 +238,7 @@ internal sealed class EntityRefTests
         Assert.That(state.HealthValue, Is.EqualTo(10));
 
         Entity second = world.Create(
-            stackalloc[] { positionId, velocityId },
+            [positionId, velocityId],
             new Position { X = 2 },
             new Velocity { X = 3 });
 

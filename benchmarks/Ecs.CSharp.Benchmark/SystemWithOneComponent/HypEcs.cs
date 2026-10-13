@@ -4,76 +4,75 @@ using Ecs.CSharp.Benchmark.Contexts;
 
 using HypEcs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithOneComponent
 {
-    public partial class SystemWithOneComponent
+
+    [Context] private readonly HypEcsContext _hypEcs;
+
+    [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int HypEcsMonoThread()
+    {
+        _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
+        return EntityCount;
+    }
+
+    [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
+    [Benchmark]
+    public int HypEcsMultiThread()
+    {
+        _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
+        return EntityCount;
+    }
+    private sealed class HypEcsContext : HypEcsBaseContext
     {
 
-        [Context] private readonly HypEcsContext _hypEcs;
+        public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
+        public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
 
-        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int HypEcsMonoThread()
+        public HypEcsContext(int entityCount, int entityPadding)
         {
-            _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int HypEcsMultiThread()
-        {
-            _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
-        }
-        private sealed class HypEcsContext : HypEcsBaseContext
-        {
-
-            public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
-            public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
-
-            public HypEcsContext(int entityCount, int entityPadding)
+            for (int i = 0; i < entityCount; ++i)
             {
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
+                    _ = World.Spawn();
+                }
+
+                _ = World
+                    .Spawn()
+                    .Add(new Component1());
+            }
+        }
+        private sealed class MonoThreadRunSystem : ISystem
+        {
+            public void Run(World world)
+            {
+                Query<Component1> query = world.Query<Component1>().Build();
+                query.Run((count, s1) =>
+                {
+                    for (int i = 0; i < count; i++)
                     {
-                        World.Spawn();
+                        s1[i].Value++;
                     }
-
-                    World
-                        .Spawn()
-                        .Add(new Component1());
-                }
+                });
             }
-            private sealed class MonoThreadRunSystem : ISystem
-            {
-                public void Run(World world)
-                {
-                    Query<Component1> query = world.Query<Component1>().Build();
-                    query.Run((count, s1) =>
-                    {
-                        for (int i = 0; i < count; i++)
-                        {
-                            s1[i].Value++;
-                        }
-                    });
-                }
-            }
+        }
 
-            private sealed class MultiThreadRunSystem : ISystem
+        private sealed class MultiThreadRunSystem : ISystem
+        {
+            public void Run(World world)
             {
-                public void Run(World world)
+                Query<Component1> query = world.Query<Component1>().Build();
+                query.RunParallel((count, s1) =>
                 {
-                    Query<Component1> query = world.Query<Component1>().Build();
-                    query.RunParallel((count, s1) =>
+                    for (int i = 0; i < count; i++)
                     {
-                        for (int i = 0; i < count; i++)
-                        {
-                            s1[i].Value++;
-                        }
-                    });
-                }
+                        s1[i].Value++;
+                    }
+                });
             }
         }
     }

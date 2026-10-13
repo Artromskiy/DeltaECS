@@ -4,67 +4,66 @@ using Ecs.CSharp.Benchmark.Contexts;
 
 using Leopotam.EcsLite;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithOneComponent
 {
-    public partial class SystemWithOneComponent
+
+    [Context]
+    private readonly LeopotamEcsLiteContext _leopotamEcsLite;
+
+    [BenchmarkCategory(Categories.LeopotamEcsLite, Categories.SingleThread)]
+    [Benchmark]
+    public int LeopotamEcsLite()
+    {
+        _leopotamEcsLite.MonoThreadSystem.Run();
+        return EntityCount;
+    }
+    private sealed class LeopotamEcsLiteContext : LeopotamEcsLiteBaseContext
     {
 
-        [Context]
-        private readonly LeopotamEcsLiteContext _leopotamEcsLite;
+        public IEcsSystems MonoThreadSystem { get; }
 
-        [BenchmarkCategory(Categories.LeopotamEcsLite, Categories.SingleThread)]
-        [Benchmark]
-        public int LeopotamEcsLite()
+        public LeopotamEcsLiteContext(int entityCount, int entityPadding)
         {
-            _leopotamEcsLite.MonoThreadSystem.Run();
-            return EntityCount;
-        }
-        private sealed class LeopotamEcsLiteContext : LeopotamEcsLiteBaseContext
-        {
+            MonoThreadSystem = new EcsSystems(World).Add(new MonoThreadRunSystem());
 
-            public IEcsSystems MonoThreadSystem { get; }
+            MonoThreadSystem.Init();
 
-            public LeopotamEcsLiteContext(int entityCount, int entityPadding)
+            EcsPool<Component1> c1 = World.GetPool<Component1>();
+            EcsPool<Component2> c2 = World.GetPool<Component2>();
+
+            for (int i = 0; i < entityCount; ++i)
             {
-                MonoThreadSystem = new EcsSystems(World).Add(new MonoThreadRunSystem());
-
-                MonoThreadSystem.Init();
-
-                EcsPool<Component1> c1 = World.GetPool<Component1>();
-                EcsPool<Component2> c2 = World.GetPool<Component2>();
-
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        // LeopotamEcsLite does not support empty entities
-                        c2.Add(World.NewEntity());
-                    }
-
-                    int entity = World.NewEntity();
-                    c1.Add(entity);
+                    // LeopotamEcsLite does not support empty entities
+                    _ = c2.Add(World.NewEntity());
                 }
+
+                int entity = World.NewEntity();
+                _ = c1.Add(entity);
             }
-            private sealed class MonoThreadRunSystem : IEcsInitSystem, IEcsRunSystem
+        }
+        private sealed class MonoThreadRunSystem : IEcsInitSystem, IEcsRunSystem
+        {
+            private EcsFilter _filter;
+            private EcsPool<Component1> _components;
+
+            public void Init(IEcsSystems systems)
             {
-                private EcsFilter _filter;
-                private EcsPool<Component1> _components;
+                EcsWorld world = systems.GetWorld();
 
-                public void Init(IEcsSystems systems)
+                _filter = world.Filter<Component1>().End();
+                _components = world.GetPool<Component1>();
+            }
+
+            public void Run(IEcsSystems systems)
+            {
+                int[] entities = _filter.GetRawEntities();
+                for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
                 {
-                    EcsWorld world = systems.GetWorld();
-
-                    _filter = world.Filter<Component1>().End();
-                    _components = world.GetPool<Component1>();
-                }
-
-                public void Run(IEcsSystems systems)
-                {
-                    int[] entities = _filter.GetRawEntities();
-                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
-                    {
-                        ++_components.Get(entities[i]).Value;
-                    }
+                    ++_components.Get(entities[i]).Value;
                 }
             }
         }

@@ -8,78 +8,79 @@ using DefaultEcs.Threading;
 
 using Ecs.CSharp.Benchmark.Contexts;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithTwoComponents
 {
-    public partial class SystemWithTwoComponents
+
+    [Context]
+    private readonly DefaultEcsContext _defaultEcs;
+
+    [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int DefaultEcsMonoThread()
+    {
+        _defaultEcs.MonoThreadEntitySetSystem.Update(0);
+        return EntityCount;
+    }
+
+    [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
+    [Benchmark]
+    public int DefaultEcsMultiThread()
+    {
+        _defaultEcs.MultiThreadEntitySetSystem.Update(0);
+        return EntityCount;
+    }
+    private sealed partial class DefaultEcsContext : DefaultEcsBaseContext
     {
 
-        [Context]
-        private readonly DefaultEcsContext _defaultEcs;
+        public DefaultParallelRunner Runner { get; }
 
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int DefaultEcsMonoThread()
+        public ISystem<int> MonoThreadEntitySetSystem { get; }
+
+        public ISystem<int> MultiThreadEntitySetSystem { get; }
+
+        public DefaultEcsContext(int entityCount, int entityPadding)
         {
-            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
-            return EntityCount;
-        }
+            Runner = new DefaultParallelRunner(Environment.ProcessorCount);
+            MonoThreadEntitySetSystem = new EntitySetSystem(World);
+            MultiThreadEntitySetSystem = new EntitySetSystem(World, Runner);
 
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int DefaultEcsMultiThread()
-        {
-            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
-            return EntityCount;
-        }
-        private sealed partial class DefaultEcsContext : DefaultEcsBaseContext
-        {
-
-            public DefaultParallelRunner Runner { get; }
-
-            public ISystem<int> MonoThreadEntitySetSystem { get; }
-
-            public ISystem<int> MultiThreadEntitySetSystem { get; }
-
-            public DefaultEcsContext(int entityCount, int entityPadding)
+            for (int i = 0; i < entityCount; ++i)
             {
-                Runner = new DefaultParallelRunner(Environment.ProcessorCount);
-                MonoThreadEntitySetSystem = new EntitySetSystem(World);
-                MultiThreadEntitySetSystem = new EntitySetSystem(World, Runner);
-
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
+                    Entity padding = World.CreateEntity();
+                    switch (j % 2)
                     {
-                        Entity padding = World.CreateEntity();
-                        switch (j % 2)
-                        {
-                            case 0:
-                                padding.Set<Component1>();
-                                break;
+                        case 0:
+                            padding.Set<Component1>();
+                            break;
 
-                            case 1:
-                                padding.Set<Component2>();
-                                break;
-                        }
+                        case 1:
+                            padding.Set<Component2>();
+                            break;
+                        default:
+                            break;
                     }
-
-                    Entity entity = World.CreateEntity();
-                    entity.Set<Component1>();
-                    entity.Set(new Component2 { Value = 1 });
                 }
-            }
 
-            public override void Dispose()
-            {
-                base.Dispose();
+                Entity entity = World.CreateEntity();
+                entity.Set<Component1>();
+                entity.Set(new Component2 { Value = 1 });
+            }
+        }
 
-                Runner.Dispose();
-            }
-            private sealed partial class EntitySetSystem : AEntitySetSystem<int>
-            {
-                [Update]
-                private static void Update(ref Component1 c1, in Component2 c2) => c1.Value += c2.Value;
-            }
+        public override void Dispose()
+        {
+            base.Dispose();
+
+            Runner.Dispose();
+        }
+        private sealed partial class EntitySetSystem : AEntitySetSystem<int>
+        {
+            [Update]
+            private static void Update(ref Component1 c1, in Component2 c2) => c1.Value += c2.Value;
         }
     }
 }

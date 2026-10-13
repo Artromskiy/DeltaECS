@@ -1,26 +1,23 @@
 using BenchmarkDotNet.Attributes;
 
-using DefaultEcs;
-
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
 
-namespace Ecs.CSharp.Benchmark
-{
-    public partial class CreateEntityWithOneComponent
-    {
-        [Context]
-        private readonly TinyEcsBaseContext _tinyEcs;
+namespace Ecs.CSharp.Benchmark;
 
-        [BenchmarkCategory(Categories.TinyEcs)]
-        [Benchmark]
-        public int TinyEcs()
+public partial class CreateEntityWithOneComponent
+{
+    [Context]
+    private readonly TinyEcsBaseContext _tinyEcs;
+
+    [BenchmarkCategory(Categories.TinyEcs)]
+    [Benchmark]
+    public int TinyEcs()
+    {
+        for (int i = 0; i < EntityCount; ++i)
         {
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                _tinyEcs.World.Entity().Set(new Component1());
-            }
-            return EntityCount;
+            _ = _tinyEcs.World.Entity().Set(new Component1());
         }
+        return EntityCount;
     }
 }

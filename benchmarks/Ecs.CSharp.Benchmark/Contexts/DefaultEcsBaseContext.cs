@@ -2,32 +2,31 @@ using System;
 
 using DefaultEcs;
 
-namespace Ecs.CSharp.Benchmark.Contexts
+namespace Ecs.CSharp.Benchmark.Contexts;
+
+internal class DefaultEcsBaseContext : IDisposable
 {
-    internal class DefaultEcsBaseContext : IDisposable
+
+    public World World { get; }
+
+    public DefaultEcsBaseContext()
     {
+        World = new World();
+    }
 
-        public World World { get; }
+    public virtual void Dispose() => World.Dispose();
+    internal struct Component1
+    {
+        public int Value;
+    }
 
-        public DefaultEcsBaseContext()
-        {
-            World = new World();
-        }
+    internal struct Component2
+    {
+        public int Value;
+    }
 
-        public virtual void Dispose() => World.Dispose();
-        public struct Component1
-        {
-            public int Value;
-        }
-
-        public struct Component2
-        {
-            public int Value;
-        }
-
-        public struct Component3
-        {
-            public int Value;
-        }
+    internal struct Component3
+    {
+        public int Value;
     }
 }

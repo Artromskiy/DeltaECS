@@ -73,7 +73,7 @@ internal sealed class GenericSingleItemApiTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_008));
         using var world = new World(layouts);
         Entity generic = world.Create<Position>();
-        Entity nonGeneric = world.Create(stackalloc[] { positionId });
+        Entity nonGeneric = world.Create([positionId]);
         Entity[] typedBatch = new Entity[2];
         world.Create(positionId, typedBatch.Length, typedBatch);
 
@@ -88,11 +88,11 @@ internal sealed class GenericSingleItemApiTests
 
         var value = new Velocity { X = 3, Y = 4 };
         Assert.That(world.Add<Velocity>(generic, in value), Is.True);
-        Assert.That(world.Add(nonGeneric, stackalloc[] { velocityId }), Is.True);
+        Assert.That(world.Add(nonGeneric, [velocityId]), Is.True);
         Assert.That(world.Has<Velocity>(generic), Is.True);
         Assert.That(world.Has(nonGeneric, velocityId), Is.True);
         Assert.That(world.Remove<Velocity>(generic), Is.True);
-        Assert.That(world.Remove(nonGeneric, stackalloc[] { velocityId }), Is.True);
+        Assert.That(world.Remove(nonGeneric, [velocityId]), Is.True);
         Assert.That(world.Has<Velocity>(generic), Is.False);
         Assert.That(world.Has(nonGeneric, velocityId), Is.False);
     }
@@ -104,12 +104,12 @@ internal sealed class GenericSingleItemApiTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_071));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_072));
         using var world = new World(layouts);
-        Entity entity = world.Create(new[] { positionId });
+        Entity entity = world.Create([positionId]);
 
-        Assert.That(world.Add(entity, new[] { velocityId }), Is.True);
-        Assert.That(world.Add(entity, new[] { velocityId }), Is.False);
-        Assert.That(world.Remove(entity, new[] { velocityId }), Is.True);
-        Assert.That(world.Remove(entity, new[] { velocityId }), Is.False);
+        Assert.That(world.Add(entity, [velocityId]), Is.True);
+        Assert.That(world.Add(entity, [velocityId]), Is.False);
+        Assert.That(world.Remove(entity, [velocityId]), Is.True);
+        Assert.That(world.Remove(entity, [velocityId]), Is.False);
     }
 
     [Test]
@@ -286,7 +286,7 @@ internal sealed class GenericSingleItemApiTests
         ComponentId staminaId = layouts.Register<float>(new SchemaId(60_028));
         using var world = new World(layouts);
         Entity[] entities = new Entity[4];
-        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        world.Create([positionId], entities.Length, entities);
         Entity stale = entities[1];
         Assert.That(world.Destroy(stale), Is.True);
 
@@ -345,7 +345,7 @@ internal sealed class GenericSingleItemApiTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_030));
         using var world = new World(layouts);
         Entity[] entities = new Entity[2];
-        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        world.Create([positionId], entities.Length, entities);
         var initialPosition = new Position { X = 7, Y = 9 };
         world.GetRef<Position>(entities[0]) = initialPosition;
 
@@ -370,9 +370,9 @@ internal sealed class GenericSingleItemApiTests
         using var world = new World(layouts);
 
         Entity[] created = new Entity[5];
-        world.Create(new[] { positionId, velocityId }, created.Length, created);
+        world.Create([positionId, velocityId], created.Length, created);
         var destination = new Entity[3];
-        int written = world.Create(stackalloc[] { positionId }, 3, destination);
+        int written = world.Create([positionId], 3, destination);
         var typedDestination = new Entity[2];
         int typedWritten = world.Create(positionId, 2, typedDestination);
 
@@ -387,8 +387,8 @@ internal sealed class GenericSingleItemApiTests
             Assert.That(typedDestination, Has.All.Matches<Entity>(entity => world.IsAlive(entity)));
         });
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => world.Create(stackalloc[] { positionId }, -1));
-        Assert.Throws<ArgumentException>(() => world.Create(stackalloc[] { positionId }, 2, new Entity[1]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => world.Create([positionId], -1));
+        Assert.Throws<ArgumentException>(() => world.Create([positionId], 2, new Entity[1]));
     }
 
     [Test]
@@ -399,7 +399,7 @@ internal sealed class GenericSingleItemApiTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_042));
         using var world = new World(layouts);
         Entity[] entities = new Entity[4];
-        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        world.Create([positionId], entities.Length, entities);
         Entity stale = entities[1];
         Assert.That(world.Destroy(stale), Is.True);
 
@@ -423,7 +423,7 @@ internal sealed class GenericSingleItemApiTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_051));
         using var world = new World(layouts);
         Entity[] entities = new Entity[2];
-        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        world.Create([positionId], entities.Length, entities);
         var velocity = new Velocity { X = 1, Y = 2 };
 
         Assert.Multiple(() =>

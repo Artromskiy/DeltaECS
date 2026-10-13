@@ -63,6 +63,5 @@ public class GeneratedGenericBindingsGeneratorTests
                 typeof(Delta.ECS.Generators.Consumer.GeneratedApiGrammarProof).Assembly.Location,
                 StringComparison.Ordinal))
             .Append(typeof(World).Assembly.Location).Distinct()
-            .Select(static path => MetadataReference.CreateFromFile(path))
-            .ToArray();
+            .Select(static path => MetadataReference.CreateFromFile(path)).ToArray();
 }

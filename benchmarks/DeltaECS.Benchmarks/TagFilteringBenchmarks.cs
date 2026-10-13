@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.Benchmarks;
 
 [MemoryDiagnoser]
@@ -38,8 +36,8 @@ public class TagFilteringBenchmarks
 
         var tagEntities = new Entity[Amount];
         var componentEntities = new Entity[Amount];
-        _tagWorld.Create(new[] { tagValueId }, tagEntities);
-        _componentWorld.Create(new[] { componentValueId, componentMarkerId }, componentEntities);
+        _tagWorld.Create([tagValueId], tagEntities);
+        _componentWorld.Create([componentValueId, componentMarkerId], componentEntities);
 
         _expectedChecksum = (long)Amount * (Amount + 1) / 2;
         for (int index = 0; index < Amount; index++)
@@ -131,6 +129,7 @@ public class TagFilteringBenchmarks
 
         return checksum;
     }
+
 }
 
 internal struct TagFilteringValueComponent

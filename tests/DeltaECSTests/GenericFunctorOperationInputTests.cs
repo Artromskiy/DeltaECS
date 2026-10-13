@@ -19,8 +19,8 @@ public sealed class GenericFunctorOperationInputTests
             1,
             static _ => ProbeFunctor.Instance);
 
-        Span<Entity> entities = stackalloc Entity[] { first, second };
-        Span<ComponentId> arguments = stackalloc ComponentId[] { componentId };
+        Span<Entity> entities = [first, second];
+        Span<ComponentId> arguments = [componentId];
         var operation = world.CreateGenericFunctorOperation(
             default,
             entities,

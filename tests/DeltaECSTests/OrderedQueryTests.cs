@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -27,7 +22,7 @@ internal sealed class OrderedQueryTests
         ComponentId tagId = layouts.Register<OrderTag>(new SchemaId(71_003));
         using var world = new World(layouts);
         var entities = new Entity[5];
-        world.Create(stackalloc ComponentId[] { keyId, tieId, tagId }, entities.Length, entities);
+        world.Create([keyId, tieId, tagId], entities.Length, entities);
 
         Set(0, 2, 1);
         Set(1, 1, 2);
@@ -35,7 +30,7 @@ internal sealed class OrderedQueryTests
         Set(3, 2, 0);
         Set(4, 1, 1);
 
-        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { keyId, tieId, tagId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll([keyId, tieId, tagId]));
         var keyAndTieComparer = default(OrderTieComparer);
         var tagComparer = default(OrderTagComparer);
         OrderedQuery ordered = query
@@ -75,19 +70,19 @@ internal sealed class OrderedQueryTests
         ComponentId tagId = layouts.Register<OrderTag>(new SchemaId(71_013));
         using var world = new World(layouts);
         var entities = new Entity[3];
-        world.Create(stackalloc ComponentId[] { primaryId, secondaryId, tagId }, entities.Length, entities);
+        world.Create([primaryId, secondaryId, tagId], entities.Length, entities);
         for (int index = 0; index < entities.Length; index++)
         {
             world.GetRef<OrderKey>(entities[index], primaryId).Value = entities.Length - index;
             world.GetRef<OrderKey>(entities[index], secondaryId).Value = index;
         }
 
-        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { primaryId, secondaryId, tagId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll([primaryId, secondaryId, tagId]));
         var orderKeyComparer = default(OrderKeyComparer);
         var tagComparer = default(OrderTagComparer);
         Assert.That(Collect(query.OrderBy(ref orderKeyComparer)), Is.EqualTo(DescendingEntityOrder));
         Assert.That(Collect(query.OrderBy(secondaryId, ref orderKeyComparer)), Is.EqualTo(AscendingEntityOrder));
-        Assert.That(Collect(query.OrderBy(stackalloc ComponentId[] { secondaryId }, ref orderKeyComparer)), Is.EqualTo(AscendingEntityOrder));
+        Assert.That(Collect(query.OrderBy([secondaryId], ref orderKeyComparer)), Is.EqualTo(AscendingEntityOrder));
         Assert.That(Collect(query.OrderBy(tagId, ref tagComparer)), Is.EqualTo(AscendingEntityOrder));
         Assert.That(Collect(query.OrderBy(ref tagComparer).ThenBy(ref orderKeyComparer)), Is.EqualTo(DescendingEntityOrder));
     }
@@ -99,7 +94,7 @@ internal sealed class OrderedQueryTests
         ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_015));
         using var world = new World(layouts);
         var entities = new Entity[4];
-        world.Create(stackalloc ComponentId[] { keyId }, entities.Length, entities);
+        world.Create([keyId], entities.Length, entities);
         world.GetRef<OrderKey>(entities[0], keyId).Value = 2;
         world.GetRef<OrderKey>(entities[1], keyId).Value = 1;
         world.GetRef<OrderKey>(entities[2], keyId).Value = 1;
@@ -150,10 +145,10 @@ internal sealed class OrderedQueryTests
         ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_021));
         ComponentId tagId = layouts.Register<OrderTag>(new SchemaId(71_022));
         using var world = new World(layouts);
-        Entity entity = world.Create(stackalloc ComponentId[] { keyId });
+        Entity entity = world.Create([keyId]);
         world.GetRef<OrderKey>(entity, keyId).Value = 3;
 
-        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { keyId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll([keyId]));
         var keyComparer = default(OrderKeyComparer);
         OrderedQuery ordered = query
             .WhereAll(tagId)
@@ -225,22 +220,22 @@ internal sealed class OrderedQueryTests
 
     internal struct OrderKeyComparer : IComponentComparer
     {
-        public int Invoke(in OrderKey left, in OrderKey right) => left.Value.CompareTo(right.Value);
+        public readonly int Invoke(in OrderKey left, in OrderKey right) => left.Value.CompareTo(right.Value);
     }
 
     internal struct TieKeyComparer : IComponentComparer
     {
-        public int Invoke(in TieKey left, in TieKey right) => left.Value.CompareTo(right.Value);
+        public readonly int Invoke(in TieKey left, in TieKey right) => left.Value.CompareTo(right.Value);
     }
 
     internal struct OrderTagComparer : IComponentComparer
     {
-        public int Invoke(in OrderTag left, in OrderTag right) => 0;
+        public readonly int Invoke(in OrderTag left, in OrderTag right) => 0;
     }
 
     internal struct OrderTieComparer : IComponentComparer
     {
-        public int Invoke(in OrderKey leftKey, in TieKey leftTie, in OrderKey rightKey, in TieKey rightTie)
+        public readonly int Invoke(in OrderKey leftKey, in TieKey leftTie, in OrderKey rightKey, in TieKey rightTie)
         {
             int keyComparison = leftKey.Value.CompareTo(rightKey.Value);
             return keyComparison != 0 ? keyComparison : leftTie.Value.CompareTo(rightTie.Value);

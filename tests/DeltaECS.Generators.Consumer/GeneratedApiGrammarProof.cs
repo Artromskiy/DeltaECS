@@ -24,15 +24,15 @@ public static class GeneratedApiGrammarProof
         ComponentId aliveId = layouts.GetPrimary<Alive>();
         GeneratedComponentCatalogGrammarProof.Run();
         GeneratedComponentVisitorGrammarProof.Run(layouts);
-        ReadOnlySpan<ComponentId> allComponentIds = stackalloc ComponentId[]
-        {
+        ReadOnlySpan<ComponentId> allComponentIds =
+        [
             cmp1Id,
             cmp2Id,
             cmp3Id,
             cmp4Id
-        };
-        ReadOnlySpan<ComponentId> componentIds = stackalloc ComponentId[] { cmp1Id, cmp2Id };
-        ReadOnlySpan<ComponentId> singleComponentId = stackalloc ComponentId[] { cmp1Id };
+        ];
+        ReadOnlySpan<ComponentId> componentIds = [cmp1Id, cmp2Id];
+        ReadOnlySpan<ComponentId> singleComponentId = [cmp1Id];
 
         using var world = new World(layouts);
         var entityArray = new Entity[2];

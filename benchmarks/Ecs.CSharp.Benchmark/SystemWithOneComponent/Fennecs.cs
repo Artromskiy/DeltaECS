@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 
 using BenchmarkDotNet.Attributes;
 
@@ -8,58 +7,57 @@ using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
 
 using fennecs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithOneComponent
 {
-    public partial class SystemWithOneComponent
+    [Context] private readonly FennecsContext _fennecs;
+
+    [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
+    [Benchmark]
+    public int FennecsForEach()
     {
-        [Context] private readonly FennecsContext _fennecs;
+        _fennecs.query.For((ref comp0) => comp0.Value++);
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
-        [Benchmark]
-        public int FennecsForEach()
-        {
-            _fennecs.query.For((ref Component1 comp0) => comp0.Value++);
-            return EntityCount;
-        }
+    [BenchmarkCategory(Categories.Fennecs, Categories.MultiThread)]
+    [Benchmark]
+    public int FennecsJob()
+    {
+        _fennecs.query.Job(delegate (ref Component1 v) { v.Value++; });
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.Fennecs, Categories.MultiThread)]
-        [Benchmark]
-        public int FennecsJob()
+    [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
+    [Benchmark]
+    public int FennecsRaw()
+    {
+        _fennecs.query.Raw(delegate (Memory<Component1> vectors)
         {
-            _fennecs.query.Job(delegate (ref Component1 v) { v.Value++; });
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
-        [Benchmark]
-        public int FennecsRaw()
-        {
-            _fennecs.query.Raw(delegate (Memory<Component1> vectors)
+            foreach (ref var v in vectors.Span)
             {
-                foreach (ref var v in vectors.Span)
-                {
-                    v.Value++;
-                }
-            });
-            return EntityCount;
-        }
+                v.Value++;
+            }
+        });
+        return EntityCount;
+    }
 
-        private sealed class FennecsContext : FennecsBaseContext
+    private sealed class FennecsContext : FennecsBaseContext
+    {
+        public Stream<Component1> query;
+
+        public FennecsContext(int entityCount, int entityPadding)
         {
-            public Stream<Component1> query;
-
-            public FennecsContext(int entityCount, int entityPadding)
+            query = World.Query<Component1>().Stream();
+            for (int i = 0; i < entityCount; ++i)
             {
-                query = World.Query<Component1>().Stream();
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.Spawn();
-                    }
-
-                    World.Spawn().Add<Component1>();
+                    _ = World.Spawn();
                 }
+
+                _ = World.Spawn().Add<Component1>();
             }
         }
     }

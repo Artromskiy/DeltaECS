@@ -5,72 +5,73 @@ using Ecs.CSharp.Benchmark.Contexts.TinyEcsComponents;
 
 using TinyEcs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithThreeComponents
 {
-    public partial class SystemWithThreeComponents
+    [Context] private readonly TinyEcsContext _tinyEcs;
+
+    [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int TinyEcsEach()
     {
-        [Context] private readonly TinyEcsContext _tinyEcs;
-
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEach()
+        var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
+        while (data.MoveNext())
         {
-            var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
-                c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
-            }
-            return EntityCount;
+            data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
+            c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
         }
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int TinyEcsEachJob()
+    [BenchmarkCategory(Categories.TinyEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int TinyEcsEachJob()
+    {
+        var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
+        while (data.MoveNext())
         {
-            var data = Data<Component1, Component2, Component3>.CreateIterator(_tinyEcs.Query.Iter());
-            while (data.MoveNext())
-            {
-                data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
-                c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
-            }
-            return EntityCount;
+            data.Deconstruct(out Ptr<Component1> c1, out Ptr<Component2> c2, out Ptr<Component3> c3);
+            c1.Ref.Value += c2.Ref.Value + c3.Ref.Value;
         }
+        return EntityCount;
+    }
 
-        private sealed class TinyEcsContext : TinyEcsBaseContext
+    private sealed class TinyEcsContext : TinyEcsBaseContext
+    {
+        public Query Query { get; }
+
+        public TinyEcsContext(int entityCount, int entityPadding) : base()
         {
-            public Query Query { get; }
-
-            public TinyEcsContext(int entityCount, int entityPadding) : base()
+            for (int i = 0; i < entityCount; ++i)
             {
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
+                    var padding = World.Entity();
+                    switch (j % 3)
                     {
-                        var padding = World.Entity();
-                        switch (j % 3)
-                        {
-                            case 0:
-                                padding.Set(new Component1());
-                                break;
+                        case 0:
+                            _ = padding.Set(new Component1());
+                            break;
 
-                            case 1:
-                                padding.Set(new Component2());
-                                break;
+                        case 1:
+                            _ = padding.Set(new Component2());
+                            break;
 
-                            case 2:
-                                padding.Set(new Component3());
-                                break;
-                        }
+                        case 2:
+                            _ = padding.Set(new Component3());
+                            break;
+                        default:
+                            break;
                     }
-
-                    World.Entity()
-                        .Set(new Component1())
-                        .Set(new Component2 { Value = 1 })
-                        .Set(new Component3 { Value = 1 });
-
-                    Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Data<Component3>().Build();
                 }
+
+                _ = World.Entity()
+                    .Set(new Component1())
+                    .Set(new Component2 { Value = 1 })
+                    .Set(new Component3 { Value = 1 });
+
+                Query = World.QueryBuilder().Data<Component1>().Data<Component2>().Data<Component3>().Build();
             }
         }
     }

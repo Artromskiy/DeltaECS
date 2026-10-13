@@ -311,6 +311,10 @@ public static partial class RuntimeApiGrammarProof
         public string? Name { get; set; }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1812:Avoid uninstantiated internal classes",
+        Justification = "The route tests the closed type without constructing it.")]
     private sealed class ClassComponent : IMovable
     {
         private ClassComponent() { }

@@ -97,14 +97,14 @@ internal static class GeneratedOrderedIterationGrammarProof
         _ = ordered.FirstEntity(static entity => entity.IsValid).Invoke();
 
         ordered.ForEach(static (ref Cmp1 cmp1) => cmp1.Value++).Invoke();
-        ordered.ForEach<Cmp1>(cmp1Id, static (ref Cmp1 cmp1) => cmp1.Value++).Invoke();
+        ordered.ForEach<Cmp1>(cmp1Id, static (ref cmp1) => cmp1.Value++).Invoke();
         ordered.ForEach<Cmp1, Cmp2>(componentIds,
-            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value).Invoke();
+            static (ref cmp1, in cmp2) => cmp1.Value += cmp2.Value).Invoke();
         ordered.ForEach<Cmp1, Cmp2>(cmp1Id, cmp2Id,
-            static (ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += cmp2.Value).Invoke();
+            static (ref cmp1, in cmp2) => cmp1.Value += cmp2.Value).Invoke();
         ordered.ForEachEntity(static (EntityRef entity) => _ = entity.Index).Invoke();
         ordered.ForEachEntity<Cmp1, Cmp2>(cmp1Id, cmp2Id,
-            static (EntityRef entity, ref Cmp1 cmp1, in Cmp2 cmp2) => cmp1.Value += entity.Index + cmp2.Value).Invoke();
+            static (entity, ref cmp1, in cmp2) => cmp1.Value += entity.Index + cmp2.Value).Invoke();
         ordered.ForEach(ref context,
             static (ref Context state, ref Cmp1 cmp1) => cmp1.Value += state.Value++).Invoke(ref context);
         ordered.ForEachEntity(ref context,

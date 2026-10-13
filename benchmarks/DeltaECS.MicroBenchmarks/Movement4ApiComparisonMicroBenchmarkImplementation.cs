@@ -2,8 +2,6 @@ using System.Runtime.CompilerServices;
 
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.MicroBenchmarks;
 
 public class Movement4ApiComparisonMicroBenchmarkImplementation
@@ -129,7 +127,7 @@ internal struct Movement4NoContextFunctor : IForEach
 internal struct Movement4ContextFunctor : IForEachContext<Movement4ApiContext>
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Invoke(
+    public readonly void Invoke(
         ref Movement4ApiContext context,
         ref Movement4A a,
         ref Movement4B b,

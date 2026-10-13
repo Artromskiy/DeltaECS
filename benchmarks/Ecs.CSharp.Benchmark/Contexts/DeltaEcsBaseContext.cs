@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 
 using Delta.ECS;
 
+using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
+
 using DeltaComponentId = Delta.ECS.ComponentId;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaLayoutRegistry = Delta.ECS.ComponentRegistry;
@@ -10,8 +12,6 @@ using DeltaQuery = Delta.ECS.Query;
 using DeltaQuerySpec = Delta.ECS.QuerySpec;
 using DeltaSchemaId = Delta.ECS.SchemaId;
 using DeltaWorld = Delta.ECS.World;
-
-using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
@@ -53,7 +53,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
         }
     }
 
-    public static class ParallelContext
+    internal static class ParallelContext
     {
         public static int ParallelWorkerCount = Environment.ProcessorCount;
     }
@@ -61,20 +61,20 @@ namespace Ecs.CSharp.Benchmark.Contexts
     internal struct DeltaComponent1Functor : IForEach
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Invoke(ref DeltaComponent1 component) => ++component.Value;
+        public readonly void Invoke(ref DeltaComponent1 component) => ++component.Value;
     }
 
     internal struct DeltaComponent2Functor : IForEach
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Invoke(ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
+        public readonly void Invoke(ref DeltaComponent1 first, ref readonly DeltaComponent2 second) =>
             first.Value += second.Value;
     }
 
     internal struct DeltaComponent3Functor : IForEach
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Invoke(
+        public readonly void Invoke(
             ref DeltaComponent1 first,
             ref readonly DeltaComponent2 second,
             ref readonly DeltaComponent3 third) =>
@@ -216,11 +216,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
             if (entityPadding != 0)
             {
                 DeltaEntity[] paddingEntities = new DeltaEntity[entityCount * entityPadding];
-                World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
+                _ = World.Create([padding], paddingEntities.Length, paddingEntities);
             }
 
             DeltaEntity[] entities = new DeltaEntity[entityCount];
-            World.Create(stackalloc[] { Component }, entityCount, entities);
+            _ = World.Create([Component], entityCount, entities);
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
@@ -254,11 +254,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
             if (entityPadding != 0)
             {
                 DeltaEntity[] paddingEntities = new DeltaEntity[entityCount * entityPadding];
-                World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
+                _ = World.Create([padding], paddingEntities.Length, paddingEntities);
             }
 
             DeltaEntity[] entities = new DeltaEntity[entityCount];
-            World.Create(stackalloc[] { First, Second }, entityCount, entities);
+            _ = World.Create([First, Second], entityCount, entities);
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
@@ -266,7 +266,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.GetRef<DeltaComponent2>(entity, Second) = new DeltaComponent2 { Value = 2 };
             }
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second }));
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll([First, Second]));
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -296,11 +296,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
             if (entityPadding != 0)
             {
                 DeltaEntity[] paddingEntities = new DeltaEntity[entityCount * entityPadding];
-                World.Create(stackalloc[] { padding }, paddingEntities.Length, paddingEntities);
+                _ = World.Create([padding], paddingEntities.Length, paddingEntities);
             }
 
             DeltaEntity[] entities = new DeltaEntity[entityCount];
-            World.Create(stackalloc[] { First, Second, Third }, entityCount, entities);
+            _ = World.Create([First, Second, Third], entityCount, entities);
             for (int i = 0; i < entities.Length; i++)
             {
                 DeltaEntity entity = entities[i];
@@ -309,7 +309,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
                 World.GetRef<DeltaComponent3>(entity, Third) = new DeltaComponent3 { Value = 3 };
             }
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second, Third }));
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll([First, Second, Third]));
         }
 
         void IDisposable.Dispose() => World.Dispose();
@@ -346,13 +346,13 @@ namespace Ecs.CSharp.Benchmark.Contexts
             CreateComposition(composition2, (entityCount + 1) / 4);
             CreateComposition(composition3, entityCount / 4);
 
-            Query = World.CreateQuery(DeltaQuerySpec.WhereAll(stackalloc ComponentId[] { First, Second }));
+            Query = World.CreateQuery(DeltaQuerySpec.WhereAll([First, Second]));
         }
 
         private void CreateComposition(DeltaComponentId[] composition, int count)
         {
             DeltaEntity[] entities = new DeltaEntity[count];
-            World.Create(composition, count, entities);
+            _ = World.Create(composition, count, entities);
             for (int index = 0; index < entities.Length; index++)
             {
                 DeltaEntity entity = entities[index];

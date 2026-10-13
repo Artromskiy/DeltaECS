@@ -94,6 +94,7 @@ public class ParallelMovement4IterationBenchmarks
         b.Value = updatedB;
         c.Value = (updatedA + updatedB) / 2;
     }
+
 }
 
 internal static class ParallelBenchmarkConfiguration

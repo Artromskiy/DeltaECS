@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.MicroBenchmarks;
 
 /// <summary>Compares caller-owned batch structural operations with one-entity calls.</summary>

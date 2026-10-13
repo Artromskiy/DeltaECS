@@ -37,7 +37,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
         protected StaticEcsBaseContext(int capacity, uint threadCount)
         {
             StaticEcsWorld.Create(new WorldConfig { ThreadCount = threadCount });
-            StaticEcsWorld.Types()
+            _ = StaticEcsWorld.Types()
                 .EntityType<Default>()
                 .Component<StaticEcsComponents.Component1>()
                 .Component<StaticEcsComponents.Component2>()
@@ -71,10 +71,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
             {
                 for (int pad = 0; pad < padding; pad++)
                 {
-                    StaticEcsWorld.NewEntity<Default>();
+                    _ = StaticEcsWorld.NewEntity<Default>();
                 }
 
-                StaticEcsWorld.NewEntity<Default>().Set(new StaticEcsComponents.Component1());
+                _ = StaticEcsWorld.NewEntity<Default>().Set(new StaticEcsComponents.Component1());
             }
         }
     }
@@ -88,10 +88,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
             {
                 for (int pad = 0; pad < padding; pad++)
                 {
-                    StaticEcsWorld.NewEntity<Default>();
+                    _ = StaticEcsWorld.NewEntity<Default>();
                 }
 
-                StaticEcsWorld.NewEntity<Default>().Set(
+                _ = StaticEcsWorld.NewEntity<Default>().Set(
                     new StaticEcsComponents.Component1(),
                     new StaticEcsComponents.Component2 { Value = 1 });
             }
@@ -107,10 +107,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
             {
                 for (int pad = 0; pad < padding; pad++)
                 {
-                    StaticEcsWorld.NewEntity<Default>();
+                    _ = StaticEcsWorld.NewEntity<Default>();
                 }
 
-                StaticEcsWorld.NewEntity<Default>().Set(
+                _ = StaticEcsWorld.NewEntity<Default>().Set(
                     new StaticEcsComponents.Component1(),
                     new StaticEcsComponents.Component2 { Value = 1 },
                     new StaticEcsComponents.Component3 { Value = 1 });
@@ -125,36 +125,25 @@ namespace Ecs.CSharp.Benchmark.Contexts
         {
             for (int index = 0; index < entityCount; index++)
             {
-                switch (index % 4)
+                _ = (index % 4) switch
                 {
-                    case 0:
-                        StaticEcsWorld.NewEntity<Default>().Set(
-                            new StaticEcsComponents.Component1(),
-                            new StaticEcsComponents.Component2 { Value = 1 },
-                            new StaticEcsComponents.Composition1());
-                        break;
-
-                    case 1:
-                        StaticEcsWorld.NewEntity<Default>().Set(
-                            new StaticEcsComponents.Component1(),
-                            new StaticEcsComponents.Component2 { Value = 1 },
-                            new StaticEcsComponents.Composition2());
-                        break;
-
-                    case 2:
-                        StaticEcsWorld.NewEntity<Default>().Set(
-                            new StaticEcsComponents.Component1(),
-                            new StaticEcsComponents.Component2 { Value = 1 },
-                            new StaticEcsComponents.Composition3());
-                        break;
-
-                    default:
-                        StaticEcsWorld.NewEntity<Default>().Set(
-                            new StaticEcsComponents.Component1(),
-                            new StaticEcsComponents.Component2 { Value = 1 },
-                            new StaticEcsComponents.Composition4());
-                        break;
-                }
+                    0 => StaticEcsWorld.NewEntity<Default>().Set(
+                                                new StaticEcsComponents.Component1(),
+                                                new StaticEcsComponents.Component2 { Value = 1 },
+                                                new StaticEcsComponents.Composition1()),
+                    1 => StaticEcsWorld.NewEntity<Default>().Set(
+                                                new StaticEcsComponents.Component1(),
+                                                new StaticEcsComponents.Component2 { Value = 1 },
+                                                new StaticEcsComponents.Composition2()),
+                    2 => StaticEcsWorld.NewEntity<Default>().Set(
+                                                new StaticEcsComponents.Component1(),
+                                                new StaticEcsComponents.Component2 { Value = 1 },
+                                                new StaticEcsComponents.Composition3()),
+                    _ => StaticEcsWorld.NewEntity<Default>().Set(
+                                                new StaticEcsComponents.Component1(),
+                                                new StaticEcsComponents.Component2 { Value = 1 },
+                                                new StaticEcsComponents.Composition4()),
+                };
             }
         }
     }

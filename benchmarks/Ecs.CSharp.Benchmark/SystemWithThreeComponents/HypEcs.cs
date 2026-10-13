@@ -4,93 +4,94 @@ using Ecs.CSharp.Benchmark.Contexts;
 
 using HypEcs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithThreeComponents
 {
-    public partial class SystemWithThreeComponents
+
+    [Context] private readonly HypEcsContext _hypEcs;
+
+    [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int HypEcsMonoThread()
+    {
+        _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
+        return EntityCount;
+    }
+
+    [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
+    [Benchmark]
+    public int HypEcsMultiThread()
+    {
+        _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
+        return EntityCount;
+    }
+    private sealed class HypEcsContext : HypEcsBaseContext
     {
 
-        [Context] private readonly HypEcsContext _hypEcs;
+        public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
+        public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
 
-        [BenchmarkCategory(Categories.HypEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int HypEcsMonoThread()
+        public HypEcsContext(int entityCount, int entityPadding)
         {
-            _hypEcs.MonoThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.HypEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int HypEcsMultiThread()
-        {
-            _hypEcs.MultiThreadSystem.Run(_hypEcs.World);
-            return EntityCount;
-        }
-        private sealed class HypEcsContext : HypEcsBaseContext
-        {
-
-            public ISystem MonoThreadSystem { get; } = new MonoThreadRunSystem();
-            public ISystem MultiThreadSystem { get; } = new MultiThreadRunSystem();
-
-            public HypEcsContext(int entityCount, int entityPadding)
+            for (int i = 0; i < entityCount; ++i)
             {
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
+                    EntityBuilder padding = World.Spawn();
+                    switch (j % 3)
                     {
-                        EntityBuilder padding = World.Spawn();
-                        switch (j % 3)
-                        {
-                            case 0:
-                                padding.Add(new Component1());
-                                break;
+                        case 0:
+                            _ = padding.Add(new Component1());
+                            break;
 
-                            case 1:
-                                padding.Add(new Component2());
-                                break;
+                        case 1:
+                            _ = padding.Add(new Component2());
+                            break;
 
-                            case 2:
-                                padding.Add(new Component3());
-                                break;
-                        }
+                        case 2:
+                            _ = padding.Add(new Component3());
+                            break;
+                        default:
+                            break;
                     }
+                }
 
-                    World.Spawn()
-                        .Add(new Component1())
-                        .Add(new Component2 { Value = 1 })
-                        .Add(new Component3 { Value = 1 });
-                }
+                _ = World.Spawn()
+                    .Add(new Component1())
+                    .Add(new Component2 { Value = 1 })
+                    .Add(new Component3 { Value = 1 });
             }
-            private sealed class MonoThreadRunSystem : ISystem
+        }
+        private sealed class MonoThreadRunSystem : ISystem
+        {
+            public void Run(World world)
             {
-                public void Run(World world)
+                Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
+                    .Build();
+                query.Run((count, s1, s2, s3) =>
                 {
-                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
-                        .Build();
-                    query.Run((count, s1, s2, s3) =>
+                    for (int i = 0; i < count; i++)
                     {
-                        for (int i = 0; i < count; i++)
-                        {
-                            s1[i].Value += s2[i].Value + s3[i].Value;
-                        }
-                    });
-                }
+                        s1[i].Value += s2[i].Value + s3[i].Value;
+                    }
+                });
             }
+        }
 
-            private sealed class MultiThreadRunSystem : ISystem
+        private sealed class MultiThreadRunSystem : ISystem
+        {
+            public void Run(World world)
             {
-                public void Run(World world)
+                Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
+                    .Build();
+                query.RunParallel((count, s1, s2, s3) =>
                 {
-                    Query<Component1, Component2, Component3> query = world.Query<Component1, Component2, Component3>()
-                        .Build();
-                    query.RunParallel((count, s1, s2, s3) =>
+                    for (int i = 0; i < count; i++)
                     {
-                        for (int i = 0; i < count; i++)
-                        {
-                            s1[i].Value += s2[i].Value + s3[i].Value;
-                        }
-                    });
-                }
+                        s1[i].Value += s2[i].Value + s3[i].Value;
+                    }
+                });
             }
         }
     }

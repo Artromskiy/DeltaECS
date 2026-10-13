@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.MicroBenchmarks;
 
 /// <summary>Compares direct iteration with always-true Where pipelines.</summary>
@@ -28,14 +26,14 @@ public class WhereIterationMicroBenchmarkImplementation
         _accumulatorId = layouts.Register<WhereIterationAccumulator>(new SchemaId(92_102));
         _world = new World(layouts, initialEntityCapacity: Amount);
         _entities = new Entity[Amount];
-        _world.Create(stackalloc[] { _valueId, _accumulatorId }, Amount, _entities);
+        _world.Create([_valueId, _accumulatorId], Amount, _entities);
 
         for (int index = 0; index < _entities.Length; index++)
         {
             _world.GetRef<WhereIterationValue>(_entities[index], _valueId) = new WhereIterationValue { Value = index };
         }
 
-        QuerySpec description = QuerySpec.WhereAll(stackalloc ComponentId[] { _valueId, _accumulatorId });
+        QuerySpec description = QuerySpec.WhereAll([_valueId, _accumulatorId]);
         _query = _world.CreateQuery(in description);
     }
 
@@ -85,6 +83,7 @@ public class WhereIterationMicroBenchmarkImplementation
 
         return sum;
     }
+
 }
 
 internal struct WhereIterationValue

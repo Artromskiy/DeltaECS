@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 
-using Delta.ECS;
 using Delta.ECS.Benchmarks;
 
 using NUnit.Framework;
@@ -36,7 +35,7 @@ internal sealed partial class ComparativeBenchmarkContractTests
     {
         string benchmarkRoot = FindBenchmarkRoot();
         Regex ordinalAccess = OrdinalAccess();
-        string[] benchmarkRoots = new[] { benchmarkRoot, Path.Combine(Path.GetDirectoryName(benchmarkRoot)!, "DeltaECS.VersionBenchmarks") };
+        string[] benchmarkRoots = [benchmarkRoot, Path.Combine(Path.GetDirectoryName(benchmarkRoot)!, "DeltaECS.VersionBenchmarks")];
         foreach (string source in benchmarkRoots.SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
                      .Where(path => !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
                                  && !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)))

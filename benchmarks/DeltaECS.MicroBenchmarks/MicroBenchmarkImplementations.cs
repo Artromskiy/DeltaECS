@@ -2,8 +2,6 @@ using System.Runtime.CompilerServices;
 
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.MicroBenchmarks;
 
 public struct Position { public int X; public int Y; }
@@ -34,7 +32,7 @@ public class DenseIterationMicroBenchmarkImplementation
         _movement2Entities = _fixture.CreateMoving(Amount);
         _movement4Entities = _fixture.CreateMovement4(Amount);
 
-        var movement2 = QuerySpec.WhereAll(stackalloc ComponentId[] { _fixture.Position, _fixture.Velocity });
+        var movement2 = QuerySpec.WhereAll([_fixture.Position, _fixture.Velocity]);
         _movement2Query = _fixture.World.CreateQuery(in movement2);
 
         var movement4 = QuerySpec.Empty.WhereAll(
@@ -238,11 +236,15 @@ internal record struct GeneratedMovement4Functor : IForEach
 
 internal static class MicroContractSmoke
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Globalization",
+        "CA1303:Do not pass literals as localized parameters",
+        Justification = "Fixed English smoke-test output is intentionally not localized.")]
     public static void Run()
     {
         var fixture = new MicroWorld();
         var movement2Entities = fixture.CreateMoving(8);
-        var movement2Description = QuerySpec.WhereAll(stackalloc ComponentId[] { fixture.Position, fixture.Velocity });
+        var movement2Description = QuerySpec.WhereAll([fixture.Position, fixture.Velocity]);
         var movement2Query = fixture.World.CreateQuery(in movement2Description);
         IOperation<int>? movement2Iteration = null;
         int movement2Sum = MicroBenchmarkKernels.IterateMovement2Dense(

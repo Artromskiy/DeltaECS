@@ -8,108 +8,107 @@ using DefaultEcs.Threading;
 
 using Ecs.CSharp.Benchmark.Contexts;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithOneComponent
 {
-    public partial class SystemWithOneComponent
+
+    [Context]
+    private readonly DefaultEcsContext _defaultEcs;
+
+    [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int DefaultEcsComponentSystemMonoThread()
+    {
+        _defaultEcs.MonoThreadComponentSystem.Update(0);
+        return EntityCount;
+    }
+
+    [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
+    [Benchmark]
+    public int DefaultEcsComponentSystemMultiThread()
+    {
+        _defaultEcs.MultiThreadComponentSystem.Update(0);
+        return EntityCount;
+    }
+
+    [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int DefaultEcsEntitySetSystemMonoThread()
+    {
+        _defaultEcs.MonoThreadEntitySetSystem.Update(0);
+        return EntityCount;
+    }
+
+    [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
+    [Benchmark]
+    public int DefaultEcsEntitySetSystemMultiThread()
+    {
+        _defaultEcs.MultiThreadEntitySetSystem.Update(0);
+        return EntityCount;
+    }
+    private sealed partial class DefaultEcsContext : DefaultEcsBaseContext
     {
 
-        [Context]
-        private readonly DefaultEcsContext _defaultEcs;
+        public DefaultParallelRunner Runner { get; }
 
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int DefaultEcsComponentSystemMonoThread()
+        public ISystem<int> MonoThreadComponentSystem { get; }
+
+        public ISystem<int> MultiThreadComponentSystem { get; }
+
+        public ISystem<int> MonoThreadEntitySetSystem { get; }
+
+        public ISystem<int> MultiThreadEntitySetSystem { get; }
+
+        public DefaultEcsContext(int entityCount, int entityPadding)
         {
-            _defaultEcs.MonoThreadComponentSystem.Update(0);
-            return EntityCount;
-        }
+            Runner = new DefaultParallelRunner(Environment.ProcessorCount);
+            MonoThreadComponentSystem = new ComponentSystem(World);
+            MultiThreadComponentSystem = new ComponentSystem(World, Runner);
+            MonoThreadEntitySetSystem = new EntitySetSystem(World);
+            MultiThreadEntitySetSystem = new EntitySetSystem(World, Runner);
 
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int DefaultEcsComponentSystemMultiThread()
-        {
-            _defaultEcs.MultiThreadComponentSystem.Update(0);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int DefaultEcsEntitySetSystemMonoThread()
-        {
-            _defaultEcs.MonoThreadEntitySetSystem.Update(0);
-            return EntityCount;
-        }
-
-        [BenchmarkCategory(Categories.DefaultEcs, Categories.MultiThread)]
-        [Benchmark]
-        public int DefaultEcsEntitySetSystemMultiThread()
-        {
-            _defaultEcs.MultiThreadEntitySetSystem.Update(0);
-            return EntityCount;
-        }
-        private sealed partial class DefaultEcsContext : DefaultEcsBaseContext
-        {
-
-            public DefaultParallelRunner Runner { get; }
-
-            public ISystem<int> MonoThreadComponentSystem { get; }
-
-            public ISystem<int> MultiThreadComponentSystem { get; }
-
-            public ISystem<int> MonoThreadEntitySetSystem { get; }
-
-            public ISystem<int> MultiThreadEntitySetSystem { get; }
-
-            public DefaultEcsContext(int entityCount, int entityPadding)
+            for (int i = 0; i < entityCount; ++i)
             {
-                Runner = new DefaultParallelRunner(Environment.ProcessorCount);
-                MonoThreadComponentSystem = new ComponentSystem(World);
-                MultiThreadComponentSystem = new ComponentSystem(World, Runner);
-                MonoThreadEntitySetSystem = new EntitySetSystem(World);
-                MultiThreadEntitySetSystem = new EntitySetSystem(World, Runner);
-
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.CreateEntity();
-                    }
+                    _ = World.CreateEntity();
+                }
 
-                    Entity entity = World.CreateEntity();
-                    entity.Set<Component1>();
+                Entity entity = World.CreateEntity();
+                entity.Set<Component1>();
+            }
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+
+            Runner.Dispose();
+        }
+        private sealed class ComponentSystem : AComponentSystem<int, Component1>
+        {
+            public ComponentSystem(World world, IParallelRunner runner)
+                : base(world, runner)
+            { }
+
+            public ComponentSystem(World world)
+                : base(world)
+            { }
+
+            protected override void Update(int state, Span<Component1> components)
+            {
+                foreach (ref Component1 component in components)
+                {
+                    ++component.Value;
                 }
             }
+        }
 
-            public override void Dispose()
-            {
-                base.Dispose();
-
-                Runner.Dispose();
-            }
-            private sealed class ComponentSystem : AComponentSystem<int, Component1>
-            {
-                public ComponentSystem(World world, IParallelRunner runner)
-                    : base(world, runner)
-                { }
-
-                public ComponentSystem(World world)
-                    : base(world)
-                { }
-
-                protected override void Update(int state, Span<Component1> components)
-                {
-                    foreach (ref Component1 component in components)
-                    {
-                        ++component.Value;
-                    }
-                }
-            }
-
-            private sealed partial class EntitySetSystem : AEntitySetSystem<int>
-            {
-                [Update]
-                private static void Update(ref Component1 component) => ++component.Value;
-            }
+        private sealed partial class EntitySetSystem : AEntitySetSystem<int>
+        {
+            [Update]
+            private static void Update(ref Component1 component) => ++component.Value;
         }
     }
 }

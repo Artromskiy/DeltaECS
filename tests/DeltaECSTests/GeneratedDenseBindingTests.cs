@@ -25,13 +25,13 @@ internal sealed class GeneratedDenseBindingTests
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
         var entities = new Entity[Chunk.Capacity * 2 + 3];
-        world.Create(new[] { health }, entities.Length, entities);
-        Entity target = world.Create(stackalloc ComponentId[] { health, velocity });
+        world.Create([health], entities.Length, entities);
+        Entity target = world.Create([health, velocity]);
         int count = entities.Length + 2;
         Assert.That(Visit(world, in query), Is.EqualTo(count));
-        world.Add(in query, new[] { velocity });
+        world.Add(in query, [velocity]);
         Assert.That(Visit(world, in query), Is.EqualTo(count));
-        world.Remove(in query, new[] { velocity });
+        world.Remove(in query, [velocity]);
         Assert.That(Visit(world, in query), Is.EqualTo(count));
         Assert.That(world.TryGet<Health>(first, health, out var firstHealth), Is.True);
         Assert.That(firstHealth.Value, Is.EqualTo(6));
@@ -57,7 +57,7 @@ internal sealed class GeneratedDenseBindingTests
         Query firstQuery = first.WhereAll<Health>();
         Query secondQuery = second.WhereAll<Health>();
         first.Create(firstId);
-        second.Create(new[] { secondId }, 3);
+        second.Create([secondId], 3);
         Assert.That(Visit(first, in firstQuery), Is.EqualTo(1));
         Assert.That(Visit(second, in secondQuery), Is.EqualTo(3));
         Assert.That(Visit(first, in firstQuery), Is.EqualTo(1));
@@ -72,7 +72,7 @@ internal sealed class GeneratedDenseBindingTests
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96006));
         using var world = new World(layouts);
         world.Create(health);
-        world.Create(stackalloc ComponentId[] { health, velocity });
+        world.Create([health, velocity]);
         Query query = world.WhereAll<Health>();
         Assert.That(() => Fail(world, in query), Throws.InvalidOperationException);
         Assert.That(() => world.Create(health), Throws.Nothing);
@@ -90,7 +90,7 @@ internal sealed class GeneratedDenseBindingTests
         Query query = world.WhereAll<Health>();
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
-        world.Create(stackalloc ComponentId[] { health, velocity });
+        world.Create([health, velocity]);
         Assert.That(Visit(world, in query), Is.EqualTo(2));
 
         world.Destroy(healthOnly);

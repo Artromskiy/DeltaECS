@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
 
@@ -145,6 +143,7 @@ public class ManyComponentIterationBenchmarks
 
         return checksum;
     }
+
 }
 
 internal struct Many16_0 { public int Value; }

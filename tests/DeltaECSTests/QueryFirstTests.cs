@@ -18,8 +18,8 @@ internal sealed class QueryFirstTests
         Assert.That(first.Invoke(), Is.EqualTo(default(Entity)));
 
         Entity hidden = world.Create(mapId);
-        Entity firstVisible = world.Create(stackalloc ComponentId[] { mapId, visibleId });
-        Entity secondVisible = world.Create(stackalloc ComponentId[] { mapId, visibleId });
+        Entity firstVisible = world.Create([mapId, visibleId]);
+        Entity secondVisible = world.Create([mapId, visibleId]);
 
         Assert.That(first.Invoke(), Is.EqualTo(firstVisible));
 

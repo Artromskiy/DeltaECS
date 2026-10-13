@@ -2436,11 +2436,11 @@ public sealed class DemandDrivenForEachGeneratorTests
     public void InterceptedCallSitesKeepTheirUsingAliasesIsolated()
     {
         string[] consumerSources =
-        {
+        [
             InterceptionAliasSharedSource,
             InterceptionAliasFirstSource,
             InterceptionAliasSecondSource
-        };
+        ];
         GeneratorDriverRunResult run = RunGeneratorWithInterceptors(consumerSources);
 
         AssertNoDiagnostics(run.Diagnostics.Where(static diagnostic => diagnostic.Id == "DECSGEN005"));
@@ -3038,15 +3038,14 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         CSharpCompilation compilation = CreateCompilation(new[] { RuntimeStubSource, consumerSource });
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new ISourceGenerator[]
-            {
+            [
                 new DemandDrivenForEachGenerator().AsSourceGenerator(),
                 new GeneratedStructuralGenerator().AsSourceGenerator(),
                 new GeneratedQueryGenerator().AsSourceGenerator(),
                 new GeneratedWhereGenerator().AsSourceGenerator(),
                 new ComponentComparerGenerator().AsSourceGenerator(),
                 new ComponentComparerDelegateGenerator().AsSourceGenerator()
-            });
+            ]);
         driver = driver.RunGenerators(compilation);
         return driver.GetRunResult();
     }
@@ -3155,28 +3154,19 @@ public sealed class DemandDrivenForEachGeneratorTests
                 .Replace("scoped ReadOnlySpan<int>", "ReadOnlySpan<int>", StringComparison.Ordinal)
             : RuntimeStubSource;
 
-    private sealed class FixedAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
+    private sealed class FixedAnalyzerConfigOptionsProvider(string interceptorsNamespace) : AnalyzerConfigOptionsProvider
     {
 
-        public override AnalyzerConfigOptions GlobalOptions { get; }
-        public FixedAnalyzerConfigOptionsProvider(string interceptorsNamespace)
-        {
-            GlobalOptions = new FixedAnalyzerConfigOptions(interceptorsNamespace);
-        }
+        public override AnalyzerConfigOptions GlobalOptions { get; } = new FixedAnalyzerConfigOptions(interceptorsNamespace);
 
         public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => GlobalOptions;
 
         public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => GlobalOptions;
     }
 
-    private sealed class FixedAnalyzerConfigOptions : AnalyzerConfigOptions
+    private sealed class FixedAnalyzerConfigOptions(string interceptorsNamespace) : AnalyzerConfigOptions
     {
-        private readonly string _interceptorsNamespace;
-
-        public FixedAnalyzerConfigOptions(string interceptorsNamespace)
-        {
-            _interceptorsNamespace = interceptorsNamespace;
-        }
+        private readonly string _interceptorsNamespace = interceptorsNamespace;
 
         public override bool TryGetValue(string key, out string value)
         {

@@ -86,7 +86,7 @@ internal static class Program
         }
 
         string[] benchmarkArgs = BenchmarkConfiguration.SelectAmounts(
-            args.Length > 0 ? args[1..] : Array.Empty<string>(),
+            args.Length > 0 ? args[1..] : [],
             BenchmarkConfiguration.DefaultAmounts,
             out int[] amounts);
         RunTimed("iteration", () => RunForAmounts(ComparativeBenchmarkCatalog.Iteration, benchmarkArgs, amounts));
@@ -166,6 +166,10 @@ internal static class ParallelBenchmarkArguments
         return remaining.ToArray();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Globalization",
+        "CA1303:Do not pass literals as localized parameters",
+        Justification = "Fixed English command-line help text is intentionally not localized.")]
     internal static void PrintUsage()
     {
         Console.WriteLine("Parallel benchmark options:");

@@ -6,11 +6,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
 {
     namespace TinyEcsComponents
     {
-        public record struct Component1(int Value);
+        internal record struct Component1(int Value);
 
-        public record struct Component2(int Value);
+        internal record struct Component2(int Value);
 
-        public record struct Component3(int Value);
+        internal record struct Component3(int Value);
     }
 
     internal class TinyEcsBaseContext : IDisposable

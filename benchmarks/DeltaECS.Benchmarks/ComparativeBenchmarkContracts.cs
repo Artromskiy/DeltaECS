@@ -8,7 +8,7 @@ public static class ComparativeBenchmarkParameters
 {
     public const int SparseMatchStride = 4;
     public const int WideComponentCount = 8;
-    public static readonly int[] Amounts = { 100, 1_000, 10_000, 100_000 };
+    public static readonly int[] Amounts = [100, 1_000, 10_000, 100_000];
 }
 
 public enum ComparativeEcs
@@ -26,18 +26,18 @@ public sealed record ComparativeCapability(string Workload, ComparativeEcs Ecs, 
 public static class ComparativeCapabilityManifest
 {
     private static readonly string[] s_workloads =
-    {
+    [
         "Iteration.Dense",
         "Iteration.Movement2Components",
         "Iteration.Movement4Components",
         "Iteration.WideArchetypeNarrowQuery",
         "Iteration.SparseWorldQueryPlan",
         "Iteration.QueryPlanConstruction"
-    };
+    ];
 
     public static IReadOnlyList<ComparativeCapability> Rows { get; } = BuildRows();
 
-    private static IReadOnlyList<ComparativeCapability> BuildRows()
+    private static List<ComparativeCapability> BuildRows()
     {
         var rows = new List<ComparativeCapability>(s_workloads.Length * Enum.GetValues<ComparativeEcs>().Length);
         foreach (string workload in s_workloads)
@@ -66,14 +66,14 @@ public sealed record ComparativeReportRow(
 public static class ComparativeReportBuilder
 {
     private static readonly (string Workload, string DisplayName)[] s_iterationWorkloads =
-    {
+    [
         ("Iteration.Dense", "Dense"),
         ("Iteration.Movement2Components", "Movement — 2 компонента"),
         ("Iteration.Movement4Components", "Movement — 4 компонента"),
         ("Iteration.SparseWorldQueryPlan", "Sparse world — cached query"),
         ("Iteration.QueryPlanConstruction", "Query-plan construction"),
         ("Iteration.WideArchetypeNarrowQuery", "Wide archetype, narrow query")
-    };
+    ];
 
     public static IReadOnlyList<ComparativeReportRow> BuildManifestRows(string? parameters = null)
     {
@@ -339,8 +339,10 @@ public static class ComparativeReportBuilder
     private static double ParseMeasurement(string value, char csvSeparator)
     {
         string number = new string(value.TrimStart().TakeWhile(character => char.IsDigit(character) || character is '.' or ',' or '-' or '+' or 'e' or 'E' || char.IsWhiteSpace(character)).ToArray());
-        number = number.Replace(" ", string.Empty).Replace("\u00a0", string.Empty).Replace("\u202f", string.Empty);
-        if (csvSeparator == ';' && number.Contains(',') && !number.Contains('.'))
+        number = number.Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("\u00a0", string.Empty, StringComparison.Ordinal)
+            .Replace("\u202f", string.Empty, StringComparison.Ordinal);
+        if (csvSeparator == ';' && number.Contains(',', StringComparison.Ordinal) && !number.Contains('.', StringComparison.Ordinal))
         {
             number = number.Replace(',', '.');
         }
@@ -368,7 +370,7 @@ public static class ComparativeReportBuilder
         return parsed;
     }
 
-    private static char DetectSeparator(string header) => header.Contains(';') ? ';' : header.Contains(',') ? ',' : throw new InvalidOperationException("Benchmark CSV header has no supported delimiter.");
+    private static char DetectSeparator(string header) => header.Contains(';', StringComparison.Ordinal) ? ';' : header.Contains(',', StringComparison.Ordinal) ? ',' : throw new InvalidOperationException("Benchmark CSV header has no supported delimiter.");
 
     private static string[] ParseDelimitedLine(string line, char separator)
     {
@@ -405,8 +407,10 @@ public static class ComparativeReportBuilder
     private static string FormatNumber(double value) => double.IsPositiveInfinity(value) ? "∞" : double.IsNaN(value) ? "N/A" : value.ToString("0.###", CultureInfo.InvariantCulture);
     private static string FormatRatio(double ratio) => ratio.ToString("0.##", CultureInfo.InvariantCulture);
     private static string DisplayName(ComparativeEcs ecs) => ecs == ComparativeEcs.FrifloEngineECS ? "Friflo.Engine.ECS" : ecs.ToString();
-    private static string Csv(string value) => value.Contains(',') || value.Contains('"') ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
-    private static string Markdown(string value) => value.Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ");
+    private static string Csv(string value) => value.Contains(',', StringComparison.Ordinal) || value.Contains('"', StringComparison.Ordinal) ? $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"" : value;
+    private static string Markdown(string value) => value.Replace("|", "\\|", StringComparison.Ordinal)
+        .Replace("\r", " ", StringComparison.Ordinal)
+        .Replace("\n", " ", StringComparison.Ordinal);
 
     private sealed record ComparisonScenario(string Workload, string Params, ComparativeReportRow Delta, ComparativeReportRow[] Rivals);
     private sealed record BestRival(ComparativeEcs Ecs, string Params, double RatioToDelta);
@@ -416,28 +420,29 @@ public static class ComparativeReportBuilder
 public static class ComparativeBenchmarkCatalog
 {
     public static readonly Type[] ManyComponents =
-    {
+    [
         typeof(ManyComponentIterationBenchmarks),
         typeof(WidePayloadPartialReadIterationBenchmarks)
-    };
+    ];
 
     public static readonly Type[] Iteration =
-    {
+    [
         typeof(ComparativeDenseIterationBenchmarks),
         typeof(ComparativeMovement2ComponentsBenchmarks),
         typeof(ComparativeMovement4ComponentsBenchmarks),
         typeof(ComparativeWideArchetypeNarrowQueryBenchmarks),
         typeof(ComparativeSparseQueryBenchmarks)
-    };
+    ];
 
     public static Type[] ForRoute(string route)
     {
         ArgumentNullException.ThrowIfNull(route);
-        return route.ToLowerInvariant() switch
+        if (string.Equals(route, "iteration", StringComparison.OrdinalIgnoreCase))
         {
-            "iteration" => Iteration,
-            _ => throw new ArgumentException($"Unknown comparative route '{route}'. Only 'iteration' is supported.", nameof(route))
-        };
+            return Iteration;
+        }
+
+        throw new ArgumentException($"Unknown comparative route '{route}'. Only 'iteration' is supported.", nameof(route));
     }
 
     public static void Validate()

@@ -4,23 +4,22 @@ using DefaultEcs;
 
 using Ecs.CSharp.Benchmark.Contexts;
 
-namespace Ecs.CSharp.Benchmark
-{
-    public partial class CreateEntityWithOneComponent
-    {
-        [Context]
-        private readonly DefaultEcsBaseContext _defaultEcs;
+namespace Ecs.CSharp.Benchmark;
 
-        [BenchmarkCategory(Categories.DefaultEcs)]
-        [Benchmark]
-        public int DefaultEcs()
+public partial class CreateEntityWithOneComponent
+{
+    [Context]
+    private readonly DefaultEcsBaseContext _defaultEcs;
+
+    [BenchmarkCategory(Categories.DefaultEcs)]
+    [Benchmark]
+    public int DefaultEcs()
+    {
+        for (int i = 0; i < EntityCount; ++i)
         {
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                Entity entity = _defaultEcs.World.CreateEntity();
-                entity.Set<DefaultEcsBaseContext.Component1>();
-            }
-            return EntityCount;
+            Entity entity = _defaultEcs.World.CreateEntity();
+            entity.Set<DefaultEcsBaseContext.Component1>();
         }
+        return EntityCount;
     }
 }

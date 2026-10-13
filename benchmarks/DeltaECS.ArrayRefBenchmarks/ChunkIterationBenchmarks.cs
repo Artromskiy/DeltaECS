@@ -15,7 +15,7 @@ namespace Delta.ECS.ArrayRefBenchmarks;
     "Design",
     "CA1515:Consider making public types internal",
     Justification = "BenchmarkDotNet discovers benchmark types only when they are public.")]
-public unsafe class ChunkIterationBenchmarks : IDisposable
+public sealed unsafe class ChunkIterationBenchmarks : IDisposable
 {
     private byte[][] _managedChunks = null!;
     private int[] _chunkCounts = null!;

@@ -59,7 +59,7 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
             firstId,
             secondId,
             new SchemaId(921_014));
-        ReadOnlySpan<ComponentId> arguments = stackalloc ComponentId[] { firstId, secondId };
+        ReadOnlySpan<ComponentId> arguments = [firstId, secondId];
         ComponentId spanId = layouts.Register(typeof(GenericPair<,>), arguments, new SchemaId(921_014));
 
         Require(spanId == positionalId);
@@ -126,7 +126,7 @@ internal static class GeneratedOpenGenericRegistrationGrammarProof
     private static void CreateEntity(World world, ComponentId componentId)
     {
         Span<Entity> output = stackalloc Entity[1];
-        Require(world.Create(stackalloc ComponentId[] { componentId }, output) == 1);
+        Require(world.Create([componentId], output) == 1);
     }
 
     private static void Require(bool condition)
@@ -146,27 +146,27 @@ public struct GenericConstraintContext
 
 public struct StructConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : struct
 {
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+    public readonly void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
 }
 
 public struct UnmanagedConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : unmanaged
 {
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+    public readonly void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
 }
 
 public struct ClassConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : class
 {
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+    public readonly void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
 }
 
 public struct NewConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : new()
 {
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+    public readonly void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
 }
 
 public struct ClassNewConstraintFunctor<T> : IForEachContext<GenericConstraintContext> where T : class, new()
 {
-    public void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
+    public readonly void Invoke(ref GenericConstraintContext context, in T component) => context.Count++;
 }
 
 internal struct GenericPair<TFirst, TSecond>
@@ -205,7 +205,7 @@ internal struct GenericListHistory<T>
 
 internal struct CopyGenericListHistory<T> : IForEach
 {
-    public void Invoke(ref GenericListHistory<T> history, in T component)
+    public readonly void Invoke(ref GenericListHistory<T> history, in T component)
         => history.Value = component;
 }
 
@@ -216,7 +216,7 @@ internal struct UnaryHistory<T>
 
 internal struct UnaryHistoryWriter<T> : IForEach
 {
-    public void Invoke(ref UnaryHistory<T> history, ref T component)
+    public readonly void Invoke(ref UnaryHistory<T> history, ref T component)
         => history.Value++;
 }
 

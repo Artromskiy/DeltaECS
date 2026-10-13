@@ -26,7 +26,7 @@ public static partial class RuntimeApiGrammarProof
 
         integration.Initialize();
         integration.Update();
-        Entity entity = integration.Create(stackalloc ComponentId[] { positionId });
+        Entity entity = integration.Create([positionId]);
         Require(integration.IsAlive(entity));
 
         Span<ComponentId> components = stackalloc ComponentId[2];
@@ -47,8 +47,8 @@ public static partial class RuntimeApiGrammarProof
         Require(integration.TryRead(entity, positionId, out ComponentSnapshot updated, out _));
         Require(((Position)updated.Value!).Value == 77);
 
-        Require(integration.Add(entity, stackalloc ComponentId[] { markerId }));
-        Require(integration.Remove(entity, stackalloc ComponentId[] { markerId }));
+        Require(integration.Add(entity, [markerId]));
+        Require(integration.Remove(entity, [markerId]));
         Require(integration.Destroy(entity));
         Require(!integration.IsAlive(entity));
         integration.Shutdown();

@@ -2,21 +2,20 @@ using BenchmarkDotNet.Attributes;
 
 using Ecs.CSharp.Benchmark.Contexts;
 
-namespace Ecs.CSharp.Benchmark
-{
-    public partial class CreateEntityWithOneComponent
-    {
-        [Context] private readonly HypEcsBaseContext _hypEcs;
+namespace Ecs.CSharp.Benchmark;
 
-        [BenchmarkCategory(Categories.HypEcs)]
-        [Benchmark]
-        public int HypEcs()
+public partial class CreateEntityWithOneComponent
+{
+    [Context] private readonly HypEcsBaseContext _hypEcs;
+
+    [BenchmarkCategory(Categories.HypEcs)]
+    [Benchmark]
+    public int HypEcs()
+    {
+        for (int i = 0; i < EntityCount; ++i)
         {
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                _hypEcs.World.Spawn().Add(new HypEcsBaseContext.Component1());
-            }
-            return EntityCount;
+            _ = _hypEcs.World.Spawn().Add(new HypEcsBaseContext.Component1());
         }
+        return EntityCount;
     }
 }

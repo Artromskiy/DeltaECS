@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 
 using BenchmarkDotNet.Attributes;
 
@@ -8,77 +7,78 @@ using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
 
 using fennecs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithThreeComponents
 {
-    public partial class SystemWithThreeComponents
+    [Context] private readonly FennecsContext _fennecs;
+
+    [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
+    [Benchmark]
+    public int FennecsForEach()
     {
-        [Context] private readonly FennecsContext _fennecs;
+        _fennecs.query.For((ref c1, ref c2, ref c3) => c1.Value += c2.Value + c3.Value);
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
-        [Benchmark]
-        public int FennecsForEach()
-        {
-            _fennecs.query.For((ref Component1 c1, ref Component2 c2, ref Component3 c3) => c1.Value += c2.Value + c3.Value);
-            return EntityCount;
-        }
+    [BenchmarkCategory(Categories.Fennecs, Categories.MultiThread)]
+    [Benchmark]
+    public int FennecsJob()
+    {
+        _fennecs.query.Job(delegate (ref Component1 c1, ref Component2 c2, ref Component3 c3) { c1.Value += c2.Value + c3.Value; });
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.Fennecs, Categories.MultiThread)]
-        [Benchmark]
-        public int FennecsJob()
+    [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
+    [Benchmark]
+    public int FennecsRaw()
+    {
+        _fennecs.query.Raw(delegate (Memory<Component1> c1v, Memory<Component2> c2v, Memory<Component3> c3v)
         {
-            _fennecs.query.Job(delegate (ref Component1 c1, ref Component2 c2, ref Component3 c3) { c1.Value += c2.Value + c3.Value; });
-            return EntityCount;
-        }
+            var c1vs = c1v.Span;
+            var c2vs = c2v.Span;
+            var c3vs = c3v.Span;
 
-        [BenchmarkCategory(Categories.Fennecs, Categories.SingleThread)]
-        [Benchmark]
-        public int FennecsRaw()
-        {
-            _fennecs.query.Raw(delegate (Memory<Component1> c1v, Memory<Component2> c2v, Memory<Component3> c3v)
+            for (int i = 0; i < c1vs.Length; ++i)
             {
-                var c1vs = c1v.Span;
-                var c2vs = c2v.Span;
-                var c3vs = c3v.Span;
+                ref Component1 c1 = ref c1vs[i];
+                c1.Value += c2vs[i].Value + c3vs[i].Value;
+            }
+        });
+        return EntityCount;
+    }
 
-                for (int i = 0; i < c1vs.Length; ++i)
-                {
-                    ref Component1 c1 = ref c1vs[i];
-                    c1.Value += c2vs[i].Value + c3vs[i].Value;
-                }
-            });
-            return EntityCount;
-        }
+    private sealed class FennecsContext : FennecsBaseContext
+    {
+        public Stream<Component1, Component2, Component3> query;
 
-        private sealed class FennecsContext : FennecsBaseContext
+        public FennecsContext(int entityCount, int entityPadding)
         {
-            public Stream<Component1, Component2, Component3> query;
-
-            public FennecsContext(int entityCount, int entityPadding)
+            query = World.Query<Component1, Component2, Component3>().Stream();
+            for (int i = 0; i < entityCount; ++i)
             {
-                query = World.Query<Component1, Component2, Component3>().Stream();
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
+                    Entity padding = World.Spawn();
+                    switch (j % 3)
                     {
-                        Entity padding = World.Spawn();
-                        switch (j % 3)
-                        {
-                            case 0:
-                                padding.Add<Component1>();
-                                break;
-                            case 1:
-                                padding.Add<Component2>();
-                                break;
-                            case 2:
-                                padding.Add<Component3>();
-                                break;
-                        }
+                        case 0:
+                            _ = padding.Add<Component1>();
+                            break;
+                        case 1:
+                            _ = padding.Add<Component2>();
+                            break;
+                        case 2:
+                            _ = padding.Add<Component3>();
+                            break;
+                        default:
+                            break;
                     }
-
-                    World.Spawn().Add<Component1>()
-                        .Add(new Component2 { Value = 1 })
-                        .Add(new Component3 { Value = 1 });
                 }
+
+                _ = World.Spawn().Add<Component1>()
+                    .Add(new Component2 { Value = 1 })
+                    .Add(new Component3 { Value = 1 });
             }
         }
     }

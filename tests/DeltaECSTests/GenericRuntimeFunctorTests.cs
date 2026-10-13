@@ -47,7 +47,7 @@ public class GenericRuntimeFunctorTests
         ComponentId selected = layouts.Register<Selected>(new SchemaId(120_013));
         using var world = new World(layouts);
         var entities = new Entity[1_025];
-        world.Create(stackalloc ComponentId[] { value, history }, entities.Length, entities);
+        world.Create([value, history], entities.Length, entities);
         for (int index = 0; index < entities.Length; index++)
         {
             world.GetRef<float>(entities[index], value) = index + 0.5f;
@@ -100,7 +100,7 @@ public class GenericRuntimeFunctorTests
         ComponentId selected = layouts.Register<Selected>(new SchemaId(120_026));
         using var world = new World(layouts);
         Entity first = world.Create(value, history);
-        Entity[] entities = { first };
+        Entity[] entities = [first];
         var operation = world.ForEach(entities.AsSpan(), value, typeof(SaveHistory<>));
         world.GetRef<int>(first, value) = 10;
         operation.Invoke();
@@ -129,22 +129,22 @@ public class GenericRuntimeFunctorTests
         Assert.That(world.Destroy(entity), Is.True);
     }
 
-    public struct History<T>
+    internal struct History<T>
     {
         public T Snapshot;
         public int Ordinal;
         public int Saves;
     }
 
-    public struct Pair<TFirst, TSecond>
+    internal struct Pair<TFirst, TSecond>
     {
         public TFirst First;
         public TSecond Second;
     }
 
-    public struct Selected { }
+    internal struct Selected { }
 
-    public struct SaveHistory<T> : IForEach where T : struct
+    internal struct SaveHistory<T> : IForEach where T : struct
     {
         private int _ordinal;
 
@@ -156,9 +156,9 @@ public class GenericRuntimeFunctorTests
         }
     }
 
-    public struct CopyPair<TFirst, TSecond> : IForEach where TFirst : struct where TSecond : struct
+    internal struct CopyPair<TFirst, TSecond> : IForEach where TFirst : struct where TSecond : struct
     {
-        public void Invoke(ref Pair<TFirst, TSecond> pair, ref readonly TFirst first, TSecond second)
+        public readonly void Invoke(ref Pair<TFirst, TSecond> pair, ref readonly TFirst first, TSecond second)
         {
             pair.First = first;
             pair.Second = second;

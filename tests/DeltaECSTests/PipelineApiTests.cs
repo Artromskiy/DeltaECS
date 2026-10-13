@@ -1,5 +1,3 @@
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -26,8 +24,8 @@ internal sealed class PipelineApiTests
             entity.GetRef<PipelinePosition>(positionId).Value++;
             entityVisits++;
         };
-        ForEachContextAction<int> contextAction = static (ref int _) => { };
-        ForEachContextEntityAction<int> contextEntityAction = static (ref int value, EntityRef _) => value++;
+        ForEachContextAction<int> contextAction = static (ref _) => { };
+        ForEachContextEntityAction<int> contextEntityAction = static (ref value, _) => value++;
 
         Assert.Multiple(() =>
         {
@@ -57,12 +55,12 @@ internal sealed class PipelineApiTests
             Assert.That(entityListVisits, Is.EqualTo(selectedCount * 2));
         });
 
-        ForEachContextActionIn<int> readOnlyContextAction = static (in int _) => { };
+        ForEachContextActionIn<int> readOnlyContextAction = static (in _) => { };
         ForEachContextActionValue<int> valueContextAction = static _ => { };
         int readOnlyContextVisits = 0;
         int valueContextVisits = 0;
-        ForEachContextEntityActionIn<int> readOnlyEntityContextAction = (in int _, EntityRef __) => readOnlyContextVisits++;
-        ForEachContextEntityActionValue<int> valueEntityContextAction = (int _, EntityRef __) => valueContextVisits++;
+        ForEachContextEntityActionIn<int> readOnlyEntityContextAction = (in _, __) => readOnlyContextVisits++;
+        ForEachContextEntityActionValue<int> valueEntityContextAction = (_, __) => valueContextVisits++;
 
         Assert.Multiple(() =>
         {
@@ -90,11 +88,11 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_005));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_006));
         using var world = new World(layouts);
-        Entity entity = world.Create(stackalloc ComponentId[] { positionId, velocityId });
+        Entity entity = world.Create([positionId, velocityId]);
         world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 1 };
         world.GetRef<PipelineVelocity>(entity, velocityId) = new PipelineVelocity { Value = 2 };
 
-        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        var query = world.CreateQuery(QuerySpec.WhereAll([positionId, velocityId]));
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             position.Value += velocity.Value).Invoke();
 
@@ -112,9 +110,9 @@ internal sealed class PipelineApiTests
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_021));
         using var world = new World(layouts);
         var entities = new Entity[3];
-        world.Create(stackalloc[] { positionId, velocityId }, entities.Length, entities);
+        world.Create([positionId, velocityId], entities.Length, entities);
         Entity withoutVelocity = world.Create(positionId);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll([positionId, velocityId]));
 
         world.ForEachEntity(
             entities.AsSpan(1),
@@ -124,7 +122,7 @@ internal sealed class PipelineApiTests
                 entity.GetRef<PipelinePosition>(positionId).Value = entity.Index + velocity.Value;
             }).Invoke();
         world.ForEach(
-            new[] { entities[0], withoutVelocity },
+            [entities[0], withoutVelocity],
             in query,
             static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             {
@@ -144,7 +142,7 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_023));
         using var world = new World(layouts);
         Entity[] entities = new Entity[2];
-        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        world.Create([positionId], entities.Length, entities);
 
         world.ForEach(
             entities,
@@ -162,7 +160,7 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_026));
         using var world = new World(layouts);
         var entities = new Entity[8];
-        world.Create(stackalloc[] { positionId }, entities.Length, entities);
+        world.Create([positionId], entities.Length, entities);
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
 
         world.ForEachEntityParallel(
@@ -226,10 +224,10 @@ internal sealed class PipelineApiTests
         ComponentId positionId = layouts.Register<PipelinePosition>(new SchemaId(70_008));
         ComponentId velocityId = layouts.Register<PipelineVelocity>(new SchemaId(70_009));
         using var world = new World(layouts);
-        Entity entity = world.Create(stackalloc ComponentId[] { positionId, velocityId });
+        Entity entity = world.Create([positionId, velocityId]);
         world.GetRef<PipelinePosition>(entity, positionId) = new PipelinePosition { Value = 1 };
         world.GetRef<PipelineVelocity>(entity, velocityId) = new PipelineVelocity { Value = 2 };
-        Query query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { positionId, velocityId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll([positionId, velocityId]));
 
         int calls = 0;
         world.ForEach(in query, static (ref PipelinePosition position, in PipelineVelocity velocity) =>
@@ -257,7 +255,7 @@ internal sealed class PipelineApiTests
         Query query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         int calls = 0;
         world.ForEach(in query, static (ref PipelinePosition _) => { }).Invoke();
-        ForEachAction<PipelinePosition> action = (ref PipelinePosition position) =>
+        ForEachAction<PipelinePosition> action = (ref position) =>
         {
             calls++;
             position.Value++;

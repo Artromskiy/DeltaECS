@@ -4,77 +4,78 @@ using Ecs.CSharp.Benchmark.Contexts;
 
 using Leopotam.Ecs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithTwoComponentsMultipleComposition
 {
-    public partial class SystemWithTwoComponentsMultipleComposition
+
+    [Context]
+    private readonly LeopotamEcsContext _leopotamEcs;
+
+    [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int LeopotamEcs()
+    {
+        _leopotamEcs.MonoThreadSystem.Run();
+        return EntityCount;
+    }
+    private sealed class LeopotamEcsContext : LeopotamEcsBaseContext
     {
 
-        [Context]
-        private readonly LeopotamEcsContext _leopotamEcs;
+        public EcsSystems MonoThreadSystem { get; }
 
-        [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int LeopotamEcs()
+        public LeopotamEcsContext(int entityCount)
         {
-            _leopotamEcs.MonoThreadSystem.Run();
-            return EntityCount;
-        }
-        private sealed class LeopotamEcsContext : LeopotamEcsBaseContext
-        {
+            MonoThreadSystem = new EcsSystems(World).Add(new MonoThreadRunSystem()).ProcessInjects();
 
-            public EcsSystems MonoThreadSystem { get; }
+            MonoThreadSystem.Init();
 
-            public LeopotamEcsContext(int entityCount)
+            for (int i = 0; i < entityCount; ++i)
             {
-                MonoThreadSystem = new EcsSystems(World).Add(new MonoThreadRunSystem()).ProcessInjects();
+                EcsEntity entity = World
+                    .NewEntity()
+                    .Replace(new Component1())
+                    .Replace(new Component2 { Value = 1 });
 
-                MonoThreadSystem.Init();
-
-                for (int i = 0; i < entityCount; ++i)
+                switch (i % 4)
                 {
-                    EcsEntity entity = World
-                        .NewEntity()
-                        .Replace(new Component1())
-                        .Replace(new Component2 { Value = 1 });
+                    case 0:
+                        _ = entity.Replace(new Padding1());
+                        break;
 
-                    switch (i % 4)
-                    {
-                        case 0:
-                            entity.Replace(new Padding1());
-                            break;
+                    case 1:
+                        _ = entity.Replace(new Padding2());
+                        break;
 
-                        case 1:
-                            entity.Replace(new Padding2());
-                            break;
+                    case 2:
+                        _ = entity.Replace(new Padding3());
+                        break;
 
-                        case 2:
-                            entity.Replace(new Padding3());
-                            break;
-
-                        case 3:
-                            entity.Replace(new Padding4());
-                            break;
-                    }
+                    case 3:
+                        _ = entity.Replace(new Padding4());
+                        break;
+                    default:
+                        break;
                 }
             }
-            private record struct Padding1();
+        }
+        private record struct Padding1();
 
-            private record struct Padding2();
+        private record struct Padding2();
 
-            private record struct Padding3();
+        private record struct Padding3();
 
-            private record struct Padding4();
+        private record struct Padding4();
 
-            private sealed class MonoThreadRunSystem : IEcsRunSystem
+        private sealed class MonoThreadRunSystem : IEcsRunSystem
+        {
+            private readonly EcsFilter<Component1, Component2> _filter;
+
+            public void Run()
             {
-                private readonly EcsFilter<Component1, Component2> _filter;
-
-                public void Run()
+                for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
                 {
-                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
-                    {
-                        _filter.Get1(i).Value += _filter.Get2(i).Value;
-                    }
+                    _filter.Get1(i).Value += _filter.Get2(i).Value;
                 }
             }
         }

@@ -4,53 +4,52 @@ using Ecs.CSharp.Benchmark.Contexts;
 
 using Leopotam.Ecs;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithOneComponent
 {
-    public partial class SystemWithOneComponent
+
+    [Context]
+    private readonly LeopotamEcsContext _leopotamEcs;
+
+    [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
+    [Benchmark]
+    public int LeopotamEcs()
+    {
+        _leopotamEcs.MonoThreadSystem.Run();
+        return EntityCount;
+    }
+    private sealed class LeopotamEcsContext : LeopotamEcsBaseContext
     {
 
-        [Context]
-        private readonly LeopotamEcsContext _leopotamEcs;
+        public EcsSystems MonoThreadSystem { get; }
 
-        [BenchmarkCategory(Categories.LeopotamEcs, Categories.SingleThread)]
-        [Benchmark]
-        public int LeopotamEcs()
+        public LeopotamEcsContext(int entityCount, int entityPadding)
         {
-            _leopotamEcs.MonoThreadSystem.Run();
-            return EntityCount;
-        }
-        private sealed class LeopotamEcsContext : LeopotamEcsBaseContext
-        {
+            MonoThreadSystem = new EcsSystems(World).Add(new MonoThreadRunSystem()).ProcessInjects();
 
-            public EcsSystems MonoThreadSystem { get; }
+            MonoThreadSystem.Init();
 
-            public LeopotamEcsContext(int entityCount, int entityPadding)
+            for (int i = 0; i < entityCount; ++i)
             {
-                MonoThreadSystem = new EcsSystems(World).Add(new MonoThreadRunSystem()).ProcessInjects();
-
-                MonoThreadSystem.Init();
-
-                for (int i = 0; i < entityCount; ++i)
+                for (int j = 0; j < entityPadding; ++j)
                 {
-                    for (int j = 0; j < entityPadding; ++j)
-                    {
-                        World.NewEntity();
-                    }
-
-                    World.NewEntity()
-                        .Replace(new Component1());
+                    _ = World.NewEntity();
                 }
-            }
-            private sealed class MonoThreadRunSystem : IEcsRunSystem
-            {
-                private readonly EcsFilter<Component1> _filter;
 
-                public void Run()
+                _ = World.NewEntity()
+                    .Replace(new Component1());
+            }
+        }
+        private sealed class MonoThreadRunSystem : IEcsRunSystem
+        {
+            private readonly EcsFilter<Component1> _filter;
+
+            public void Run()
+            {
+                for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
                 {
-                    for (int i = 0, iMax = _filter.GetEntitiesCount(); i < iMax; i++)
-                    {
-                        ++_filter.Get1(i).Value;
-                    }
+                    ++_filter.Get1(i).Value;
                 }
             }
         }

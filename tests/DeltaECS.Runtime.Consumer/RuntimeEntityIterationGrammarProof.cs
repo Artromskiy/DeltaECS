@@ -63,7 +63,7 @@ public static partial class RuntimeApiGrammarProof
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(934_012));
         ComponentId markerId = layouts.Register<Marker>(new SchemaId(934_013));
         using var world = new World(layouts);
-        Entity entity = world.Create(stackalloc ComponentId[] { positionId, markerId });
+        Entity entity = world.Create([positionId, markerId]);
         world.GetRef<Position>(entity, positionId).Value = 7;
         Require(world.Get<Position>(entity, positionId).Value == 7);
         Query query = world.WhereAll(positionId);

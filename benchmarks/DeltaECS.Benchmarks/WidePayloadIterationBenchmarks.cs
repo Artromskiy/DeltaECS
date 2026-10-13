@@ -1,9 +1,6 @@
 using System.Runtime.InteropServices;
-using System.Threading;
 
 using BenchmarkDotNet.Attributes;
-
-using Delta.ECS;
 
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
@@ -236,6 +233,7 @@ public class WidePayloadPartialReadIterationBenchmarks
         => _entityRefChecksum.Value == Amount * 9
             ? _entityRefChecksum.Value
             : throw new InvalidOperationException($"wide payload checksum mismatch: {_entityRefChecksum.Value} != {Amount * 9}");
+
 }
 
 internal sealed class WidePayloadChecksum

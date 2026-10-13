@@ -1,5 +1,3 @@
-using System;
-
 using BenchmarkDotNet.Attributes;
 
 using Ecs.CSharp.Benchmark.Contexts;
@@ -8,28 +6,27 @@ using Ecs.CSharp.Benchmark.Contexts.MyriadComponents;
 using Myriad.ECS.Command;
 using Myriad.ECS.Worlds;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class CreateEntityWithTwoComponents
 {
-    public partial class CreateEntityWithTwoComponents
+    [Context]
+    private readonly MyriadBaseContext _myriad;
+
+    [BenchmarkCategory(Categories.Myriad)]
+    [Benchmark]
+    public int Myriad()
     {
-        [Context]
-        private readonly MyriadBaseContext _myriad;
+        World world = _myriad.World;
 
-        [BenchmarkCategory(Categories.Myriad)]
-        [Benchmark]
-        public int Myriad()
+        CommandBuffer buffer = new CommandBuffer(world);
+
+        for (int i = 0; i < EntityCount; ++i)
         {
-            World world = _myriad.World;
-
-            CommandBuffer buffer = new CommandBuffer(world);
-
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                buffer.Create().Set(new Component1()).Set(new Component2());
-            }
-
-            buffer.Playback().Dispose();
-            return EntityCount;
+            _ = buffer.Create().Set(new Component1()).Set(new Component2());
         }
+
+        buffer.Playback().Dispose();
+        return EntityCount;
     }
 }

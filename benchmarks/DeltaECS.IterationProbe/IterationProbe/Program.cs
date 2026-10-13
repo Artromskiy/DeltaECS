@@ -3,8 +3,6 @@ using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 
-using Delta.ECS;
-
 namespace Delta.ECS.IterationProbe;
 
 internal static class Program
@@ -18,6 +16,7 @@ public class IterationBenchmarks : IDisposable
     private const int EntityCount = 1_048_576;
 
     private World _world = null!;
+    private bool _disposed;
     private Query _query1;
     private Query _query2;
     private Query _query3;
@@ -69,9 +68,9 @@ public class IterationBenchmarks : IDisposable
         }
 
         QuerySpec query1 = QuerySpec.WhereAll(ids[0]);
-        QuerySpec query2 = QuerySpec.WhereAll(stackalloc ComponentId[] { ids[0], ids[1] });
-        QuerySpec query3 = QuerySpec.WhereAll(stackalloc ComponentId[] { ids[0], ids[1], ids[2] });
-        QuerySpec query4 = QuerySpec.WhereAll(stackalloc ComponentId[] { ids[0], ids[1], ids[2], ids[3] });
+        QuerySpec query2 = QuerySpec.WhereAll([ids[0], ids[1]]);
+        QuerySpec query3 = QuerySpec.WhereAll([ids[0], ids[1], ids[2]]);
+        QuerySpec query4 = QuerySpec.WhereAll([ids[0], ids[1], ids[2], ids[3]]);
         QuerySpec query8 = QuerySpec.Empty.WhereAll(
             ids[0], ids[1], ids[2], ids[3], ids[4], ids[5], ids[6], ids[7]);
         QuerySpec query16 = QuerySpec.Empty.WhereAll(
@@ -218,8 +217,17 @@ public class IterationBenchmarks : IDisposable
 
     public void Dispose()
     {
-        _world.Dispose();
+        Dispose(disposing: true);
         GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing && !_disposed)
+        {
+            _world.Dispose();
+            _disposed = true;
+        }
     }
 
     private void SetValue(Entity entity, ComponentId id, int component, int value)

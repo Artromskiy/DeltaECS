@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -27,7 +22,7 @@ internal sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
-        var e1 = world.Create(new[] { PositionId, VelocityId });
+        var e1 = world.Create([PositionId, VelocityId]);
         Assert.That(e1.Generation, Is.GreaterThan(0));
         Assert.True(world.IsAlive(e1));
 
@@ -35,7 +30,7 @@ internal sealed class DeltaECSDeliveryTests
         Assert.True(destroyed);
         Assert.False(world.IsAlive(e1));
 
-        var e2 = world.Create(new[] { PositionId, VelocityId });
+        var e2 = world.Create([PositionId, VelocityId]);
         Assert.AreEqual(e1.Index, e2.Index);
         Assert.AreNotEqual(e1.Generation, e2.Generation);
     }
@@ -49,15 +44,15 @@ internal sealed class DeltaECSDeliveryTests
 
         int requested = 2_000;
         var created = new Entity[requested];
-        world.Create(new[] { PositionId, VelocityId }, created);
+        world.Create([PositionId, VelocityId], created);
         Assert.AreEqual(requested, world.AliveEntityCount);
 
-        var query = world.CreateQuery(QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, VelocityId }));
+        var query = world.CreateQuery(QuerySpec.WhereAll([PositionId, VelocityId]));
         long sum = 0;
         world.ForEach<long, Position, Velocity>(
             in query,
             ref sum,
-            static (ref long total, ref Position position, in Velocity velocity) =>
+            static (ref total, ref position, in velocity) =>
             {
                 position = new Position { X = 1, Y = 2 };
                 total += (long)position.X + (long)velocity.Y;
@@ -77,16 +72,16 @@ internal sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
         var entities = new Entity[5];
-        world.Create(new[] { PositionId }, entities);
+        world.Create([PositionId], entities);
 
-        Assert.That(world.Add(entities, new[] { VelocityId }), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(entities, [VelocityId]), Is.EqualTo(entities.Length));
         foreach (var entity in entities)
         {
             Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.True);
         }
 
-        Assert.That(world.Add(entities, new[] { VelocityId }), Is.EqualTo(0));
-        Assert.That(world.Remove(entities, new[] { VelocityId }), Is.EqualTo(entities.Length));
+        Assert.That(world.Add(entities, [VelocityId]), Is.EqualTo(0));
+        Assert.That(world.Remove(entities, [VelocityId]), Is.EqualTo(entities.Length));
         foreach (var entity in entities)
         {
             Assert.That(world.TryGet<Velocity>(entity, VelocityId, out _), Is.False);
@@ -100,15 +95,15 @@ internal sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
-        var query = new QuerySpec(new[] { PositionId }, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
+        var query = new QuerySpec([PositionId], [], []);
 
         var initial = new Entity[1];
-        world.Create(new[] { PositionId }, initial);
+        world.Create([PositionId], initial);
         int before = 0;
         before = CountDenseQuery(world, query);
 
         var withVelocity = new Entity[2];
-        world.Create(new[] { PositionId, VelocityId }, withVelocity);
+        world.Create([PositionId, VelocityId], withVelocity);
 
         int after = 0;
         after = CountDenseQuery(world, query);
@@ -124,10 +119,10 @@ internal sealed class DeltaECSDeliveryTests
         using var world = new World(layouts);
 
         var all = new[] { PositionId };
-        var query = new QuerySpec(all, Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
+        var query = new QuerySpec(all, [], []);
         all[0] = VelocityId;
 
-        world.Create(new[] { PositionId });
+        world.Create([PositionId]);
 
         int count = CountDenseQuery(world, query);
         Assert.AreEqual(1, count);
@@ -137,13 +132,13 @@ internal sealed class DeltaECSDeliveryTests
     public void QuerySpecComponentMasksDeduplicateFilterAndEnumerateInOrder()
     {
         var query = new QuerySpec(
-            new[] { new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7) },
-            new[] { VelocityId, VelocityId },
-            new[] { HealthId, HealthId });
+            [new ComponentId(129), new ComponentId(7), PositionId, new ComponentId(193), new ComponentId(65), new ComponentId(7)],
+            [VelocityId, VelocityId],
+            [HealthId, HealthId]);
         var equivalent = new QuerySpec(
-            new[] { new ComponentId(65), new ComponentId(193), new ComponentId(129), PositionId, new ComponentId(7) },
-            new[] { VelocityId },
-            new[] { HealthId });
+            [new ComponentId(65), new ComponentId(193), new ComponentId(129), PositionId, new ComponentId(7)],
+            [VelocityId],
+            [HealthId]);
 
         Assert.That(query, Is.EqualTo(equivalent));
         Assert.That(query.GetHashCode(), Is.EqualTo(equivalent.GetHashCode()));
@@ -151,7 +146,7 @@ internal sealed class DeltaECSDeliveryTests
         Assert.That(query.AnyMask.Contains(VelocityId), Is.True);
         Assert.That(query.NoneMask.Contains(HealthId), Is.True);
 
-        int[] expected = new[] { 0, 7, 65, 129, 193 };
+        int[] expected = [0, 7, 65, 129, 193];
         int index = 0;
         foreach (var componentId in query.AllMask)
         {
@@ -161,12 +156,12 @@ internal sealed class DeltaECSDeliveryTests
 
         Assert.That(index, Is.EqualTo(expected.Length));
         Assert.Throws<ArgumentOutOfRangeException>(() => new QuerySpec(
-            new[] { ComponentId.Invalid },
-            Array.Empty<ComponentId>(),
-            Array.Empty<ComponentId>()));
+            [ComponentId.Invalid],
+            [],
+            []));
         var dynamicQuery = new QuerySpec(
-            new[] { new ComponentId(256) },
-            Array.Empty<ComponentId>(), Array.Empty<ComponentId>());
+            [new ComponentId(256)],
+            [], []);
         Assert.That(dynamicQuery.AllMask.Contains(new ComponentId(256)), Is.True);
     }
 
@@ -176,18 +171,18 @@ internal sealed class DeltaECSDeliveryTests
         var layouts = new ComponentRegistry();
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
-        world.Create(new[] { PositionId, VelocityId });
-        world.Create(new[] { PositionId });
-        world.Create(new[] { VelocityId });
-        world.Create(new[] { HealthId });
+        world.Create([PositionId, VelocityId]);
+        world.Create([PositionId]);
+        world.Create([VelocityId]);
+        world.Create([HealthId]);
 
-        var all = QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, VelocityId });
+        var all = QuerySpec.WhereAll([PositionId, VelocityId]);
         var any = new QuerySpec(
-            Array.Empty<ComponentId>(), new[] { HealthId, VelocityId }, Array.Empty<ComponentId>());
+            [], [HealthId, VelocityId], []);
         var none = new QuerySpec(
-            Array.Empty<ComponentId>(), Array.Empty<ComponentId>(), new[] { HealthId });
+            [], [], [HealthId]);
         var combined = new QuerySpec(
-            new[] { PositionId }, new[] { VelocityId }, new[] { HealthId });
+            [PositionId], [VelocityId], [HealthId]);
 
         Assert.That(CountDenseQuery(world, all), Is.EqualTo(1));
         Assert.That(CountDenseQuery(world, any), Is.EqualTo(3));
@@ -207,13 +202,13 @@ internal sealed class DeltaECSDeliveryTests
         {
             Assert.That(
                 positionalAll,
-                Is.EqualTo(QuerySpec.WhereAll(stackalloc ComponentId[] { PositionId, VelocityId })));
+                Is.EqualTo(QuerySpec.WhereAll([PositionId, VelocityId])));
             Assert.That(
                 positionalAny,
-                Is.EqualTo(QuerySpec.WhereAny(stackalloc ComponentId[] { PositionId, VelocityId })));
+                Is.EqualTo(QuerySpec.WhereAny([PositionId, VelocityId])));
             Assert.That(
                 positionalNone,
-                Is.EqualTo(QuerySpec.WhereNone(stackalloc ComponentId[] { PositionId, VelocityId })));
+                Is.EqualTo(QuerySpec.WhereNone([PositionId, VelocityId])));
             Assert.That(
                 empty.WhereAll(
                     PositionId, PositionId, PositionId, PositionId,
@@ -232,9 +227,9 @@ internal sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
         QuerySpec expectedSpec = new(
-            new[] { PositionId },
-            new[] { VelocityId, HealthId },
-            new[] { HealthId });
+            [PositionId],
+            [VelocityId, HealthId],
+            [HealthId]);
         Query expected = world.CreateQuery(in expectedSpec);
 
         Query composed = world
@@ -264,9 +259,9 @@ internal sealed class DeltaECSDeliveryTests
         using var world = new World(layouts);
 
         QuerySpec expectedSpec = new(
-            new[] { PositionId },
-            new[] { VelocityId },
-            new[] { HealthId });
+            [PositionId],
+            [VelocityId],
+            [HealthId]);
         Query expected = world.CreateQuery(in expectedSpec);
 
         Query composed = world
@@ -308,7 +303,7 @@ internal sealed class DeltaECSDeliveryTests
     [Test]
     public void EscapingComponentRefApiIsRemoved()
     {
-        var method = typeof(World).GetMethod("GetComponentRef", new[] { typeof(Entity), typeof(ComponentId) });
+        var method = typeof(World).GetMethod("GetComponentRef", [typeof(Entity), typeof(ComponentId)]);
         Assert.That(method, Is.Null);
     }
 
@@ -320,7 +315,7 @@ internal sealed class DeltaECSDeliveryTests
         using var world = new World(layouts);
 
         var initial = new Entity[16];
-        world.Create(new[] { PositionId }, initial);
+        world.Create([PositionId], initial);
 
         var baseline = CollectChunkIds(world);
 
@@ -333,7 +328,7 @@ internal sealed class DeltaECSDeliveryTests
         Assert.LessOrEqual(afterDestroy.Count, baseline.Count);
 
         var replacement = new Entity[8];
-        world.Create(new[] { PositionId }, replacement);
+        world.Create([PositionId], replacement);
         var afterRecycle = CollectChunkIds(world);
 
         foreach (int id in afterRecycle)
@@ -367,11 +362,11 @@ internal sealed class DeltaECSDeliveryTests
         RegisterComponentLayouts(layouts);
         using var world = new World(layouts);
 
-        var first = world.Create(new[] { PositionId, VelocityId });
+        var first = world.Create([PositionId, VelocityId]);
         world.GetRef<Position>(first, PositionId) = new Position { X = 10, Y = 11 };
         world.GetRef<Velocity>(first, VelocityId) = new Velocity { X = 20, Y = 21 };
 
-        world.Add(first, new[] { HealthId });
+        world.Add(first, [HealthId]);
 
         Assert.True(world.TryGet<Position>(first, PositionId, out var posAfterAdd));
         Assert.True(world.TryGet<Velocity>(first, VelocityId, out var velAfterAdd));
@@ -380,7 +375,7 @@ internal sealed class DeltaECSDeliveryTests
         Assert.AreEqual(21, velAfterAdd.Y);
         Assert.AreEqual(0, healthAfterAdd.Value);
 
-        world.Remove(first, new[] { VelocityId });
+        world.Remove(first, [VelocityId]);
 
         Assert.True(world.TryGet<Position>(first, PositionId, out var posAfterRemove));
         Assert.True(world.TryGet<Health>(first, HealthId, out _));
@@ -461,7 +456,7 @@ internal sealed class DeltaECSDeliveryTests
 
                 if (addVelocity)
                 {
-                    world.Add(entity, new[] { VelocityId });
+                    world.Add(entity, [VelocityId]);
 
                     if (!current.Velocity.HasValue)
                     {
@@ -470,7 +465,7 @@ internal sealed class DeltaECSDeliveryTests
                 }
                 else
                 {
-                    world.Remove(entity, new[] { VelocityId });
+                    world.Remove(entity, [VelocityId]);
                     current.Velocity = null;
                 }
 

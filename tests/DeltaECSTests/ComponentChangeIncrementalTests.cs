@@ -219,7 +219,7 @@ internal sealed class ComponentChangeIncrementalTests
         bool fail = false;
         var changes = new List<(Entity, ChangeKind)>();
         ComponentChangeOperation<ComponentChangeChunkValue> operation = world.ForEachChange<ComponentChangeChunkValue>(id,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue component) =>
+            (entity, kind, ref component) =>
             {
                 if (kind == ChangeKind.Removed)
                 {
@@ -262,7 +262,7 @@ internal sealed class ComponentChangeIncrementalTests
         world.Create([extra], entities);
         var changes = new List<(Entity, ChangeKind)>();
         var operation = world.ForEachChange<ComponentChangeChunkValue>(id,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
         operation.Invoke();
         Query query = world.WhereAll(extra);
         world.Add(in query, id);
@@ -290,7 +290,7 @@ internal sealed class ComponentChangeIncrementalTests
         world.Create([id], entities);
         var changes = new List<(Entity, ChangeKind)>();
         var operation = world.ForEachChange<ComponentChangeChunkValue>(id,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
         operation.Invoke();
         changes.Clear();
         var expected = new List<(Entity, ChangeKind)>();
@@ -322,7 +322,7 @@ internal sealed class ComponentChangeIncrementalTests
 
         var changes = new List<(Entity, ChangeKind)>();
         var operation = world.ForEachChange<ComponentChangeChunkValue>(id,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
         operation.Invoke();
         changes.Clear();
         var expected = new List<(Entity, ChangeKind)>();
@@ -368,7 +368,7 @@ internal sealed class ComponentChangeIncrementalTests
 
         var changes = new List<(Entity, ChangeKind)>();
         var operation = world.ForEachChange<ComponentChangeChunkTag>(tagId,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkTag _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
         operation.Invoke();
         changes.Clear();
         Query tagged = world.WhereAll(tagId);
@@ -394,7 +394,7 @@ internal sealed class ComponentChangeIncrementalTests
         bool fail = true;
         var changes = new List<(Entity, ChangeKind)>();
         var operation = world.ForEachChange<ComponentChangeChunkValue>(id,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue _) =>
+            (entity, kind, ref _) =>
             {
                 if (fail)
                 {

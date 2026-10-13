@@ -1,7 +1,6 @@
 using System;
 
 using Arch.Core;
-using Arch.Core.Utils;
 
 using Schedulers;
 
@@ -47,11 +46,11 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
             World = World.Create();
             World.SharedJobScheduler = JobScheduler;
-            World.EnsureCapacity(new Signature(archetype), amount);
+            _ = World.EnsureCapacity(new Signature(archetype), amount);
 
             for (int index = 0; index < amount; index++)
             {
-                World.Create(archetype);
+                _ = World.Create(archetype);
             }
         }
 

@@ -1,7 +1,3 @@
-using System;
-
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -14,14 +10,14 @@ internal sealed class DynamicComponentMaskTests
     [Test]
     public void MaskSupportsComponentIdsBeyondTheOriginalFourWordBoundary()
     {
-        var mask = ComponentMask.From(new[]
-        {
+        var mask = ComponentMask.From(
+        [
             new ComponentId(0),
             new ComponentId(255),
             new ComponentId(256),
             new ComponentId(511),
             new ComponentId(1024)
-        });
+        ]);
 
         Assert.That(mask.Count, Is.EqualTo(5));
         Assert.That(mask.Contains(new ComponentId(256)), Is.True);
@@ -42,8 +38,8 @@ internal sealed class DynamicComponentMaskTests
     [Test]
     public void MaskSetOperationsRemainContentBasedForDynamicWords()
     {
-        var left = ComponentMask.From(new[] { new ComponentId(3), new ComponentId(256) });
-        var right = ComponentMask.From(new[] { new ComponentId(256), new ComponentId(1024) });
+        var left = ComponentMask.From([new ComponentId(3), new ComponentId(256)]);
+        var right = ComponentMask.From([new ComponentId(256), new ComponentId(1024)]);
 
         var union = left.Or(right);
         var difference = union.Except(right);

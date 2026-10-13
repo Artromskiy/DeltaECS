@@ -18,7 +18,7 @@ internal sealed class ComponentChangeChunkIterationTests
         var changes = new List<ChangeKind>();
         ComponentChangeOperation<ComponentChangeChunkValue> operation = world.ForEachChange<ComponentChangeChunkValue>(
             valueId,
-            (Entity _, ChangeKind kind, ref ComponentChangeChunkValue _) => changes.Add(kind));
+            (_, kind, ref _) => changes.Add(kind));
         operation.Invoke();
         changes.Clear();
 
@@ -41,7 +41,7 @@ internal sealed class ComponentChangeChunkIterationTests
         var changes = new List<(Entity Entity, ChangeKind Kind)>();
         ComponentChangeOperation<ComponentChangeChunkValue> operation = world.ForEachChange<ComponentChangeChunkValue>(
             valueId,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
         operation.Invoke();
         changes.Clear();
 
@@ -64,7 +64,7 @@ internal sealed class ComponentChangeChunkIterationTests
         var changes = new List<(Entity Entity, ChangeKind Kind)>();
         ComponentChangeOperation<ComponentChangeChunkValue> operation = world.ForEachChange<ComponentChangeChunkValue>(
             valueId,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkValue _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
         operation.Invoke();
         changes.Clear();
 
@@ -94,7 +94,7 @@ internal sealed class ComponentChangeChunkIterationTests
         int modifiedCount = 0;
         ComponentChangeOperation<ComponentChangeChunkValue> operation = world.ForEachChange<ComponentChangeChunkValue>(
             valueId,
-            (Entity _, ChangeKind kind, ref ComponentChangeChunkValue _) =>
+            (_, kind, ref _) =>
             {
                 if (kind == ChangeKind.Modified)
                 {
@@ -123,7 +123,7 @@ internal sealed class ComponentChangeChunkIterationTests
         var changes = new List<(Entity Entity, ChangeKind Kind)>();
         ComponentChangeOperation<ComponentChangeChunkTag> operation = world.ForEachChange<ComponentChangeChunkTag>(
             tagId,
-            (Entity entity, ChangeKind kind, ref ComponentChangeChunkTag _) => changes.Add((entity, kind)));
+            (entity, kind, ref _) => changes.Add((entity, kind)));
 
         operation.Invoke();
         Assert.That(changes, Is.EqualTo(new[] { (existing, ChangeKind.Added) }));

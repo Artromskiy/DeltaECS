@@ -31,11 +31,11 @@ internal static class Program
             ChunkCapacity.ToString(CultureInfo.InvariantCulture));
         Console.WriteLine(
             $"Chunk iteration workload: {Amount:N0} elements, capacity {ChunkCapacity:N0}, {ChunkCount:N0} chunks.");
-        BenchmarkSwitcher.FromTypes(new[]
-        {
+        BenchmarkSwitcher.FromTypes(
+        [
             typeof(ForEachArrayReferenceBenchmarks),
             typeof(ChunkIterationBenchmarks)
-        }).Run(benchmarkArgs);
+        ]).Run(benchmarkArgs);
     }
 
     private static string[] ExtractWorkloadArguments(
@@ -88,8 +88,8 @@ internal static class Program
 
     private static bool TryGetWorkloadOption(string argument, out string option, out string? value)
     {
-        int separator = argument.IndexOf('=');
-        option = (separator < 0 ? argument : argument[..separator]).ToLowerInvariant();
+        int separator = argument.IndexOf('=', StringComparison.Ordinal);
+        option = separator < 0 ? argument : argument[..separator];
         value = separator < 0 ? null : argument[(separator + 1)..];
         return option.Equals("--amount", StringComparison.OrdinalIgnoreCase)
             || option.Equals("--chunk-capacity", StringComparison.OrdinalIgnoreCase);

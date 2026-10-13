@@ -13,9 +13,9 @@ public sealed class SystemSchedulerTests
 {
     private static readonly ComponentId Position = new(0);
     private static readonly ComponentId Velocity = new(1);
-    private static readonly ComponentId[] PositionComponents = { Position };
-    private static readonly ComponentId[] VelocityComponents = { Velocity };
-    private static readonly int[] ReaderWriterOrder = { 1, 2 };
+    private static readonly ComponentId[] PositionComponents = [Position];
+    private static readonly ComponentId[] VelocityComponents = [Velocity];
+    private static readonly int[] ReaderWriterOrder = [1, 2];
 
     [Test]
     public void IndependentSystemsRunInParallel()
@@ -170,14 +170,14 @@ public sealed class SystemSchedulerTests
 
         Assert.That(access.Reads[0], Is.EqualTo(Position));
         Assert.That(
-            () => new SystemAccess(reads: new[] { ComponentId.Invalid }),
+            () => new SystemAccess(reads: [ComponentId.Invalid]),
             Throws.ArgumentException);
     }
 
     [Test]
     public void AccessMetadataAcceptsExplicitComponentIdSpan()
     {
-        ReadOnlySpan<ComponentId> ids = stackalloc ComponentId[] { Position, Velocity };
+        ReadOnlySpan<ComponentId> ids = [Position, Velocity];
 
         var access = new SystemAccess(reads: ids);
 
@@ -192,10 +192,10 @@ public sealed class SystemSchedulerTests
         _ = otherWorld.Components.Register<SystemPosition>(new SchemaId(81011));
         Query foreignQuery = otherWorld.WhereAll<SystemPosition>();
         var access = new SystemAccess(
-            queryAccesses: new[]
-            {
+            queryAccesses:
+            [
                 new SystemQueryAccess(in foreignQuery, writes: PositionComponents)
-            });
+            ]);
         var system = new RecordingSystem(world, access, new ConcurrentQueue<int>(), 0);
         using var scheduler = new SystemScheduler(world, workerCount: 1);
         scheduler.Add(system);
@@ -336,7 +336,7 @@ public sealed class SystemSchedulerTests
         _ = world.Components.Register<GeneratedSetComponent>(new SchemaId(1));
         _ = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
             world,
-            static _ => new[] { Position });
+            static _ => [Position]);
         using var started = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         using var scheduler = new SystemScheduler(world, workerCount: 1);
@@ -353,7 +353,7 @@ public sealed class SystemSchedulerTests
         Assert.That(
             () => Task.Run(() => GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
                 world,
-                static _ => new[] { Position }).Length).GetAwaiter().GetResult(),
+                static _ => [Position]).Length).GetAwaiter().GetResult(),
             Throws.TypeOf<InvalidOperationException>());
 
         var integration = (IEcsWorld)world;
@@ -704,20 +704,13 @@ public sealed class QueryExecutionProbe
     }
 }
 
-public sealed partial class PlayerPositionSystem : ISystem
+public sealed partial class PlayerPositionSystem(World world, in Query query, QueryExecutionProbe probe) : ISystem
 {
-    private readonly Query _query;
-    private QueryExecutionProbe _probe;
+    private readonly Query _query = query;
+    private QueryExecutionProbe _probe = probe;
     private IOperation<QueryExecutionProbe>? _operation;
 
-    public World World { get; init; }
-
-    public PlayerPositionSystem(World world, in Query query, QueryExecutionProbe probe)
-    {
-        World = world;
-        _query = query;
-        _probe = probe;
-    }
+    public World World { get; init; } = world;
 
     public void Tick()
     {
@@ -727,20 +720,13 @@ public sealed partial class PlayerPositionSystem : ISystem
     }
 }
 
-public sealed partial class EnemyPositionSystem : ISystem
+public sealed partial class EnemyPositionSystem(World world, in Query query, QueryExecutionProbe probe) : ISystem
 {
-    private readonly Query _query;
-    private QueryExecutionProbe _probe;
+    private readonly Query _query = query;
+    private QueryExecutionProbe _probe = probe;
     private IOperation<QueryExecutionProbe>? _operation;
 
-    public World World { get; init; }
-
-    public EnemyPositionSystem(World world, in Query query, QueryExecutionProbe probe)
-    {
-        World = world;
-        _query = query;
-        _probe = probe;
-    }
+    public World World { get; init; } = world;
 
     public void Tick()
     {
@@ -750,22 +736,14 @@ public sealed partial class EnemyPositionSystem : ISystem
     }
 }
 
-public sealed class AddEnemyToEntitySystem : ISystem
+public sealed class AddEnemyToEntitySystem(World world, Entity entity, ComponentId enemyId) : ISystem
 {
-    private readonly Entity _entity;
-    private readonly ComponentId _enemyId;
+    private readonly Entity _entity = entity;
+    private readonly ComponentId _enemyId = enemyId;
 
-    public World World { get; init; }
+    public World World { get; init; } = world;
 
-    public SystemAccess Access { get; }
-
-    public AddEnemyToEntitySystem(World world, Entity entity, ComponentId enemyId)
-    {
-        World = world;
-        _entity = entity;
-        _enemyId = enemyId;
-        Access = new SystemAccess(adds: stackalloc ComponentId[] { enemyId });
-    }
+    public SystemAccess Access { get; } = new SystemAccess(adds: [enemyId]);
 
     public void Tick() => World.Add(_entity, _enemyId);
 }
@@ -777,36 +755,28 @@ public struct SystemHistoryContext
 
 public struct CaptureSystemHistory<T> : IForEachContext<SystemHistoryContext>
 {
-    public void Invoke(ref SystemHistoryContext context, ref SystemHistory<T> history, in T value)
+    public readonly void Invoke(ref SystemHistoryContext context, ref SystemHistory<T> history, in T value)
     {
         history.Value = value;
         context.InvocationCount++;
     }
 }
 
-public sealed class SystemHistoryCaptureSystem : ISystem
+public sealed class SystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId, ComponentId historyId) : ISystem
 {
-    private readonly Query _query;
-    private readonly ComponentId _valueId;
+    private readonly Query _query = query;
+    private readonly ComponentId _valueId = valueId;
     private SystemHistoryContext _context;
     private IOperation<SystemHistoryContext>? _operation;
 
-    public World World { get; init; }
+    public World World { get; init; } = world;
 
-    public SystemAccess Access { get; }
+    public SystemAccess Access { get; } = new SystemAccess(
+            reads: [valueId],
+            writes: [historyId],
+            readsTopology: true);
 
     public int InvocationCount => _context.InvocationCount;
-
-    public SystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId, ComponentId historyId)
-    {
-        World = world;
-        _query = query;
-        _valueId = valueId;
-        Access = new SystemAccess(
-            reads: new[] { valueId },
-            writes: new[] { historyId },
-            readsTopology: true);
-    }
 
     public void Tick()
     {
@@ -815,20 +785,13 @@ public sealed class SystemHistoryCaptureSystem : ISystem
     }
 }
 
-public sealed partial class InferredSystemHistoryCaptureSystem : ISystem
+public sealed partial class InferredSystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId) : ISystem
 {
-    private readonly Query _query;
-    private readonly ComponentId _valueId;
+    private readonly Query _query = query;
+    private readonly ComponentId _valueId = valueId;
     private IOperation? _operation;
 
-    public World World { get; init; }
-
-    public InferredSystemHistoryCaptureSystem(World world, in Query query, ComponentId valueId)
-    {
-        World = world;
-        _query = query;
-        _valueId = valueId;
-    }
+    public World World { get; init; } = world;
 
     public void Tick()
     {

@@ -62,18 +62,18 @@ namespace Ecs.CSharp.Benchmark.Contexts
         protected FrifloEngineEcsBaseContext(int entityCount, int padding, ComponentTypes componentTypes) : this()
         {
 
-            EntityStore.EnsureCapacity(entityCount + (padding * entityCount));
+            _ = EntityStore.EnsureCapacity(entityCount + (padding * entityCount));
 
             Archetype archetype = EntityStore.GetArchetype(componentTypes);
-            archetype.EnsureCapacity(entityCount);
+            _ = archetype.EnsureCapacity(entityCount);
 
             for (int index = 0; index < entityCount; index++)
             {
                 for (int n = 0; n < padding; n++)
                 {
-                    EntityStore.CreateEntity();
+                    _ = EntityStore.CreateEntity();
                 }
-                archetype.CreateEntity();
+                _ = archetype.CreateEntity();
             }
         }
 

@@ -15,7 +15,7 @@ internal sealed class FunctorForEachTests
         var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
         using var world = new World(layouts);
-        world.Create(new[] { positionId });
+        world.Create([positionId]);
         var query = world.CreateQuery(QuerySpec.WhereAll(positionId));
         var functor = new ZeroArityFunctor();
 
@@ -54,7 +54,7 @@ internal sealed class FunctorForEachTests
 
         Assert.That(world.Get<Position>(first, positionId).X, Is.Zero);
         operation.Invoke();
-        Entity second = world.Create(stackalloc ComponentId[] { positionId, velocityId });
+        Entity second = world.Create([positionId, velocityId]);
         operation.Invoke();
 
         Assert.Multiple(() =>
@@ -156,7 +156,7 @@ internal sealed class FunctorForEachTests
         world.GetRef<Health>(dead, healthId).Value = -1;
         world.GetRef<Health>(alive, healthId).Value = 10;
         world.Add(dead, tagId);
-        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId).WithAny(stackalloc[] { tagId }));
+        Query query = world.CreateQuery(QuerySpec.WhereAll(healthId).WithAny([tagId]));
         var functor = new ZeroArityWhereEntityFunctor();
         s_zeroArityWhereVisits = 0;
 
@@ -178,8 +178,8 @@ internal sealed class FunctorForEachTests
         var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_082));
         using var world = new World(layouts);
-        Entity dead = world.Create(new[] { healthId });
-        Entity alive = world.Create(new[] { healthId });
+        Entity dead = world.Create([healthId]);
+        Entity alive = world.Create([healthId]);
         world.GetRef<Health>(dead, healthId).Value = -1;
         world.GetRef<Health>(alive, healthId).Value = 10;
         var query = world.CreateQuery(QuerySpec.WhereAll(healthId));
@@ -203,8 +203,8 @@ internal sealed class FunctorForEachTests
         var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_083));
         using var world = new World(layouts);
-        Entity dead = world.Create(new[] { healthId });
-        Entity alive = world.Create(new[] { healthId });
+        Entity dead = world.Create([healthId]);
+        Entity alive = world.Create([healthId]);
         world.GetRef<Health>(dead, healthId).Value = -1;
         world.GetRef<Health>(alive, healthId).Value = 10;
         var query = world.CreateQuery(QuerySpec.WhereAll(healthId));
@@ -226,8 +226,8 @@ internal sealed class FunctorForEachTests
         var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_085));
         using var world = new World(layouts);
-        Entity dead = world.Create(new[] { healthId });
-        Entity alive = world.Create(new[] { healthId });
+        Entity dead = world.Create([healthId]);
+        Entity alive = world.Create([healthId]);
         world.GetRef<Health>(dead, healthId).Value = -1;
         world.GetRef<Health>(alive, healthId).Value = 10;
         var query = world.CreateQuery(QuerySpec.WhereAll(healthId));
@@ -292,7 +292,7 @@ internal sealed class FunctorForEachTests
         var layouts = new ComponentRegistry();
         ComponentId healthId = layouts.Register<Health>(new SchemaId(60_084));
         using var world = new World(layouts);
-        Entity entity = world.Create(new[] { healthId });
+        Entity entity = world.Create([healthId]);
         world.GetRef<Health>(entity, healthId).Value = 1;
         var query = world.CreateQuery(QuerySpec.WhereAll(healthId));
         var action = new IncrementHealthAction();
@@ -326,7 +326,7 @@ internal sealed class FunctorForEachTests
 
     internal struct ZeroArityEntityContextFunctor : IForEachContextEntity<int>
     {
-        public void Invoke(ref int context, EntityRef _) => context++;
+        public readonly void Invoke(ref int context, EntityRef _) => context++;
     }
 
     internal struct CountPositionFunctor : IForEach
@@ -380,7 +380,7 @@ internal sealed class FunctorForEachTests
 
     internal struct DeadHealthPredicate : IWherePredicate
     {
-        public bool Invoke(ref WherePredicateState state, Entity entity, in Health health)
+        public readonly bool Invoke(ref WherePredicateState state, Entity entity, in Health health)
         {
             state.Visited++;
             return health.Value <= 0;
@@ -389,7 +389,7 @@ internal sealed class FunctorForEachTests
 
     internal struct DeadHealthPredicateWithoutEntity : IWherePredicate
     {
-        public bool Invoke(in Health health) => health.Value <= 0;
+        public readonly bool Invoke(in Health health) => health.Value <= 0;
     }
 
     internal struct CountHealthPredicate : IWherePredicate

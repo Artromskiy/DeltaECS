@@ -18,6 +18,10 @@ namespace Delta.ECS.Registration.CSharp9
     public static class RegistrationGrammarProof
     {
         /// <summary>Validates constraint-selected registration and interface visitor routes.</summary>
+        [SuppressMessage(
+            "Globalization",
+            "CA1303:Do not pass literals as localized parameters",
+            Justification = "Fixed English proof output is intentionally not localized.")]
         public static void Run()
         {
             var layouts = new ComponentRegistry();
@@ -205,6 +209,14 @@ namespace Delta.ECS.Registration.CSharp9
             }
         }
 
+        [SuppressMessage(
+            "Performance",
+            "CA1812:Avoid uninstantiated internal classes",
+            Justification = "The registration route inspects this class type without constructing an instance.")]
+        [SuppressMessage(
+            "Performance",
+            "CA1812:Avoid uninstantiated internal classes",
+            Justification = "The route tests the closed type without constructing it.")]
         private sealed class ClassOnlyComponent : IGameComponent
         {
             private ClassOnlyComponent()

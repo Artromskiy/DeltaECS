@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -22,7 +17,7 @@ internal sealed class StructuralAlgorithmTests
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_001));
         using var world = new World(layouts);
         var entities = new Entity[96];
-        world.Create(new[] { valueId }, entities);
+        world.Create([valueId], entities);
         for (int i = 0; i < entities.Length; i++)
         {
             world.GetRef<DestroyValue>(entities[i], valueId) = new DestroyValue { Value = 100_000 + i };
@@ -79,13 +74,13 @@ internal sealed class StructuralAlgorithmTests
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_002));
         using var world = new World(layouts);
         var old = new Entity[64];
-        world.Create(new[] { valueId }, old);
+        world.Create([valueId], old);
 
         Assert.That(world.Destroy(old), Is.EqualTo(old.Length));
         Assert.That(world.AliveEntityCount, Is.Zero);
 
         var recreated = new Entity[old.Length];
-        world.Create(new[] { valueId }, recreated);
+        world.Create([valueId], recreated);
         var oldByIndex = new Dictionary<int, Entity>();
         foreach (var entity in old)
         {
@@ -108,7 +103,7 @@ internal sealed class StructuralAlgorithmTests
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_003));
         using var world = new World(layouts);
         var entities = new Entity[10_000];
-        world.Create(new[] { valueId }, entities);
+        world.Create([valueId], entities);
 
         var requested = new List<Entity>(5_500);
         var expected = new HashSet<Entity>();
@@ -144,7 +139,7 @@ internal sealed class StructuralAlgorithmTests
 
         for (int i = 0; i < 180; i++)
         {
-            var entity = world.Create(new[] { positionId, velocityId, healthId });
+            var entity = world.Create([positionId, velocityId, healthId]);
             var state = new TransitionState
             {
                 Entity = entity,
@@ -174,7 +169,7 @@ internal sealed class StructuralAlgorithmTests
 
             if ((step % 23) == 0)
             {
-                var entity = world.Create(new[] { positionId });
+                var entity = world.Create([positionId]);
                 var state = new TransitionState
                 {
                     Entity = entity,
@@ -189,7 +184,7 @@ internal sealed class StructuralAlgorithmTests
 
             var selected = SelectUnique(entities, random, random.Next(1, Math.Min(28, entities.Count) + 1));
             bool addVelocity = (step & 1) == 0;
-            world.Add(CollectionsMarshalCompat.AsSpan(selected), addVelocity ? new[] { velocityId } : new[] { healthId });
+            world.Add(CollectionsMarshalCompat.AsSpan(selected), addVelocity ? [velocityId] : [healthId]);
             foreach (var entity in selected)
             {
                 var state = model[entity];
@@ -215,7 +210,7 @@ internal sealed class StructuralAlgorithmTests
             {
                 var second = SelectUnique(entities, random, random.Next(1, Math.Min(19, entities.Count) + 1));
                 bool removeVelocity = (step % 4) == 0;
-                world.Remove(CollectionsMarshalCompat.AsSpan(second), removeVelocity ? new[] { velocityId } : new[] { healthId });
+                world.Remove(CollectionsMarshalCompat.AsSpan(second), removeVelocity ? new[] { velocityId } : [healthId]);
                 foreach (var entity in second)
                 {
                     var state = model[entity];

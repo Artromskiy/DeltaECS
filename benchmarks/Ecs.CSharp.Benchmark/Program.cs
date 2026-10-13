@@ -1,5 +1,3 @@
-#pragma warning disable CA1852 // Seal internal types
-
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -20,7 +18,7 @@ internal static class Program
     private const string EntityCountEnvironmentVariable = "ECS_CSHARP_BENCH_ENTITY_COUNT";
     private const string EntityPaddingEnvironmentVariable = "ECS_CSHARP_BENCH_ENTITY_PADDING";
 
-    private static readonly Type[] BenchmarkTypes =
+    private static readonly Type[] _benchmarkTypes =
     [
         typeof(CreateEntityWithOneComponent),
         typeof(CreateEntityWithTwoComponents),
@@ -60,15 +58,10 @@ internal static class Program
         {
             BenchmarkConfiguration.EntityCount = amount;
             Environment.SetEnvironmentVariable(EntityCountEnvironmentVariable, amount.ToString(CultureInfo.InvariantCulture));
-            BenchmarkSwitcher benchmark = BenchmarkSwitcher.FromTypes(BenchmarkTypes);
-            if (benchmarkArgs.Length == 0)
-            {
-                benchmark.RunAll(configuration);
-            }
-            else
-            {
-                benchmark.Run(benchmarkArgs, configuration);
-            }
+            BenchmarkSwitcher benchmark = BenchmarkSwitcher.FromTypes(_benchmarkTypes);
+            _ = benchmarkArgs.Length == 0
+                ? benchmark.RunAll(configuration)
+                : benchmark.Run(benchmarkArgs, configuration);
         }
     }
 
@@ -126,12 +119,9 @@ internal static class Program
                 || (option == PaddingOption && string.Equals(args[index], EntityPaddingOption, StringComparison.OrdinalIgnoreCase)))
             {
                 string value = NextValue(args, ref index, args[index]);
-                if (!int.TryParse(value, out int result) || result < 0)
-                {
-                    throw new ArgumentException($"Invalid value '{value}' for {option}.", nameof(args));
-                }
-
-                return result;
+                return int.TryParse(value, out int result) && result >= 0
+                    ? result
+                    : throw new ArgumentException($"Invalid value '{value}' for {option}.", nameof(args));
             }
         }
 
@@ -141,22 +131,16 @@ internal static class Program
     private static int ParseValue(string[] args, ref int index, string option)
     {
         string value = NextValue(args, ref index, option);
-        if (!int.TryParse(value, out int result) || result <= 0)
-        {
-            throw new ArgumentException($"Invalid value '{value}' for {option}.", nameof(args));
-        }
-
-        return result;
+        return int.TryParse(value, out int result) && result > 0
+            ? result
+            : throw new ArgumentException($"Invalid value '{value}' for {option}.", nameof(args));
     }
 
     private static string NextValue(string[] args, ref int index, string option)
     {
-        if (++index >= args.Length)
-        {
-            throw new ArgumentException($"Missing value for {option}.", nameof(args));
-        }
-
-        return args[index];
+        return ++index < args.Length
+            ? args[index]
+            : throw new ArgumentException($"Missing value for {option}.", nameof(args));
     }
 }
 

@@ -3,21 +3,18 @@ using BenchmarkDotNet.Attributes;
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.FennecsComponents;
 
-using fennecs;
+namespace Ecs.CSharp.Benchmark;
 
-namespace Ecs.CSharp.Benchmark
+public partial class CreateEntityWithThreeComponents
 {
-    public partial class CreateEntityWithThreeComponents
-    {
-        [Context]
-        private readonly FennecsBaseContext _fennecs;
+    [Context]
+    private readonly FennecsBaseContext _fennecs;
 
-        [BenchmarkCategory(Categories.Fennecs)]
-        [Benchmark]
-        public int Fennecs()
-        {
-            _fennecs.Component3Template.Spawn(EntityCount, new Component1(), new Component2(), new Component3());
-            return EntityCount;
-        }
+    [BenchmarkCategory(Categories.Fennecs)]
+    [Benchmark]
+    public int Fennecs()
+    {
+        _ = _fennecs.Component3Template.Spawn(EntityCount, new Component1(), new Component2(), new Component3());
+        return EntityCount;
     }
 }

@@ -11,7 +11,7 @@ namespace Delta.ECS.ArrayRefBenchmarks;
     "Design",
     "CA1515:Consider making public types internal",
     Justification = "BenchmarkDotNet discovers benchmark types only when they are public.")]
-public class ForEachArrayReferenceBenchmarks : IDisposable
+public sealed class ForEachArrayReferenceBenchmarks : IDisposable
 {
     private World _world = null!; // GlobalSetup initializes the world before benchmark cleanup.
     private Entity[] _entities = null!; // GlobalSetup initializes the output before benchmark execution.
@@ -26,7 +26,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
         ComponentId valueId = layouts.Register<ArrayReferenceValue>(new SchemaId(96_001));
         _world = new World(layouts, initialEntityCapacity: Program.Amount);
         _entities = new Entity[Program.Amount];
-        _world.Create(stackalloc[] { valueId }, Program.Amount, _entities);
+        _world.Create([valueId], Program.Amount, _entities);
 
         for (int index = 0; index < _entities.Length; index++)
         {
@@ -69,7 +69,7 @@ public class ForEachArrayReferenceBenchmarks : IDisposable
 
     /// <summary>Releases resources owned by the benchmark.</summary>
     /// <param name="disposing">Whether managed resources should be disposed.</param>
-    protected virtual void Dispose(bool disposing)
+    private void Dispose(bool disposing)
     {
         if (disposing)
         {

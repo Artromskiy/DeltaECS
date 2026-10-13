@@ -4,24 +4,23 @@ using Ecs.CSharp.Benchmark.Contexts;
 
 using Leopotam.EcsLite;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class CreateEntityWithOneComponent
 {
-    public partial class CreateEntityWithOneComponent
+    [Context]
+    private readonly LeopotamEcsLiteBaseContext _leopotamEcsLite;
+
+    [BenchmarkCategory(Categories.LeopotamEcsLite)]
+    [Benchmark]
+    public int LeopotamEcsLite()
     {
-        [Context]
-        private readonly LeopotamEcsLiteBaseContext _leopotamEcsLite;
+        EcsPool<LeopotamEcsLiteBaseContext.Component1> c1 = _leopotamEcsLite.World.GetPool<LeopotamEcsLiteBaseContext.Component1>();
 
-        [BenchmarkCategory(Categories.LeopotamEcsLite)]
-        [Benchmark]
-        public int LeopotamEcsLite()
+        for (int i = 0; i < EntityCount; ++i)
         {
-            EcsPool<LeopotamEcsLiteBaseContext.Component1> c1 = _leopotamEcsLite.World.GetPool<LeopotamEcsLiteBaseContext.Component1>();
-
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                c1.Add(_leopotamEcsLite.World.NewEntity());
-            }
-            return EntityCount;
+            _ = c1.Add(_leopotamEcsLite.World.NewEntity());
         }
+        return EntityCount;
     }
 }

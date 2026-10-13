@@ -1,5 +1,3 @@
-using System;
-
 using BenchmarkDotNet.Attributes;
 
 using Ecs.CSharp.Benchmark.Contexts;
@@ -7,25 +5,24 @@ using Ecs.CSharp.Benchmark.Contexts.FlecsNetComponents;
 
 using Flecs.NET.Core;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class CreateEntityWithOneComponent
 {
-    public partial class CreateEntityWithOneComponent
+    [Context]
+    private readonly FlecsNetBaseContext _flecs;
+
+    [BenchmarkCategory(Categories.FlecsNet)]
+    [Benchmark]
+    public int FlecsNet()
     {
-        [Context]
-        private readonly FlecsNetBaseContext _flecs;
+        World world = _flecs.World;
 
-        [BenchmarkCategory(Categories.FlecsNet)]
-        [Benchmark]
-        public int FlecsNet()
+        for (int i = 0; i < EntityCount; ++i)
         {
-            World world = _flecs.World;
-
-            for (int i = 0; i < EntityCount; ++i)
-            {
-                world.Entity()
-                    .Set<Component1>(new());
-            }
-            return EntityCount;
+            _ = world.Entity()
+                .Set<Component1>(new());
         }
+        return EntityCount;
     }
 }

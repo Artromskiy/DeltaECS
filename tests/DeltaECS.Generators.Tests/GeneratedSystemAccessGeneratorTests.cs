@@ -121,9 +121,7 @@ public sealed class GeneratedSystemAccessGeneratorTests
 
         CSharpCompilation output = compilation.AddSyntaxTrees(
             CSharpSyntaxTree.ParseText(text, new CSharpParseOptions(LanguageVersion.Latest)));
-        Diagnostic[] errors = output.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
+        Diagnostic[] errors = output.GetDiagnostics().Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 
@@ -184,9 +182,7 @@ public sealed class GeneratedSystemAccessGeneratorTests
         Assert.That(generated, Does.Not.Contain("namespace <global namespace>"));
         CSharpCompilation output = compilation.AddSyntaxTrees(
             CSharpSyntaxTree.ParseText(generated, new CSharpParseOptions(LanguageVersion.Latest)));
-        Diagnostic[] errors = output.GetDiagnostics()
-            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .ToArray();
+        Diagnostic[] errors = output.GetDiagnostics().Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToArray();
         Assert.That(errors, Is.Empty, string.Join(Environment.NewLine, errors.Select(static error => error.ToString())));
     }
 

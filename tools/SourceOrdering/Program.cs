@@ -126,7 +126,7 @@ static (Encoding Encoding, int PreambleLength) DetectEncoding(byte[] bytes)
 static string GetMainTypeName(string path)
 {
     string fileName = Path.GetFileNameWithoutExtension(path);
-    int suffixStart = fileName.IndexOf('.');
+    int suffixStart = fileName.IndexOf('.', StringComparison.Ordinal);
     return suffixStart < 0 ? fileName : fileName[..suffixStart];
 }
 
@@ -275,9 +275,7 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
             }
 
             ExternAliasDirectiveSyntax[] run = directives.Skip(index).Take(end - index).ToArray();
-            ExternAliasDirectiveSyntax[] ordered = run
-                .OrderBy(static directive => directive.Identifier.ValueText, StringComparer.Ordinal)
-                .ToArray();
+            ExternAliasDirectiveSyntax[] ordered = run.OrderBy(static directive => directive.Identifier.ValueText, StringComparer.Ordinal).ToArray();
             result.AddRange(PreserveLeadingTrivia(run, ordered));
             index = end;
         }
@@ -294,9 +292,7 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
 
         T first = original[0];
         SyntaxTriviaList preamble = first.GetLeadingTrivia();
-        T[] result = ordered
-            .Select(item => ReferenceEquals(item, first) ? (T)item.WithLeadingTrivia(default(SyntaxTriviaList)) : item)
-            .ToArray();
+        T[] result = ordered.Select(item => ReferenceEquals(item, first) ? (T)item.WithLeadingTrivia(default(SyntaxTriviaList)) : item).ToArray();
         result[0] = (T)result[0].WithLeadingTrivia(preamble);
         return result;
     }
@@ -534,8 +530,7 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
             UsingDirectiveSyntax[] ordered = run
                 .OrderBy(static directive => directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword) ? 0 : 1)
                 .ThenBy(static directive => IsSystemUsing(directive) ? 0 : 1)
-                .ThenBy(static directive => GetUsingSortName(directive), StringComparer.Ordinal)
-                .ToArray();
+                .ThenBy(static directive => GetUsingSortName(directive), StringComparer.Ordinal).ToArray();
             ordered = PreserveLeadingTrivia(run, ordered);
             result.AddRange(AddUsingGroupSpacing(ordered));
             index = end;

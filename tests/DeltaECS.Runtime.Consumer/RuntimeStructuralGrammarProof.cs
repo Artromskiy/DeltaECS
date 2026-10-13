@@ -13,51 +13,51 @@ public static partial class RuntimeApiGrammarProof
         Entity one = world.Create(positionId);
         Require(world.IsAlive(one));
         Require(world.Has(one, positionId));
-        Entity spanCreated = world.Create(stackalloc ComponentId[] { positionId, velocityId });
+        Entity spanCreated = world.Create([positionId, velocityId]);
         Require(world.IsAlive(spanCreated));
         Require(world.Has(spanCreated, positionId));
         Require(world.Has(spanCreated, velocityId));
 
         Span<Entity> output = stackalloc Entity[2];
-        Require(world.Create(stackalloc ComponentId[] { positionId }, output) == 2);
+        Require(world.Create([positionId], output) == 2);
         Require(world.Create(positionId, 2, output) == 2);
-        Require(world.Create(stackalloc ComponentId[] { positionId, velocityId }, output) == 2);
-        Require(world.Create(stackalloc ComponentId[] { positionId, velocityId }, 2, output) == 2);
-        Require(world.Create(stackalloc ComponentId[] { markerId }, 2) == 2);
+        Require(world.Create([positionId, velocityId], output) == 2);
+        Require(world.Create([positionId, velocityId], 2, output) == 2);
+        Require(world.Create([markerId], 2) == 2);
 
         Entity first = world.Create(positionId);
         Entity second = world.Create(positionId);
         Entity third = world.Create(positionId);
         Require(world.Add(first, velocityId));
         Require(!world.Add(first, velocityId));
-        Require(world.Add(first, new[] { markerId }));
-        Require(world.Add(second, stackalloc ComponentId[] { velocityId, markerId }));
+        Require(world.Add(first, [markerId]));
+        Require(world.Add(second, [velocityId, markerId]));
 
         Entity[] batch = [first, second, third];
-        ReadOnlySpan<ComponentId> velocityComponents = stackalloc ComponentId[] { velocityId };
+        ReadOnlySpan<ComponentId> velocityComponents = [velocityId];
         Require(world.Add(batch, velocityComponents) == 1);
         Require(world.Add(batch, velocityId) == 0);
-        Require(world.Add(batch, new[] { markerId }) == 1);
+        Require(world.Add(batch, [markerId]) == 1);
 
         Query positioned = world.WhereAll(positionId);
-        Query unmarked = positioned.WhereNone(stackalloc ComponentId[] { markerId });
+        Query unmarked = positioned.WhereNone([markerId]);
         int unmarkedCount = CountEntities(world, in unmarked);
         Require(unmarkedCount > 0);
         Require(world.Add(in unmarked, markerId) == unmarkedCount);
-        Require(world.Add(in positioned, stackalloc ComponentId[] { markerId }) == 0);
+        Require(world.Add(in positioned, [markerId]) == 0);
 
         Require(world.Remove(first, velocityId));
-        Require(!world.Remove(first, new[] { velocityId }));
-        Require(world.Remove(second, stackalloc ComponentId[] { velocityId, markerId }));
+        Require(!world.Remove(first, [velocityId]));
+        Require(world.Remove(second, [velocityId, markerId]));
         Require(world.Remove(batch, velocityId) == 1);
-        Require(world.Remove(batch, new[] { markerId }) == 2);
+        Require(world.Remove(batch, [markerId]) == 2);
 
-        Query marked = positioned.WhereAll(stackalloc ComponentId[] { markerId });
+        Query marked = positioned.WhereAll([markerId]);
         int markedCount = CountEntities(world, in marked);
         Require(world.Remove(in positioned, markerId) == markedCount);
-        Require(world.Remove(in positioned, stackalloc ComponentId[] { markerId }) == 0);
+        Require(world.Remove(in positioned, [markerId]) == 0);
 
-        Span<Entity> destroyBatch = stackalloc Entity[1] { one };
+        Span<Entity> destroyBatch = [one];
         Require(world.Destroy(destroyBatch) == 1);
         Require(!world.Destroy(one));
 

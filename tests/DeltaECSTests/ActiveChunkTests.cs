@@ -1,5 +1,3 @@
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -17,7 +15,7 @@ internal sealed class ActiveChunkTests
         using var world = new World(layouts);
         const int chunkSize = Chunk.Capacity;
         var entities = new Entity[chunkSize * 3];
-        world.Create(stackalloc[] { PositionId }, entities);
+        world.Create([PositionId], entities);
 
         var archetype = world.Archetypes[0];
         Assert.That(archetype.ChunkCount, Is.EqualTo(3));
@@ -35,7 +33,7 @@ internal sealed class ActiveChunkTests
         Assert.That(queriedSlots, Is.EqualTo(chunkSize * 2));
 
         var replacement = new Entity[chunkSize];
-        Assert.That(world.Create(stackalloc[] { PositionId }, replacement), Is.EqualTo(chunkSize));
+        Assert.That(world.Create([PositionId], replacement), Is.EqualTo(chunkSize));
         world.GetRef<Position>(replacement[0], PositionId) = new Position { X = 11 };
         world.GetRef<Position>(replacement[1], PositionId) = new Position { X = 13 };
         Assert.That(archetype.ActiveChunkCount, Is.EqualTo(3));

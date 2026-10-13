@@ -11,7 +11,7 @@ internal static class GeneratedOperationGrammarProof
 
 #pragma warning disable CA1859 // Exercise interface storage and its one-time boxing behavior.
         IOperation boxed = world.ForEach<Cmp1>(in query, world.Components.GetPrimary<Cmp1>(),
-            static (in Cmp1 component) => _ = component.Value);
+            static (in component) => _ = component.Value);
         boxed.Invoke();
 
         var unboxedContext = world.ForEach(in query, ref context,

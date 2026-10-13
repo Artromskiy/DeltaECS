@@ -2,43 +2,42 @@ using Ecs.CSharp.Benchmark.Contexts.StaticEcsComponents;
 
 using FFS.Libraries.StaticEcs;
 
-namespace Ecs.CSharp.Benchmark.Contexts
+namespace Ecs.CSharp.Benchmark.Contexts;
+
+internal readonly struct StaticEcsBlockOne : StaticEcsWorld.IQueryBlock.Write<Component1>
 {
-    internal readonly struct StaticEcsBlockOne : StaticEcsWorld.IQueryBlock.Write<Component1>
+    public void Invoke(uint count, StaticEcsWorld.EntityBlock entities, Block<Component1> component)
     {
-        public void Invoke(uint count, StaticEcsWorld.EntityBlock entities, Block<Component1> component)
+        for (uint index = 0; index < count; index++)
         {
-            for (uint index = 0; index < count; index++)
-            {
-                component[index].Value++;
-            }
+            component[index].Value++;
         }
     }
+}
 
-    internal readonly struct StaticEcsBlockTwo : StaticEcsWorld.IQueryBlock.Write<Component1>.Read<Component2>
+internal readonly struct StaticEcsBlockTwo : StaticEcsWorld.IQueryBlock.Write<Component1>.Read<Component2>
+{
+    public void Invoke(uint count, StaticEcsWorld.EntityBlock entities, Block<Component1> first, BlockR<Component2> second)
     {
-        public void Invoke(uint count, StaticEcsWorld.EntityBlock entities, Block<Component1> first, BlockR<Component2> second)
+        for (uint index = 0; index < count; index++)
         {
-            for (uint index = 0; index < count; index++)
-            {
-                first[index].Value += second[index].Value;
-            }
+            first[index].Value += second[index].Value;
         }
     }
+}
 
-    internal readonly struct StaticEcsBlockThree : StaticEcsWorld.IQueryBlock.Write<Component1>.Read<Component2, Component3>
+internal readonly struct StaticEcsBlockThree : StaticEcsWorld.IQueryBlock.Write<Component1>.Read<Component2, Component3>
+{
+    public void Invoke(
+        uint count,
+        StaticEcsWorld.EntityBlock entities,
+        Block<Component1> first,
+        BlockR<Component2> second,
+        BlockR<Component3> third)
     {
-        public void Invoke(
-            uint count,
-            StaticEcsWorld.EntityBlock entities,
-            Block<Component1> first,
-            BlockR<Component2> second,
-            BlockR<Component3> third)
+        for (uint index = 0; index < count; index++)
         {
-            for (uint index = 0; index < count; index++)
-            {
-                first[index].Value += second[index].Value + third[index].Value;
-            }
+            first[index].Value += second[index].Value + third[index].Value;
         }
     }
 }

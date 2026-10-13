@@ -1,5 +1,3 @@
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -15,8 +13,8 @@ internal sealed class ComponentRowOperationTests
         var managedStructId = layouts.Register<ManagedPayload>(new SchemaId(10_002));
         var classId = layouts.Register<ReferencePayload>(new SchemaId(10_003));
         using var world = new World(layouts);
-        var removed = world.Create(stackalloc[] { valueId, managedStructId, classId });
-        var survivor = world.Create(stackalloc[] { valueId, managedStructId, classId });
+        var removed = world.Create([valueId, managedStructId, classId]);
+        var survivor = world.Create([valueId, managedStructId, classId]);
         var reference = new ReferencePayload("survivor");
         world.GetRef<int>(survivor, valueId) = 42;
         world.GetRef<ManagedPayload>(survivor, managedStructId) = new ManagedPayload("managed");
@@ -42,13 +40,13 @@ internal sealed class ComponentRowOperationTests
         var managedStructId = layouts.Register<ManagedPayload>(new SchemaId(10_012));
         var classId = layouts.Register<ReferencePayload>(new SchemaId(10_013));
         using var world = new World(layouts);
-        var old = world.Create(stackalloc[] { valueId, managedStructId, classId });
+        var old = world.Create([valueId, managedStructId, classId]);
         world.GetRef<int>(old, valueId) = 99;
         world.GetRef<ManagedPayload>(old, managedStructId) = new ManagedPayload("old");
         world.GetRef<ReferencePayload>(old, classId) = new ReferencePayload("old");
         world.Destroy(old);
 
-        var current = world.Create(stackalloc[] { valueId, managedStructId, classId });
+        var current = world.Create([valueId, managedStructId, classId]);
         world.TryGet(current, valueId, out int value);
         world.TryGet(current, managedStructId, out ManagedPayload managed);
         world.TryGet(current, classId, out ReferencePayload? reference);
@@ -69,14 +67,14 @@ internal sealed class ComponentRowOperationTests
         var addedReferenceId = layouts.Register<ReferencePayload>(new SchemaId(10_023));
         using var world = new World(layouts);
 
-        var oldTarget = world.Create(stackalloc[] { sharedId, addedValueId, addedReferenceId });
+        var oldTarget = world.Create([sharedId, addedValueId, addedReferenceId]);
         world.GetRef<int>(oldTarget, addedValueId) = 123;
         world.GetRef<ReferencePayload>(oldTarget, addedReferenceId) = new ReferencePayload("old");
         world.Destroy(oldTarget);
 
-        var source = world.Create(stackalloc[] { sharedId });
+        var source = world.Create([sharedId]);
         world.GetRef<int>(source, sharedId) = 77;
-        world.Add(source, new[] { addedValueId, addedReferenceId });
+        world.Add(source, [addedValueId, addedReferenceId]);
 
         world.TryGet(source, sharedId, out int shared);
         world.TryGet(source, addedValueId, out int addedValue);
@@ -96,8 +94,8 @@ internal sealed class ComponentRowOperationTests
         var valueId = layouts.Register<int>(new SchemaId(10_031));
         var referenceId = layouts.Register<ReferencePayload>(new SchemaId(10_032));
         using var world = new World(layouts);
-        var removed = world.Create(stackalloc[] { valueId, referenceId });
-        var survivor = world.Create(stackalloc[] { valueId, referenceId });
+        var removed = world.Create([valueId, referenceId]);
+        var survivor = world.Create([valueId, referenceId]);
         var survivorReference = new ReferencePayload("survivor");
         world.GetRef<int>(removed, valueId) = 11;
         world.GetRef<int>(survivor, valueId) = 22;
@@ -122,8 +120,8 @@ internal sealed class ComponentRowOperationTests
         var layouts = new ComponentRegistry();
         var id = layouts.Register<int>(new SchemaId(10_041));
         using var world = new World(layouts);
-        var first = world.Create(new[] { id });
-        var second = world.Create(new[] { id });
+        var first = world.Create([id]);
+        var second = world.Create([id]);
         world.GetRef<int>(second, id) = 42;
 
         Assert.That(world.Destroy(first), Is.True);
@@ -146,23 +144,15 @@ internal sealed class ComponentRowOperationTests
         Assert.That(world.TryGet(invalid, id, out int _), Is.False);
     }
 
-    private readonly struct ManagedPayload
+    private readonly struct ManagedPayload(string text)
     {
 
-        public string? Text { get; }
-        public ManagedPayload(string text)
-        {
-            Text = text;
-        }
+        public string? Text { get; } = text;
     }
 
-    private sealed class ReferencePayload
+    private sealed class ReferencePayload(string name)
     {
 
-        public string Name { get; }
-        public ReferencePayload(string name)
-        {
-            Name = name;
-        }
+        public string Name { get; } = name;
     }
 }

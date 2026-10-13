@@ -78,8 +78,7 @@ internal sealed class PublicApiShapeTests
         ];
         MethodInfo[] methods = new[] { typeof(World), typeof(FunctorAnchors) }
             .SelectMany(static type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
-            .Where(method => stampMethods.Contains(method.Name))
-            .ToArray();
+            .Where(method => stampMethods.Contains(method.Name)).ToArray();
 
         Assert.That(methods, Is.Empty);
     }
@@ -109,16 +108,13 @@ internal sealed class PublicApiShapeTests
     {
         MethodInfo[] registerMethods = typeof(ComponentRegistry)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(static method => method.Name == "Register")
-            .ToArray();
+            .Where(static method => method.Name == "Register").ToArray();
         MethodInfo[] registrationExtensions = typeof(ComponentRegistryRegistrationExtensions)
             .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(static method => method.Name == "Register")
-            .ToArray();
+            .Where(static method => method.Name == "Register").ToArray();
         MethodInfo[] interfaceBindingExtensions = typeof(ComponentRegistryRegistrationExtensions)
             .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Where(static method => method.Name == "BindInterface")
-            .ToArray();
+            .Where(static method => method.Name == "BindInterface").ToArray();
 
         Assert.Multiple(() =>
         {
@@ -158,11 +154,11 @@ internal sealed class PublicApiShapeTests
                     "Register",
                     BindingFlags.Public | BindingFlags.Instance,
                     binder: null,
-                    new[] { typeof(Type), typeof(SchemaId) },
+                    [typeof(Type), typeof(SchemaId)],
                     modifiers: null),
                 Is.Null);
             Assert.That(
-                typeof(ComponentRegistry).GetMethod("Visit", new[] { typeof(ComponentId), typeof(IVisitor) }),
+                typeof(ComponentRegistry).GetMethod("Visit", [typeof(ComponentId), typeof(IVisitor)]),
                 Is.Not.Null);
             Assert.That(typeof(ComponentRegistry).GetProperty("Visitors"), Is.Null);
         });
@@ -194,7 +190,7 @@ internal sealed class PublicApiShapeTests
                     "op_Implicit",
                     BindingFlags.Public | BindingFlags.Static,
                     binder: null,
-                    new[] { typeof(EntityRef) },
+                    [typeof(EntityRef)],
                     modifiers: null)?.ReturnType,
                 Is.EqualTo(typeof(Entity)));
         });
@@ -239,7 +235,7 @@ internal sealed class PublicApiShapeTests
                 typeof(SchemaId).GetMethod("FromUInt64", BindingFlags.Public | BindingFlags.Static),
                 Is.Null);
             Assert.That(
-                typeof(ComponentLayout).GetConstructor(allInstance, null, new[] { typeof(SchemaId), typeof(int), typeof(int) }, null),
+                typeof(ComponentLayout).GetConstructor(allInstance, null, [typeof(SchemaId), typeof(int), typeof(int)], null),
                 Is.Null);
             foreach (string property in RemovedComponentLayoutProperties)
             {
@@ -264,7 +260,7 @@ internal sealed class PublicApiShapeTests
                 typeof(QuerySpec).GetConstructor(
                     BindingFlags.Public | BindingFlags.Instance,
                     binder: null,
-                    new[] { typeof(ReadOnlySpan<ComponentId>), typeof(ReadOnlySpan<ComponentId>), typeof(ReadOnlySpan<ComponentId>) },
+                    [typeof(ReadOnlySpan<ComponentId>), typeof(ReadOnlySpan<ComponentId>), typeof(ReadOnlySpan<ComponentId>)],
                     modifiers: null),
                 Is.Null);
             foreach (string property in new[] { nameof(QuerySpec.AllMask), nameof(QuerySpec.AnyMask), nameof(QuerySpec.NoneMask) })

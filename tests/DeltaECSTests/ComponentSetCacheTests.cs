@@ -1,5 +1,3 @@
-using Delta.ECS;
-
 using NUnit.Framework;
 
 namespace Delta.ECS.Tests;
@@ -15,8 +13,8 @@ internal sealed class ComponentSetCacheTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(90_002));
         using var world = new World(layouts);
 
-        ComponentSet first = world.GetOrCreateComponentSet(new[] { positionId, velocityId });
-        ComponentSet second = world.GetOrCreateComponentSet(new[] { positionId, velocityId });
+        ComponentSet first = world.GetOrCreateComponentSet([positionId, velocityId]);
+        ComponentSet second = world.GetOrCreateComponentSet([positionId, velocityId]);
 
         Assert.That(second, Is.SameAs(first));
         Assert.That(second.Mask, Is.EqualTo(first.Mask));
@@ -34,8 +32,8 @@ internal sealed class ComponentSetCacheTests
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(90_006));
         using var world = new World(layouts);
 
-        ComponentSet forward = world.GetOrCreateComponentSet(new[] { positionId, velocityId });
-        ComponentSet reverse = world.GetOrCreateComponentSet(new[] { velocityId, positionId });
+        ComponentSet forward = world.GetOrCreateComponentSet([positionId, velocityId]);
+        ComponentSet reverse = world.GetOrCreateComponentSet([velocityId, positionId]);
 
         Assert.Multiple(() =>
         {
@@ -60,14 +58,14 @@ internal sealed class ComponentSetCacheTests
             _ =>
             {
                 factoryCalls++;
-                return new[] { positionId, velocityId };
+                return [positionId, velocityId];
             });
         ReadOnlySpan<ComponentId> second = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<TypedSetKey>(
             world,
             _ =>
             {
                 factoryCalls++;
-                return new[] { positionId, velocityId };
+                return [positionId, velocityId];
             });
 
         Assert.That(second.Length, Is.EqualTo(2));
@@ -86,7 +84,7 @@ internal sealed class ComponentSetCacheTests
         using var world = new World();
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            world.GetOrCreateComponentSet(new[] { ComponentId.Invalid }));
+            world.GetOrCreateComponentSet([ComponentId.Invalid]));
     }
 
     private readonly struct TypedSetKey

@@ -1,7 +1,5 @@
 using BenchmarkDotNet.Attributes;
 
-using Delta.ECS;
-
 namespace Delta.ECS.MicroBenchmarks;
 
 public class ForEachWriteObserverMicroBenchmarkImplementation
@@ -11,6 +9,10 @@ public class ForEachWriteObserverMicroBenchmarkImplementation
     public int Amount { get; set; } = MicroBenchmarkConfiguration.CurrentAmount;
 
     [GlobalSetup]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "The fixture arrays own these instances and GlobalCleanup disposes every entry.")]
     public void Setup()
     {
         _componentFixtures =
@@ -136,11 +138,21 @@ public class ForEachChangeMicroBenchmarkImplementation : IDisposable
 
     public void Dispose()
     {
-        _componentFixture.Dispose();
-        _tagFixture.Dispose();
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing)
+        {
+            return;
+        }
+
+        _componentFixture?.Dispose();
+        _tagFixture?.Dispose();
         _firstComponentFixture?.Dispose();
         _firstTagFixture?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }
 
@@ -204,15 +216,15 @@ internal sealed class ComponentWriteFixture : IDisposable
             _subscribers[index].Invoke();
         }
     }
-    public void Dispose() => World.Dispose();
+    public void Dispose() { World.Dispose(); GC.SuppressFinalize(this); }
     internal void Invoke() => _write.Invoke();
 
     private IOperation CreateSubscriber(int index) => index switch
     {
-        0 => World.ForEachChange<ChangeWriteA>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { }),
-        1 => World.ForEachChange<ChangeWriteB>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteB component) => { }),
-        2 => World.ForEachChange<ChangeWriteC>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteC component) => { }),
-        3 => World.ForEachChange<ChangeWriteD>(_componentIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteD component) => { }),
+        0 => World.ForEachChange<ChangeWriteA>(_componentIds[index], static (entity, change, ref component) => { }),
+        1 => World.ForEachChange<ChangeWriteB>(_componentIds[index], static (entity, change, ref component) => { }),
+        2 => World.ForEachChange<ChangeWriteC>(_componentIds[index], static (entity, change, ref component) => { }),
+        3 => World.ForEachChange<ChangeWriteD>(_componentIds[index], static (entity, change, ref component) => { }),
         _ => throw new ArgumentOutOfRangeException(nameof(index))
     };
 }
@@ -259,15 +271,15 @@ internal sealed class TagWriteFixture : IDisposable
             _subscribers[index].Invoke();
         }
     }
-    public void Dispose() => World.Dispose();
+    public void Dispose() { World.Dispose(); GC.SuppressFinalize(this); }
     internal void Invoke() => _write.Invoke();
 
     private IOperation CreateSubscriber(int index) => index switch
     {
-        0 => World.ForEachChange<ChangeWriteTagA>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { }),
-        1 => World.ForEachChange<ChangeWriteTagB>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagB tag) => { }),
-        2 => World.ForEachChange<ChangeWriteTagC>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagC tag) => { }),
-        3 => World.ForEachChange<ChangeWriteTagD>(_tagIds[index], static (Entity entity, ChangeKind change, ref ChangeWriteTagD tag) => { }),
+        0 => World.ForEachChange<ChangeWriteTagA>(_tagIds[index], static (entity, change, ref tag) => { }),
+        1 => World.ForEachChange<ChangeWriteTagB>(_tagIds[index], static (entity, change, ref tag) => { }),
+        2 => World.ForEachChange<ChangeWriteTagC>(_tagIds[index], static (entity, change, ref tag) => { }),
+        3 => World.ForEachChange<ChangeWriteTagD>(_tagIds[index], static (entity, change, ref tag) => { }),
         _ => throw new ArgumentOutOfRangeException(nameof(index))
     };
 }
@@ -281,6 +293,10 @@ internal sealed class ForEachChangeComponentFixture : IDisposable
     internal ComponentChangeOperation<ChangeWriteA> Operation { get; }
     internal long NotificationCount { get; private set; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA5394:Do not use insecure randomness",
+        Justification = "The fixed-seed shuffle creates deterministic benchmark data and is not security-sensitive.")]
     internal ForEachChangeComponentFixture(int amount)
     {
         var layouts = new ComponentRegistry();
@@ -295,7 +311,7 @@ internal sealed class ForEachChangeComponentFixture : IDisposable
             MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteA component) => { });
     }
 
-    public void Dispose() => World.Dispose();
+    public void Dispose() { World.Dispose(); GC.SuppressFinalize(this); }
 
     internal void MarkModified(int count)
     {
@@ -317,6 +333,10 @@ internal sealed class ForEachChangeTagFixture : IDisposable
     internal ComponentChangeOperation<ChangeWriteTagA> Operation { get; }
     internal long NotificationCount { get; private set; }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA5394:Do not use insecure randomness",
+        Justification = "The fixed-seed shuffle creates deterministic benchmark data and is not security-sensitive.")]
     internal ForEachChangeTagFixture(int amount)
     {
         var layouts = new ComponentRegistry();
@@ -331,7 +351,7 @@ internal sealed class ForEachChangeTagFixture : IDisposable
             MicroBenchmarkConfiguration.CountChangeCallbacks ? Record : static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { });
     }
 
-    public void Dispose() => World.Dispose();
+    public void Dispose() { World.Dispose(); GC.SuppressFinalize(this); }
 
     internal void MarkModified(int count)
     {

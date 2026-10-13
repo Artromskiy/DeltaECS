@@ -16,7 +16,7 @@ internal static class GeneratedOpenGenericFunctorGrammarProof
         ReadOnlySpan<ComponentId> genericArguments,
         ref Context context)
     {
-        ReadOnlySpan<ComponentId> singleGenericArgument = stackalloc ComponentId[] { cmp1Id };
+        ReadOnlySpan<ComponentId> singleGenericArgument = [cmp1Id];
 
         // Component-only generic functors: world/query and span/array targets, positional IDs or D.
         world.ForEach(in query, cmp1Id, cmp2Id, typeof(GenericFunctor<,>)).Invoke();

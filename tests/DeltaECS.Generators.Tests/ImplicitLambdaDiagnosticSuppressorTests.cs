@@ -64,11 +64,9 @@ public sealed class ImplicitLambdaDiagnosticSuppressorTests
         CSharpCompilation compilation = CreateCompilation(source);
         ImmutableArray<Diagnostic> diagnostics = await compilation
             .WithAnalyzers(Analyzers)
-            .GetAnalyzerDiagnosticsAsync();
+            .GetAnalyzerDiagnosticsAsync().ConfigureAwait(false);
 
-        string[] diagnosticLines = diagnostics
-            .Select(diagnostic => source.Split('\n')[diagnostic.Location.GetLineSpan().StartLinePosition.Line].Trim())
-            .ToArray();
+        string[] diagnosticLines = diagnostics.Select(diagnostic => source.Split('\n')[diagnostic.Location.GetLineSpan().StartLinePosition.Line].Trim()).ToArray();
         Assert.That(diagnosticLines, Has.Length.EqualTo(2));
         string diagnosticText = string.Join('\n', diagnosticLines);
         Assert.That(diagnosticText, Does.Contain("world.ForEach<Cmp>"));

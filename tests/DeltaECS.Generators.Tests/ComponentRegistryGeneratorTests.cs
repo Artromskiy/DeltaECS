@@ -14,7 +14,7 @@ namespace Delta.ECS.Generators.Tests;
 
 public sealed class ComponentRegistryGeneratorTests
 {
-    private static readonly string[] ExpectedRegisteredComponentNames = { "Example.Position", "Example.Health", "Example.Marker" };
+    private static readonly string[] ExpectedRegisteredComponentNames = ["Example.Position", "Example.Health", "Example.Marker"];
 
     [Test]
     public void GeneratesStableCatalogFactoriesAndComponentTypeTokens()
@@ -140,7 +140,7 @@ public sealed class ComponentRegistryGeneratorTests
 
         ImmutableArray<Diagnostic> diagnostics = await compilation
             .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComponentSchemaIdAnalyzer()))
-            .GetAnalyzerDiagnosticsAsync();
+            .GetAnalyzerDiagnosticsAsync().ConfigureAwait(false);
 
         Assert.That(diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0001"));
         Assert.That(diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0002"));

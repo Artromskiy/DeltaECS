@@ -5,79 +5,80 @@ using Ecs.CSharp.Benchmark.Contexts.ArchComponents;
 
 using Flecs.NET.Core;
 
-namespace Ecs.CSharp.Benchmark
+namespace Ecs.CSharp.Benchmark;
+
+public partial class SystemWithTwoComponentsMultipleComposition
 {
-    public partial class SystemWithTwoComponentsMultipleComposition
+    [Context]
+    private readonly FlecsContext _flecs;
+
+    [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
+    [Benchmark]
+    public int FlecsNetEach()
     {
-        [Context]
-        private readonly FlecsContext _flecs;
-
-        [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
-        [Benchmark]
-        public int FlecsNetEach()
+        _flecs.query.Each((it, index) =>
         {
-            _flecs.query.Each((Iter it, int index) =>
-            {
-                ref Component1 c1 = ref it.FieldAt<Component1>(0, index);
-                ref Component2 c2 = ref it.FieldAt<Component2>(1, index);
-                c1.Value += c2.Value;
-            });
-            return EntityCount;
-        }
+            ref Component1 c1 = ref it.FieldAt<Component1>(0, index);
+            ref Component2 c2 = ref it.FieldAt<Component2>(1, index);
+            c1.Value += c2.Value;
+        });
+        return EntityCount;
+    }
 
-        [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
-        [Benchmark]
-        public int FlecsNetIter()
+    [BenchmarkCategory(Categories.FlecsNet, Categories.SingleThread)]
+    [Benchmark]
+    public int FlecsNetIter()
+    {
+        _flecs.query.Iter(it =>
         {
-            _flecs.query.Iter(it =>
+            Field<Component1> c1 = it.Field<Component1>(0);
+            Field<Component2> c2 = it.Field<Component2>(1);
+            foreach (int i in it)
             {
-                Field<Component1> c1 = it.Field<Component1>(0);
-                Field<Component2> c2 = it.Field<Component2>(1);
-                foreach (int i in it)
-                {
-                    c1[i].Value += c2[i].Value;
-                }
-            });
-            return EntityCount;
-        }
-
-
-        private sealed class FlecsContext : FlecsNetBaseContext
-        {
-
-            public Query query;
-
-            public FlecsContext(int entityCount)
-            {
-                for (int i = 0; i < entityCount; ++i)
-                {
-                    Entity entity = World.Entity().Add<Component1>().Set(new Component2 { Value = 1 });
-                    switch (i % 4)
-                    {
-                        case 0:
-                            entity.Add<Padding1>();
-                            break;
-                        case 1:
-                            entity.Add<Padding2>();
-                            break;
-                        case 2:
-                            entity.Add<Padding3>();
-                            break;
-                        case 3:
-                            entity.Add<Padding4>();
-                            break;
-                    }
-                }
-                query = World.QueryBuilder().With<Component1>().With<Component2>().Build();
+                c1[i].Value += c2[i].Value;
             }
+        });
+        return EntityCount;
+    }
 
-            private record struct Padding1();
 
-            private record struct Padding2();
+    private sealed class FlecsContext : FlecsNetBaseContext
+    {
 
-            private record struct Padding3();
+        public Query query;
 
-            private record struct Padding4();
+        public FlecsContext(int entityCount)
+        {
+            for (int i = 0; i < entityCount; ++i)
+            {
+                Entity entity = World.Entity().Add<Component1>().Set(new Component2 { Value = 1 });
+                switch (i % 4)
+                {
+                    case 0:
+                        _ = entity.Add<Padding1>();
+                        break;
+                    case 1:
+                        _ = entity.Add<Padding2>();
+                        break;
+                    case 2:
+                        _ = entity.Add<Padding3>();
+                        break;
+                    case 3:
+                        _ = entity.Add<Padding4>();
+                        break;
+                    default:
+                        break;
+                }
+            }
+            query = World.QueryBuilder().With<Component1>().With<Component2>().Build();
         }
+
+        private record struct Padding1();
+
+        private record struct Padding2();
+
+        private record struct Padding3();
+
+        private record struct Padding4();
     }
 }

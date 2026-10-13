@@ -17,7 +17,7 @@ internal sealed class ComponentChangeInvocationMarkerTests
         var changes = new List<ChangeKind>();
         ComponentChangeOperation<ComponentChangeInvocationMarkerValue> operation = world.ForEachChange<ComponentChangeInvocationMarkerValue>(
             valueId,
-            (Entity current, ChangeKind kind, ref ComponentChangeInvocationMarkerValue value) =>
+            (current, kind, ref value) =>
             {
                 changes.Add(kind);
                 world.GetRef<ComponentChangeInvocationMarkerValue>(current, valueId).Value = value.Value + 1;
@@ -42,12 +42,12 @@ internal sealed class ComponentChangeInvocationMarkerTests
         ComponentId outerId = layouts.Register<ComponentChangeInvocationMarkerValue>(new SchemaId(72_012));
         ComponentId innerId = layouts.Register<ComponentChangeInvocationMarkerValue>(new SchemaId(72_013));
         using var world = new World(layouts);
-        _ = world.Create(stackalloc ComponentId[2] { outerId, innerId });
+        _ = world.Create([outerId, innerId]);
         var changes = new List<ChangeKind>();
         ComponentChangeOperation<ComponentChangeInvocationMarkerValue>? inner = null;
         ComponentChangeOperation<ComponentChangeInvocationMarkerValue> outer = world.ForEachChange<ComponentChangeInvocationMarkerValue>(
             outerId,
-            (Entity current, ChangeKind kind, ref ComponentChangeInvocationMarkerValue _) =>
+            (current, kind, ref _) =>
             {
                 changes.Add(kind);
                 if (kind == ChangeKind.Added)
@@ -59,7 +59,7 @@ internal sealed class ComponentChangeInvocationMarkerTests
             });
         inner = world.ForEachChange<ComponentChangeInvocationMarkerValue>(
             innerId,
-            (Entity current, ChangeKind _, ref ComponentChangeInvocationMarkerValue _) =>
+            (current, _, ref _) =>
                 world.GetRef<ComponentChangeInvocationMarkerValue>(current, innerId).Value++);
 
         outer.Invoke();

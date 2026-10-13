@@ -34,8 +34,7 @@ internal sealed partial class ThrowHelperPlacementTests
                 Text = File.ReadAllText(path)
             })
             .Where(item => ExplicitThrowKeywordRegex().IsMatch(item.Text))
-            .Select(static item => item.Path)
-            .ToArray();
+            .Select(static item => item.Path).ToArray();
 
         Assert.That(
             offenders,
