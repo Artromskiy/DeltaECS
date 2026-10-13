@@ -268,6 +268,11 @@ public sealed partial class World
         {
             if (isTag)
             {
+                if (_componentChangeObservers is not null)
+                {
+                    RecordComponentChange(view.CurrentEntity, componentId);
+                }
+
                 return ref GeneratedTagRows.GetReference<T>(0);
             }
 
@@ -310,6 +315,11 @@ public sealed partial class World
                 ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
             }
 
+            if (_componentChangeObservers is not null)
+            {
+                RecordComponentChange(entity, componentId);
+            }
+
             return ref GeneratedTagRows.GetReference<T>(0);
         }
 
@@ -335,6 +345,11 @@ public sealed partial class World
             if (!chunk.HasTag(tagIndex, slotIndex))
             {
                 ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
+            }
+
+            if (_componentChangeObservers is not null)
+            {
+                RecordComponentChange(view.CurrentEntity, componentId);
             }
 
             return ref GeneratedTagRows.GetReference<T>(0);
@@ -503,7 +518,7 @@ public sealed partial class World
         for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
         {
             Entity entity = entities.RefAt(entityIndex);
-            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out _))
+            if (!TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out int sourceSlotIndex))
             {
                 continue;
             }
@@ -517,6 +532,7 @@ public sealed partial class World
                 continue;
             }
 
+            RecordComponentMembershipChanges(entity, sourceChunk, sourceSlotIndex, stackalloc[] { componentId }, isAdd: true);
             MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
             var targetArchetype = _archetypes[targetChunk.ArchetypeId];
             int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
@@ -560,6 +576,8 @@ public sealed partial class World
         {
             return false;
         }
+
+        RecordComponentMembershipChanges(entity, sourceChunk, sourceSlotIndex, changeSet.ComponentIds, isAdd: true);
 
         Chunk targetChunk = sourceChunk;
         int targetSlotIndex = sourceSlotIndex;
@@ -629,6 +647,8 @@ public sealed partial class World
             {
                 continue;
             }
+
+            RecordComponentMembershipChanges(entity, sourceChunk, sourceSlotIndex, changeSet.ComponentIds, isAdd: true);
 
             Chunk targetChunk = sourceChunk;
             int targetSlot = sourceSlotIndex;

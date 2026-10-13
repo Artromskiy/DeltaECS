@@ -225,6 +225,9 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static ComponentId GetTagComponentId(int route) => new(TagRouteOffset - route);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetEntityRefReadRoute(ComponentId component, Type? runtimeType, out int route)
     {
         if (component.IsValid

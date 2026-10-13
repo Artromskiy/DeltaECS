@@ -336,6 +336,57 @@ public sealed partial class World : IDisposable
         }
     }
 
+    internal void RecordComponentMembershipChanges(
+        Entity entity,
+        Chunk chunk,
+        int slotIndex,
+        ReadOnlySpan<ComponentId> componentIds,
+        bool isAdd)
+    {
+        if (_componentChangeObservers is null)
+        {
+            return;
+        }
+
+        Archetype archetype = _archetypes[chunk.ArchetypeId];
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds.RefAt(index);
+            ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
+            if ((uint)componentId.Value >= (uint)routes.Length || routes[componentId.Value] is null)
+            {
+                continue;
+            }
+
+            bool hasComponent = _layouts.TryGetTagIndex(componentId, out int tagIndex)
+                ? chunk.HasTag(tagIndex, slotIndex)
+                : archetype.Mask.Contains(componentId);
+            if (hasComponent != isAdd)
+            {
+                RecordComponentChange(entity, componentId);
+            }
+        }
+    }
+
+    internal void RecordComponentMembershipChanges(
+        Chunk chunk,
+        int slotIndex,
+        int count,
+        ReadOnlySpan<ComponentId> componentIds,
+        bool isAdd)
+    {
+        if (_componentChangeObservers is null)
+        {
+            return;
+        }
+
+        Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
+        for (int index = 0; index < count; index++)
+        {
+            RecordComponentMembershipChanges(entities.RefAt(index), chunk, slotIndex + index, componentIds, isAdd);
+        }
+    }
+
     internal ComponentChangeObserver[]? ResolveComponentChangeObservers(ComponentId componentId, out int count)
     {
         ComponentChangeObserverRoute?[]? routes = Volatile.Read(ref _componentChangeObservers);
@@ -1121,6 +1172,8 @@ public sealed partial class World : IDisposable
                     continue;
                 }
 
+                RecordComponentMembershipChanges(entity, chunk, slotIndex, changeSet.ComponentIds, isAdd);
+
                 bool entityTagsChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
                 int sourceArchetypeId = chunk.ArchetypeId;
                 var edge = edgeGeneration == 0
@@ -1344,6 +1397,7 @@ public sealed partial class World : IDisposable
                         sourceToTargetRows,
                         addedTargetRows,
                         targetCursor,
+                        changeSet.ComponentIdArray,
                         changeSet.TagIndices,
                         isAdd,
                         isDestroy);
@@ -1372,6 +1426,7 @@ public sealed partial class World : IDisposable
                     sourceToTargetRows,
                     addedTargetRows,
                     targetCursor,
+                    changeSet.ComponentIdArray,
                     changeSet.TagIndices,
                     isAdd,
                     isDestroy);

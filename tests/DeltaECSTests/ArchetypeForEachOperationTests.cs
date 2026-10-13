@@ -182,6 +182,134 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ForEachChangeFoldsStructuralAndWriteEventsByEntityAndComponent()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_323));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_325));
+        using var world = new World(layouts);
+        Entity existing = world.Create([positionId]);
+        Entity initiallyAbsent = world.Create([velocityId]);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+
+        world.Remove(existing, positionId);
+        world.Add(existing, positionId);
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (existing, ChangeKind.Modified) }));
+
+        changes.Clear();
+        world.Add(initiallyAbsent, positionId);
+        world.GetRef<ComponentChangePosition>(initiallyAbsent, positionId).Value++;
+        world.Remove(initiallyAbsent, positionId);
+        operation.Invoke();
+        Assert.That(changes, Is.Empty);
+
+        world.Add(existing, positionId);
+        operation.Invoke();
+        changes.Clear();
+        world.GetRef<ComponentChangePosition>(existing, positionId).Value++;
+        world.Remove(existing, positionId);
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (existing, ChangeKind.Removed) }));
+    }
+
+    [Test]
+    public void ForEachChangeKeepsReusedEntityIndexGenerationsSeparate()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_329));
+        using var world = new World(layouts);
+        Entity oldEntity = world.Create([positionId]);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.Destroy(oldEntity);
+        Entity newEntity = world.Create([positionId]);
+        Assert.That(newEntity.Index, Is.EqualTo(oldEntity.Index));
+        Assert.That(newEntity.Generation, Is.Not.EqualTo(oldEntity.Generation));
+        operation.Invoke();
+
+        Assert.That(changes, Is.EquivalentTo(new[]
+        {
+            (oldEntity, ChangeKind.Removed),
+            (newEntity, ChangeKind.Added)
+        }));
+
+        changes.Clear();
+        world.Destroy(newEntity);
+        Entity transientEntity = world.Create([positionId]);
+        Assert.That(transientEntity.Index, Is.EqualTo(oldEntity.Index));
+        world.Destroy(transientEntity);
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[] { (newEntity, ChangeKind.Removed) }));
+    }
+
+    [Test]
+    public void ForEachChangeTracksTagWritesAndFoldsTagMembershipChanges()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_324));
+        using var world = new World(layouts);
+        Entity entity = world.Create<Active>();
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<Active>(activeId,
+            (Entity changedEntity, ChangeKind kind, ref Active _) => changes.Add((changedEntity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.GetRef<Active>(entity, activeId) = default;
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entity, ChangeKind.Modified) }));
+
+        changes.Clear();
+        Query active = world.WhereAll(activeId);
+        world.ForEach<Active>(in active, activeId, static (ref Active _) => { }).Invoke();
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entity, ChangeKind.Modified) }));
+
+        changes.Clear();
+        world.Remove(entity, activeId);
+        world.Add(entity, activeId);
+        operation.Invoke();
+        Assert.That(changes, Is.EqualTo(new[] { (entity, ChangeKind.Modified) }));
+    }
+
+    [Test]
+    public void ForEachChangeIntersectsGeneratedTagWritesWithQuerySelection()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_326));
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_327));
+        ComponentId blockedId = layouts.Register<Paused>(new SchemaId(60_328));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[3];
+        world.Create([positionId], entities);
+        world.Add(entities[0], activeId);
+        world.Add(entities[1], activeId);
+        world.Add(entities[0], blockedId);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<Active>(activeId,
+            (Entity entity, ChangeKind kind, ref Active _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        Query selected = world.WhereAll([positionId, activeId]).WhereNone(blockedId);
+        world.ForEach<Active>(in selected, activeId, static (ref Active _) => { }).Invoke();
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[] { (entities[1], ChangeKind.Modified) }));
+    }
+
+    [Test]
     public void ForEachChangeConsumesWritesMadeThroughItsCallbackReference()
     {
         var layouts = new ComponentRegistry();

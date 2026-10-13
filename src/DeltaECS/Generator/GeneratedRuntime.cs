@@ -48,6 +48,7 @@ internal readonly struct GeneratedWhereStructuralPlan
         int[] sourceToTargetRows,
         int[] addedTargetRows,
         GeneratedWhereTargetCursor? targetCursor,
+        ComponentId[] componentIds,
         int[] tagIndices,
         bool isAdd,
         bool isDestroy)
@@ -57,6 +58,7 @@ internal readonly struct GeneratedWhereStructuralPlan
         SourceToTargetRows = sourceToTargetRows;
         AddedTargetRows = addedTargetRows;
         TargetCursor = targetCursor;
+        ComponentIds = componentIds;
         TagIndices = tagIndices;
         IsAdd = isAdd;
         IsDestroy = isDestroy;
@@ -67,6 +69,7 @@ internal readonly struct GeneratedWhereStructuralPlan
     internal int[] SourceToTargetRows { get; }
     internal int[] AddedTargetRows { get; }
     internal GeneratedWhereTargetCursor? TargetCursor { get; }
+    internal ComponentId[] ComponentIds { get; }
     internal int[] TagIndices { get; }
     internal bool IsAdd { get; }
     internal bool IsDestroy { get; }
@@ -135,6 +138,11 @@ public struct GeneratedWhereStructuralContext
 
         if (selected)
         {
+            if (!_plan.IsDestroy)
+            {
+                _world.RecordComponentMembershipChanges(_sourceChunk, sourceSlot, count, _plan.ComponentIds, _plan.IsAdd);
+            }
+
             if (!_plan.IsDestroy && _plan.TargetArchetype is null)
             {
                 int changedTags = _world.ApplyGeneratedWhereTags(
@@ -681,17 +689,20 @@ public static partial class GeneratedForEachRuntime
     internal static void RecordComponentWrite(QueryPlan plan, int route)
     {
         World world = plan.Owner;
-        if (QueryPlan.IsTagRoute(route) || !world.HasComponentChangeObserverRoutes)
+        if (!world.HasComponentChangeObserverRoutes)
         {
             return;
         }
 
-        ComponentId componentId = plan.GetDataComponentId(route);
+        bool isTag = QueryPlan.IsTagRoute(route);
+        ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
         ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
         if (observers is null)
         {
             return;
         }
+
+        int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
 
         try
         {
@@ -699,6 +710,16 @@ public static partial class GeneratedForEachRuntime
             for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
             {
                 Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+                if (isTag)
+                {
+                    for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
+                    {
+                        observers[observerIndex].RecordTagChunk(chunk, tagIndex, plan);
+                    }
+
+                    continue;
+                }
+
                 Span<Entity> entities = chunk.RawEntities;
                 if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> tagSlots))
                 {
@@ -1097,12 +1118,9 @@ public static partial class GeneratedForEachRuntime
         for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
         {
             int route = routes.RefAt(routeIndex);
-            if (QueryPlan.IsTagRoute(route))
-            {
-                continue;
-            }
-
-            ComponentId componentId = plan.GetDataComponentId(route);
+            bool isTag = QueryPlan.IsTagRoute(route);
+            ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
+            int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
             ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
             if (observers is null)
             {
@@ -1116,7 +1134,8 @@ public static partial class GeneratedForEachRuntime
                     Entity entity = entities.RefAt(entityIndex);
                     if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
                         || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
-                        || !plan.MatchesTagSlot(chunk, slotIndex))
+                        || !plan.MatchesTagSlot(chunk, slotIndex)
+                        || (isTag && !chunk.HasTag(tagIndex, slotIndex)))
                     {
                         continue;
                     }
@@ -1199,11 +1218,11 @@ public static partial class GeneratedForEachRuntime
     public static int GetPreparedWriteRoute<T>(in Query query, ComponentId component)
         => query.Cached.GetPreparedWriteAccess(component, typeof(T)).QueryComponentIndex;
 
-    /// <summary>Returns the trusted query-local route used by batch write marking.</summary>
+    /// <summary>Returns the trusted query-local component route used for write tracking.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetWriteQueryComponentIndex(WriteAccess access)
-        => QueryPlan.IsTagRoute(access.QueryComponentIndex) ? -1 : access.QueryComponentIndex;
+        => access.QueryComponentIndex;
 
     /// <summary>Returns a trusted query-local route used by generated parallel invokers.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]

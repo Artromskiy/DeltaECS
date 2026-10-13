@@ -58,6 +58,8 @@ internal sealed class ComponentSet
 
     internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds;
 
+    internal ComponentId[] ComponentIdArray => _componentIds;
+
     internal ComponentMask Mask { get; }
 
     internal int[] TagIndices { get; }

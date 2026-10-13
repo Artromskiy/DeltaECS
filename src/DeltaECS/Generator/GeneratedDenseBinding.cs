@@ -88,11 +88,6 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         for (int index = 0; index < routes.Length; index++)
         {
             int route = routes[index];
-            if (QueryPlan.IsTagRoute(route))
-            {
-                continue;
-            }
-
             if (unique.AsSpan(0, count).IndexOf(route) < 0)
             {
                 unique[count++] = route;
