@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;RS1038</NoWarn>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -16,12 +16,14 @@
     <ProjectReference Include="..\..\src\DeltaECS\DeltaECS.csproj" />
     <ProjectReference Include="..\..\src\DeltaECS.Generators\DeltaECS.Generators.csproj"
                       GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
+    <ProjectReference Include="..\..\src\DeltaECS.Generators.CodeFixes\DeltaECS.Generators.CodeFixes.csproj" />
     <ProjectReference Include="..\DeltaECS.Generators.Consumer\DeltaECS.Generators.Consumer.csproj" />
     <ProjectReference Include="..\DeltaECS.Runtime.Consumer\DeltaECS.Runtime.Consumer.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0" />
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
