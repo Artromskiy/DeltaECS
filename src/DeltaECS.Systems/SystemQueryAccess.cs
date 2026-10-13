@@ -7,7 +7,7 @@ using Delta.ECS;
 /// <summary>Describes component access restricted to entities matching one query.</summary>
 public readonly struct SystemQueryAccess
 {
-    private static readonly ComponentId[] Empty = Array.Empty<ComponentId>();
+    private static readonly ComponentId[] Empty = [];
     private readonly ComponentId[]? _reads;
     private readonly ComponentId[]? _writes;
 

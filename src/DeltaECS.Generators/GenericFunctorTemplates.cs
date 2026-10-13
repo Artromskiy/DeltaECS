@@ -66,7 +66,7 @@ internal static class GenericFunctorTemplates
                     };
                 }
 
-                foreach (bool hasQuery in entityList ? new[] { false, true } : new[] { true })
+                foreach (bool hasQuery in entityList ? new[] { false, true } : [true])
                 {
                     foreach (bool hasContext in new[] { false, true })
                     {

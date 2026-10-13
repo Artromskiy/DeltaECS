@@ -51,8 +51,7 @@ internal static class GeneratedStructuralTemplates
                     : GeneratorTemplates.PrimaryComponentSetKeyDeclaration(slots.Arity),
                 extension
             }
-            .OfType<string>()
-            .ToArray();
+            .OfType<string>().ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
             shape.Namespace,
             GeneratorSupport.EcsNamespaceUsings(shape.Namespace),

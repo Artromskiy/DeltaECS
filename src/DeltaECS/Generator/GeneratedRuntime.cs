@@ -310,7 +310,7 @@ public ref struct GeneratedDenseExecution
 
     /// <summary>Reports whether this execution applies tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
+    public readonly bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
     internal GeneratedDenseExecution(
         World owner,
@@ -332,7 +332,7 @@ public ref struct GeneratedDenseExecution
     /// <summary>Returns the selected physical entity slots for the current chunk, when filtered by tags.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
+    public readonly bool TryGetTagSlots(out ReadOnlySpan<int> slots)
     {
         if (_queryPlan is not null && (uint)_chunkIndex < (uint)_chunkPlans.Length)
         {
@@ -346,7 +346,7 @@ public ref struct GeneratedDenseExecution
     /// <summary>Reports one generated component write before the chunk loop starts.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void RecordComponentWrite(int queryComponentIndex)
+    public readonly void RecordComponentWrite(int queryComponentIndex)
     {
         if (_queryPlan is not null)
         {
@@ -357,7 +357,7 @@ public ref struct GeneratedDenseExecution
     /// <summary>Reports generated component writes before the chunk loop starts.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices)
+    public readonly void RecordComponentWrites(scoped ReadOnlySpan<int> queryComponentIndices)
     {
         if (_queryPlan is not null)
         {
@@ -434,7 +434,7 @@ public ref struct GeneratedReadDenseExecution
 
     /// <summary>Reports whether this execution applies tag filters.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
+    public readonly bool HasTagFilters => _queryPlan?.HasTagFilters ?? false;
 
     internal GeneratedReadDenseExecution(World owner, ReadOnlySpan<ChunkPlan> chunkPlans, QueryPlan? queryPlan = null)
     {
@@ -447,7 +447,7 @@ public ref struct GeneratedReadDenseExecution
     /// <summary>Returns the selected physical entity slots for the current chunk, when filtered by tags.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetTagSlots(out ReadOnlySpan<int> slots)
+    public readonly bool TryGetTagSlots(out ReadOnlySpan<int> slots)
     {
         if (_queryPlan is not null && (uint)_chunkIndex < (uint)_chunkPlans.Length)
         {
@@ -1032,7 +1032,7 @@ public static partial class GeneratedForEachRuntime
 
     internal static void RecordComponentWrite(QueryPlan plan, int route)
     {
-        Span<int> singleRoute = stackalloc int[1] { route };
+        Span<int> singleRoute = [route];
         RecordComponentWrites(plan, singleRoute);
     }
 

@@ -69,7 +69,7 @@ public sealed partial class ComponentRegistry
     public ReadOnlySpan<ComponentId> GetGroup<TEnum>(TEnum groupId) where TEnum : struct, Enum
         => _componentGroups.TryGetValue((typeof(TEnum).TypeHandle, GetGroupValue(groupId)), out ComponentGroupMembers? members)
             ? members.GetComponents()
-            : ReadOnlySpan<ComponentId>.Empty;
+            : [];
 
     /// <summary>Adds a registered component to a group in this catalog.</summary>
     public void AddGroup<TEnum>(TEnum groupId, ComponentId componentId) where TEnum : struct, Enum
@@ -139,7 +139,7 @@ public sealed partial class ComponentRegistry
     /// </summary>
     public ComponentId Register(Type genericTypeDefinition, ComponentId componentArgument, SchemaId schemaId)
     {
-        Span<ComponentId> arguments = stackalloc ComponentId[1] { componentArgument };
+        Span<ComponentId> arguments = [componentArgument];
         return Register(genericTypeDefinition, arguments, schemaId);
     }
 

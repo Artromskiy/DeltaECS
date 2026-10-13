@@ -147,6 +147,10 @@ public sealed partial class World
 
     /// <summary>Direct executor for a zero-component entity parallel operation.</summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1034:Nested types should not be visible",
+        Justification = "The public parallel-operation return type exposes this invoker as a generic argument.")]
     public readonly struct EntityParallelOperation : IEcsOperationInvoker
     {
         private readonly World _world;
@@ -167,12 +171,16 @@ public sealed partial class World
         {
             ThrowHelper.ThrowIfNull(_action, nameof(_action));
             var invoker = new EntityParallelInvoker(_action);
-            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
+            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, [], _workerCount);
         }
     }
 
     /// <summary>Direct executor for a zero-component entity parallel operation with read-only context.</summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1034:Nested types should not be visible",
+        Justification = "The public parallel-operation return type exposes this invoker as a generic argument.")]
     public readonly struct EntityParallelInContextOperation<TContext> : IEcsOperationInvoker
     {
         private readonly World _world;
@@ -195,12 +203,16 @@ public sealed partial class World
         {
             ThrowHelper.ThrowIfNull(_action, nameof(_action));
             var invoker = new EntityParallelContextInvoker<TContext>(in _context, _action);
-            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
+            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, [], _workerCount);
         }
     }
 
     /// <summary>Direct executor for a zero-component entity parallel operation with value context.</summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1034:Nested types should not be visible",
+        Justification = "The public parallel-operation return type exposes this invoker as a generic argument.")]
     public readonly struct EntityParallelValueContextOperation<TContext> : IEcsOperationInvoker
     {
         private readonly World _world;
@@ -223,7 +235,7 @@ public sealed partial class World
         {
             ThrowHelper.ThrowIfNull(_action, nameof(_action));
             var invoker = new EntityParallelValueContextInvoker<TContext>(_context, _action);
-            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, ReadOnlySpan<int>.Empty, _workerCount);
+            GeneratedForEachRuntime.ExecuteParallelDense(_world, in _query, ref invoker, [], _workerCount);
         }
     }
 

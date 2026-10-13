@@ -33,7 +33,7 @@ public sealed partial class World
         ComponentId componentId = GetPrimaryComponentId<T>();
         return _layouts.IsTag(componentId)
             ? Add(entity, componentId)
-            : AddComponentBatch(stackalloc[] { entity }, componentId, in value) == 1;
+            : AddComponentBatch([entity], componentId, in value) == 1;
     }
 
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
@@ -41,14 +41,14 @@ public sealed partial class World
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
         return _layouts.IsTag(componentId)
-            ? Add(entities, stackalloc[] { componentId })
+            ? Add(entities, [componentId])
             : AddComponentBatch(entities, componentId, in value);
     }
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
     public bool Remove<T>(Entity entity)
         => RemoveComponentBatch(
-            stackalloc[] { entity },
+            [entity],
             GetPrimaryComponentId<T>()) == 1;
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
@@ -705,7 +705,7 @@ public sealed partial class World
         }
 
         EnsureNoActiveLease("add components");
-        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc[] { componentId });
+        ComponentSet changeSet = GetOrCreateComponentSet([componentId]);
         int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Chunk? pendingChunk = null;
@@ -753,7 +753,7 @@ public sealed partial class World
     }
 
     private int RemoveComponentBatch(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => ApplyComponents(false, stackalloc[] { componentId }, entities);
+        => ApplyComponents(false, [componentId], entities);
 
     private void EnsureRegisteredType<T>(ComponentId componentId)
     {

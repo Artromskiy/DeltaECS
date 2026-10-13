@@ -22,8 +22,8 @@ internal sealed record InterceptionSite(
 
     internal IterationModel IterationModel => Shape;
     private static string[] DefaultParameterNames(IterationModel shape)
-        => (shape.HasContext ? new[] { "context" } : Array.Empty<string>())
-            .Concat(shape.HasEntity ? new[] { "entity" } : Array.Empty<string>())
+        => (shape.HasContext ? ["context"] : Array.Empty<string>())
+            .Concat(shape.HasEntity ? ["entity"] : Array.Empty<string>())
             .Concat(Enumerable.Range(0, shape.Pattern.Length).Select(static index => "component" + index))
             .ToArray();
 }

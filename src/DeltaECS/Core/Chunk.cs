@@ -280,7 +280,7 @@ internal sealed class Chunk
             }
         }
 
-        donor.RawComponentRows = Array.Empty<Array>();
+        donor.RawComponentRows = [];
         RawComponentRows = targetRows;
         _rowOperations = rowOperations;
     }
@@ -443,7 +443,7 @@ internal sealed class Chunk
             _componentRowArrayPool.Return(RawComponentRows.RefAt(componentIndex));
         }
 
-        RawComponentRows = Array.Empty<Array>();
+        RawComponentRows = [];
         _entities.Dispose();
     }
 

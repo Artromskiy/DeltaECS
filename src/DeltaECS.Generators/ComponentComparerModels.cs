@@ -15,7 +15,7 @@ internal sealed record ComponentComparerModel(
     bool IsReferenceType,
     ComponentComparerSignature? Signature)
 {
-    internal string[] ComponentTypes => Signature?.ComponentTypes ?? Array.Empty<string>();
+    internal string[] ComponentTypes => Signature?.ComponentTypes ?? [];
 
     internal string Key =>
         $"{FunctorType}|{string.Join("|", ComponentTypes)}|{Signature?.HasContext}|{Signature?.ContextType}|"

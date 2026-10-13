@@ -97,8 +97,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
         string pattern = new string(parameters
             .Skip(parameterStart)
-            .Select(parameter => GeneratorSupport.PatternLetter(parameter))
-            .ToArray());
+            .Select(parameter => GeneratorSupport.PatternLetter(parameter)).ToArray());
         if (parameters.Skip(parameterStart).Any(parameter =>
                 !CallbackReader.HasTypedAccessibleParameter(model, parameter)
                 || GeneratorSupport.PatternLetter(parameter) == 'W'))
@@ -115,9 +114,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             contextType is null ? null : GeneratorSupport.DisplayType(contextType),
             components: null,
             namespaceName);
-        ITypeSymbol[] componentTypes = parameters.Skip(parameterStart)
-            .Select(parameter => model.GetTypeInfo(parameter.Type!).Type!)
-            .ToArray();
+        ITypeSymbol[] componentTypes = parameters.Skip(parameterStart).Select(parameter => model.GetTypeInfo(parameter.Type!).Type!).ToArray();
         SetClosedTypeArguments(shape, hasContext ? contextType : null, componentTypes);
         return true;
     }
@@ -319,8 +316,8 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             return false;
         }
 
-        ParameterSyntax[] predicateParameters = predicate is null ? Array.Empty<ParameterSyntax>() : CallbackReader.LambdaParameters(predicate);
-        ParameterSyntax[] actionParameters = action is null ? Array.Empty<ParameterSyntax>() : CallbackReader.LambdaParameters(action);
+        ParameterSyntax[] predicateParameters = predicate is null ? [] : CallbackReader.LambdaParameters(predicate);
+        ParameterSyntax[] actionParameters = action is null ? [] : CallbackReader.LambdaParameters(action);
         int predicateComponentStart = (shape.HasContext ? 1 : 0) + (shape.HasEntity ? 1 : 0);
         string[] predicateComponents = CallbackComponentTypes(
             model,
@@ -387,12 +384,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
         => lambda is not null
             ? CallbackReader.LambdaParameters(lambda)
                 .Skip(firstComponent)
-                .Select(parameter => GeneratorSupport.DisplayType(model.GetTypeInfo(parameter.Type!).Type!))
-                .ToArray()
+                .Select(parameter => GeneratorSupport.DisplayType(model.GetTypeInfo(parameter.Type!).Type!)).ToArray()
             : method is not null
-                ? method.Parameters.Skip(firstComponent)
-                    .Select(static parameter => GeneratorSupport.DisplayType(parameter.Type))
-                    .ToArray()
+                ? method.Parameters.Skip(firstComponent).Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray()
                 : fallback;
 
     private static bool TryResolveWherePredicateMethod(
@@ -453,8 +447,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             .Where(static method => !method.IsStatic && method.ReturnType.SpecialType == SpecialType.System_Boolean)
             .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: true))
             .Where(method => method.Parameters.Skip((hasContext ? 1 : 0) + (hasEntity ? 1 : 0)).All(
-                static parameter => CallbackReader.IsSupportedReadRefKind(parameter.RefKind)))
-            .ToArray();
+                static parameter => CallbackReader.IsSupportedReadRefKind(parameter.RefKind))).ToArray();
         if (invokes.Length != 1)
         {
             return false;
@@ -545,7 +538,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
 
     private static void SetClosedTypeArguments(PredicateModel shape, ITypeSymbol? contextType, ITypeSymbol[] componentTypes)
     {
-        ITypeSymbol[] types = (contextType is null ? Array.Empty<ITypeSymbol>() : new[] { contextType })
+        ITypeSymbol[] types = (contextType is null ? Array.Empty<ITypeSymbol>() : [contextType])
             .Concat(componentTypes)
             .ToArray();
         shape.ClosedTypeArguments = types.Select(GeneratorSupport.DisplayType).ToArray();
@@ -740,14 +733,10 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             }
 
             string[] componentTypes = generic is not null
-                ? generic.TypeArgumentList.Arguments
-                    .Select(argument => GeneratorSupport.DisplayType(model.GetTypeInfo(argument).Type!))
-                    .ToArray()
+                ? generic.TypeArgumentList.Arguments.Select(argument => GeneratorSupport.DisplayType(model.GetTypeInfo(argument).Type!)).ToArray()
                 : hasValues
-                    ? Enumerable.Range(selection.TailStart, selection.TailCount)
-                        .Select(index => GeneratorSupport.DisplayType(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type!))
-                        .ToArray()
-                    : Array.Empty<string>();
+                    ? Enumerable.Range(selection.TailStart, selection.TailCount).Select(index => GeneratorSupport.DisplayType(model.GetTypeInfo(invocation.ArgumentList.Arguments[index].Expression).Type!)).ToArray()
+                    : [];
             string pattern = generic is null && !hasValues
                 ? new string('V', selection.HasComponentIdSpan ? 0 : selection.ComponentIdCount)
                 : string.Empty;
@@ -855,8 +844,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             .Where(static method => !method.IsStatic && method.ReturnsVoid)
             .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: true, entityRef: true))
             .Where(method => method.Parameters.Skip(prefixCount).All(
-                static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind)))
-            .ToArray();
+                static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind))).ToArray();
         if (invokes.Length != 1)
         {
             return false;

@@ -7,17 +7,11 @@ using System.ComponentModel;
 
 /// <summary>A reusable deferred operation with a concrete value-type executor.</summary>
 /// <remarks>Use <see cref="IOperation"/> to store different operation shapes behind one reference.</remarks>
-public struct EcsOperation<TInvoker> : IOperation
+[method: EditorBrowsable(EditorBrowsableState.Never)]
+public struct EcsOperation<TInvoker>(TInvoker invoker) : IOperation
     where TInvoker : struct, IEcsOperationInvoker
 {
-    private TInvoker _invoker;
-
-    /// <summary>Creates a deferred operation from its concrete executor.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public EcsOperation(TInvoker invoker)
-    {
-        _invoker = invoker;
-    }
+    private TInvoker _invoker = invoker;
 
     /// <summary>Executes this operation.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -26,19 +20,12 @@ public struct EcsOperation<TInvoker> : IOperation
 
 /// <summary>A reusable deferred operation with concrete value-type executor and mutable state.</summary>
 /// <remarks><see cref="Invoke()"/> updates the operation-owned state. <see cref="Invoke(ref TState)"/> uses caller-owned state.</remarks>
-public struct EcsOperation<TState, TInvoker> : IOperation<TState>
+[method: EditorBrowsable(EditorBrowsableState.Never)]
+public struct EcsOperation<TState, TInvoker>(TState state, TInvoker invoker) : IOperation<TState>
     where TInvoker : struct, IEcsOperationInvoker<TState>
 {
-    private TState _state;
-    private TInvoker _invoker;
-
-    /// <summary>Creates a deferred operation with its initial state and concrete executor.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public EcsOperation(TState state, TInvoker invoker)
-    {
-        _state = state;
-        _invoker = invoker;
-    }
+    private TState _state = state;
+    private TInvoker _invoker = invoker;
 
     /// <summary>Executes this operation using and updating its operation-owned state.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -51,21 +38,13 @@ public struct EcsOperation<TState, TInvoker> : IOperation<TState>
 
 /// <summary>A reusable deferred operation with concrete value-type executor, context and functor state.</summary>
 /// <remarks>Overloads use either operation-owned or caller-owned context and functor values.</remarks>
-public struct EcsOperation<TContext, TFunctor, TInvoker> : IOperation<TContext, TFunctor>
+[method: EditorBrowsable(EditorBrowsableState.Never)]
+public struct EcsOperation<TContext, TFunctor, TInvoker>(TContext context, TFunctor functor, TInvoker invoker) : IOperation<TContext, TFunctor>
     where TInvoker : struct, IEcsOperationInvoker<TContext, TFunctor>
 {
-    private TContext _context;
-    private TFunctor _functor;
-    private TInvoker _invoker;
-
-    /// <summary>Creates a deferred operation with its initial state and concrete executor.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public EcsOperation(TContext context, TFunctor functor, TInvoker invoker)
-    {
-        _context = context;
-        _functor = functor;
-        _invoker = invoker;
-    }
+    private TContext _context = context;
+    private TFunctor _functor = functor;
+    private TInvoker _invoker = invoker;
 
     /// <summary>Executes the operation using and updating its operation-owned context and functor.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

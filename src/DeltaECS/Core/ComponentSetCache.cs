@@ -72,7 +72,7 @@ internal sealed class ComponentSetCache
         _typed.Clear();
         _dynamic.Clear();
         _idsByMask.Clear();
-        _setsById = Array.Empty<ComponentSet?>();
+        _setsById = [];
         _nextId = 1;
     }
 
@@ -142,7 +142,7 @@ internal sealed class ComponentSet
     private const uint FnvPrime = 16_777_619u;
 
     internal static readonly ComponentSet Empty =
-        new(Array.Empty<ComponentId>(), default, Array.Empty<int>());
+        new([], default, []);
 
     internal ReadOnlySpan<ComponentId> ComponentIds => ComponentIdArray;
 

@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 internal sealed class EntityRecordStorage
 {
-    private EntityRecord[] _items = Array.Empty<EntityRecord>();
+    private EntityRecord[] _items = [];
 
     internal int Count { get; private set; }
 

@@ -14,12 +14,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 {
     private const int FirstRefReadonlyParameterLanguageVersion = 1200;
     private static readonly ContextModeKind[] ContextModes =
-    {
+    [
         ContextModeKind.Ref,
         ContextModeKind.In,
         ContextModeKind.RefReadonly,
         ContextModeKind.Value
-    };
+    ];
 
     private static readonly DiagnosticDescriptor Unsupported = GeneratorDiagnostics.Error(
         "DECSGEN001",
@@ -652,9 +652,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             : null;
         if (genericName is not null)
         {
-            ITypeSymbol?[] requestedTypes = genericName.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type)
-                .ToArray();
+            ITypeSymbol?[] requestedTypes = genericName.TypeArgumentList.Arguments.Select(argument => model.GetTypeInfo(argument).Type).ToArray();
             if (hasContext
                 && (requestedTypes[0] is null
                     || !SymbolEqualityComparer.Default.Equals(requestedTypes[0], methodTarget.Parameters[0].Type)))
@@ -693,9 +691,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
         else
         {
-            components = componentParameters
-                .Select(static parameter => GeneratorSupport.DisplayType(parameter.Type))
-                .ToArray();
+            components = componentParameters.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray();
         }
 
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
@@ -796,8 +792,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             .Where(static method => !method.IsStatic && method.ReturnsVoid)
             .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
             .Where(method => method.Parameters.Skip((hasContext ? 1 : 0) + (hasEntity ? 1 : 0)).All(
-                static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind)))
-            .ToArray();
+                static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind))).ToArray();
         if (invokes.Length != 1)
         {
             string patterns = invokes.Length == 0
@@ -831,9 +826,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
         string[] components = genericSelectors
-            ? genericName!.TypeArgumentList.Arguments
-                .Select(argument => model.GetTypeInfo(argument).Type is { } type ? GeneratorSupport.DisplayType(type) : argument.ToString())
-                .ToArray()
+            ? genericName!.TypeArgumentList.Arguments.Select(argument => model.GetTypeInfo(argument).Type is { } type ? GeneratorSupport.DisplayType(type) : argument.ToString()).ToArray()
             : componentParameters.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray();
         if (genericSelectors && components.Length != componentParameters.Length)
         {
@@ -948,11 +941,10 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         int start = prefixCount + (hasEntity ? 1 : 0);
         ITypeSymbol?[] types = parameters
             .Skip(start)
-            .Select(parameter => parameter.Type is { } syntax ? model.GetTypeInfo(syntax).Type : null)
-            .ToArray();
+            .Select(parameter => parameter.Type is { } syntax ? model.GetTypeInfo(syntax).Type : null).ToArray();
         return types.All(static type => type is not null)
             ? types.Select(static type => GeneratorSupport.DisplayType(type!)).ToArray()
-            : Array.Empty<string>();
+            : [];
     }
 
     private static string? InferPattern(LambdaExpressionSyntax lambda, int componentCount, bool hasContext, bool hasEntity)

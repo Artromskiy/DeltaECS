@@ -11,8 +11,8 @@ using Delta.ECS;
 /// </summary>
 public readonly struct SystemAccess
 {
-    private static readonly ComponentId[] Empty = Array.Empty<ComponentId>();
-    private static readonly SystemQueryAccess[] EmptyQueryAccesses = Array.Empty<SystemQueryAccess>();
+    private static readonly ComponentId[] Empty = [];
+    private static readonly SystemQueryAccess[] EmptyQueryAccesses = [];
     private readonly ComponentId[]? _reads;
     private readonly ComponentId[]? _writes;
     private readonly ComponentId[]? _adds;

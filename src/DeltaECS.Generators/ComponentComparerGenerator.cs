@@ -163,8 +163,7 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         signature = null;
         IMethodSymbol[] invokeMethods = comparerType.GetMembers("Invoke")
             .OfType<IMethodSymbol>()
-            .Where(static method => !method.IsStatic)
-            .ToArray();
+            .Where(static method => !method.IsStatic).ToArray();
         if (invokeMethods.Length != 1)
         {
             return false;
@@ -231,8 +230,7 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
         }
 
         signature = new ComponentComparerSignature(
-            invoke.Parameters.Skip(componentStart).Take(componentCount)
-                .Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
+            invoke.Parameters.Skip(componentStart).Take(componentCount).Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
             hasContext,
             contextType,
             contextMode,

@@ -11,7 +11,7 @@ internal static class ArrayAccess
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static unsafe Span<T> AsSpan<T>(nint address, int length) where T : unmanaged =>
-        length == 0 ? Span<T>.Empty : new((void*)address, length);
+        length == 0 ? [] : new((void*)address, length);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static unsafe ReadOnlySpan<T> AsReadOnlySpan<T>(nint address, int length) where T : unmanaged =>

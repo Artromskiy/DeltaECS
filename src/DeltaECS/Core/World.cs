@@ -43,17 +43,17 @@ public sealed partial class World : IDisposable
 
     // These snapshots change only outside query execution; parallel callbacks observe them after executor publication.
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
-    private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
+    private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = [];
     private readonly List<Entity> _queryEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
     private NativeMemory<DestroyEntry> _destroyScratch = new(InitialDestroyScratchCapacity);
     private readonly List<Archetype> _deferredQueryPlanArchetypes = new(InitialDeferredQueryPlanCapacity);
     private readonly List<QueryPlan> _deferredQueryPlans = new(InitialDeferredQueryPlanCapacity);
-    private GeneratedWhereStructuralPlan[] _generatedWhereArchetypePlans = Array.Empty<GeneratedWhereStructuralPlan>();
-    private GeneratedWhereTargetCursor?[] _generatedWhereTargetCursors = Array.Empty<GeneratedWhereTargetCursor?>();
+    private GeneratedWhereStructuralPlan[] _generatedWhereArchetypePlans = [];
+    private GeneratedWhereTargetCursor?[] _generatedWhereTargetCursors = [];
     private NativeMemory<int> _generatedWhereTargetCursorGenerations = new(0);
     private NativeMemory<int> _deferredQueryPlanArchetypeGenerations = new(0);
-    private Archetype[] _generatedWhereSourceArchetypes = Array.Empty<Archetype>();
+    private Archetype[] _generatedWhereSourceArchetypes = [];
     private NativeMemory<int> _generatedWhereSourceCounts = new(0);
     private int _generatedWhereSourceArchetypeCount;
     private int _generatedWherePlanGeneration;
@@ -62,12 +62,12 @@ public sealed partial class World : IDisposable
     private bool _generatedWhereDestroyCapacityReserved;
     private bool _generatedWhereStructuralActive;
     private bool _queryPlanBatchActive;
-    private TransitionEdge[] _batchEdgeSlots = Array.Empty<TransitionEdge>();
+    private TransitionEdge[] _batchEdgeSlots = [];
     private NativeMemory<int> _batchEdgeGenerations = new(0);
     private int _batchEdgeGeneration;
     private int _nextChunkId;
     private readonly List<int> _freeChunkIds = new();
-    private Chunk?[] _chunksById = Array.Empty<Chunk?>();
+    private Chunk?[] _chunksById = [];
     private int _activeChunkLeases;
     private int _schedulerExecutionActive;
 
@@ -181,10 +181,10 @@ public sealed partial class World : IDisposable
         _batchEdgeGenerations.Dispose();
         _componentRowArrayPool.Clear();
         _freeChunkIds.Clear();
-        _chunksById = Array.Empty<Chunk?>();
+        _chunksById = [];
         _freeRecordChunks.Clear();
         _componentChangeObservers = null;
-        _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
+        _componentChangeObserverList = [];
         GC.SuppressFinalize(this);
     }
 
@@ -231,15 +231,15 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Creates one entity with the supplied component registration.</summary>
-    public Entity Create(ComponentId componentId) => Create(stackalloc ComponentId[1] { componentId });
+    public Entity Create(ComponentId componentId) => Create([componentId]);
 
     /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
     public int Create(ComponentId componentId, int count, Span<Entity> output)
-        => Create(stackalloc ComponentId[1] { componentId }, count, output);
+        => Create([componentId], count, output);
 
     /// <summary>Creates entities with the supplied component registration without retaining handles.</summary>
     public int Create(ComponentId componentId, int count)
-        => Create(stackalloc ComponentId[1] { componentId }, count);
+        => Create([componentId], count);
 
     /// <summary>Creates one entity for each output slot and stores its handle.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
@@ -290,7 +290,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Creates entities with the supplied component set without retaining entity handles.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, int count)
-        => Create(componentIds, count, Span<Entity>.Empty);
+        => Create(componentIds, count, []);
 
     /// <summary>Destroys one entity and reports whether the handle was alive.</summary>
     public bool Destroy(Entity entity)
@@ -428,7 +428,7 @@ public sealed partial class World : IDisposable
     public bool Add(Entity entity, ComponentId[] componentIds) => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
     /// <summary>Adds one component registration to one entity.</summary>
-    public bool Add(Entity entity, ComponentId componentId) => Add(entity, stackalloc ComponentId[1] { componentId });
+    public bool Add(Entity entity, ComponentId componentId) => Add(entity, [componentId]);
 
     /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -440,7 +440,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Adds one component registration to each entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Add(entities, stackalloc ComponentId[1] { componentId });
+        => Add(entities, [componentId]);
 
     /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
     public bool Remove(Entity entity, ReadOnlySpan<ComponentId> componentIds)
@@ -452,7 +452,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from one entity.</summary>
     public bool Remove(Entity entity, ComponentId componentId)
-        => Remove(entity, stackalloc ComponentId[] { componentId });
+        => Remove(entity, [componentId]);
 
     /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
     public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -460,14 +460,14 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from each entity in a caller-owned batch.</summary>
     public int Remove(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Remove(entities, stackalloc ComponentId[] { componentId });
+        => Remove(entities, [componentId]);
 
     /// <summary>Adds a component set to every entity matched by a query.</summary>
     public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, true, componentIds);
 
     /// <summary>Adds one component registration to every entity matched by a query.</summary>
-    public int Add(in Query query, ComponentId componentId) => Add(in query, stackalloc ComponentId[] { componentId });
+    public int Add(in Query query, ComponentId componentId) => Add(in query, [componentId]);
 
     /// <summary>Removes a component set from every entity matched by a query.</summary>
     public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
@@ -475,7 +475,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from every entity matched by a query.</summary>
     public int Remove(in Query query, ComponentId componentId)
-        => Remove(in query, stackalloc ComponentId[] { componentId });
+        => Remove(in query, [componentId]);
 
     /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
     public int Destroy(in Query query)
@@ -793,8 +793,8 @@ public sealed partial class World : IDisposable
         {
             Archetype sourceArchetype = _generatedWhereSourceArchetypes[index];
             Archetype? targetArchetype = null;
-            int[] sourceToTargetRows = Array.Empty<int>();
-            int[] addedTargetRows = Array.Empty<int>();
+            int[] sourceToTargetRows = [];
+            int[] addedTargetRows = [];
             GeneratedWhereTargetCursor? targetCursor = null;
 
             if (sourceArchetype.ActiveChunkCount == 0)
@@ -2820,18 +2820,12 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private readonly struct TransitionKey : IEquatable<TransitionKey>
+    private readonly struct TransitionKey(int sourceArchetypeId, ComponentSetId changeSetId, bool isAdd) : IEquatable<TransitionKey>
     {
 
-        public int SourceArchetypeId { get; }
-        public ComponentSetId ChangeSetId { get; }
-        public bool IsAdd { get; }
-        public TransitionKey(int sourceArchetypeId, ComponentSetId changeSetId, bool isAdd)
-        {
-            SourceArchetypeId = sourceArchetypeId;
-            ChangeSetId = changeSetId;
-            IsAdd = isAdd;
-        }
+        public int SourceArchetypeId { get; } = sourceArchetypeId;
+        public ComponentSetId ChangeSetId { get; } = changeSetId;
+        public bool IsAdd { get; } = isAdd;
 
         public bool Equals(TransitionKey other) => SourceArchetypeId == other.SourceArchetypeId
                                                    && ChangeSetId == other.ChangeSetId && IsAdd == other.IsAdd;
@@ -2845,45 +2839,30 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private readonly struct TransitionEdge
+    private readonly struct TransitionEdge(
+        int targetArchetypeId,
+        int[] sourceToTargetRowIndices,
+        int[] addedTargetRowIndices,
+        bool isNoOp = false)
     {
 
-        public int TargetArchetypeId { get; }
-        public int[] SourceToTargetRowIndices { get; }
-        public int[] AddedTargetRowIndices { get; }
-        public bool IsNoOp { get; }
-        public TransitionEdge(
-            int targetArchetypeId,
-            int[] sourceToTargetRowIndices,
-            int[] addedTargetRowIndices,
-            bool isNoOp = false)
-        {
-            TargetArchetypeId = targetArchetypeId;
-            SourceToTargetRowIndices = sourceToTargetRowIndices;
-            AddedTargetRowIndices = addedTargetRowIndices;
-            IsNoOp = isNoOp;
-        }
+        public int TargetArchetypeId { get; } = targetArchetypeId;
+        public int[] SourceToTargetRowIndices { get; } = sourceToTargetRowIndices;
+        public int[] AddedTargetRowIndices { get; } = addedTargetRowIndices;
+        public bool IsNoOp { get; } = isNoOp;
 
         public static TransitionEdge NoOp(int sourceArchetypeId)
-            => new(sourceArchetypeId, Array.Empty<int>(), Array.Empty<int>(), isNoOp: true);
+            => new(sourceArchetypeId, [], [], isNoOp: true);
     }
 
-    private readonly struct DestroyEntry
+    private readonly struct DestroyEntry(Entity entity, int recordIndex, int archetype, int chunkId, int slotIndex)
     {
 
-        public Entity Entity { get; }
-        public int RecordIndex { get; }
-        public int Archetype { get; }
-        public int ChunkId { get; }
-        public int SlotIndex { get; }
-        public DestroyEntry(Entity entity, int recordIndex, int archetype, int chunkId, int slotIndex)
-        {
-            Entity = entity;
-            RecordIndex = recordIndex;
-            Archetype = archetype;
-            ChunkId = chunkId;
-            SlotIndex = slotIndex;
-        }
+        public Entity Entity { get; } = entity;
+        public int RecordIndex { get; } = recordIndex;
+        public int Archetype { get; } = archetype;
+        public int ChunkId { get; } = chunkId;
+        public int SlotIndex { get; } = slotIndex;
     }
 
     private sealed class DestroyEntryComparer : IComparer<DestroyEntry>

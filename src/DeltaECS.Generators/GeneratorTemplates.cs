@@ -130,7 +130,7 @@ internal static partial class GeneratorTemplates
 
     internal static string Indent(string text, string indent) => string.Join(
             "\n",
-            text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+            text.Split(["\r\n", "\n"], StringSplitOptions.None)
                 .Select(line => line.Length == 0 ? line : indent + line));
 
     internal static string ValueInitializer(

@@ -42,26 +42,32 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         Hash = ComputeHash();
     }
 
+    /// <summary>Determines whether two query specifications are equal.</summary>
+    public static bool operator ==(QuerySpec left, QuerySpec right) => left.Equals(right);
+
+    /// <summary>Determines whether two query specifications are different.</summary>
+    public static bool operator !=(QuerySpec left, QuerySpec right) => !left.Equals(right);
+
     /// <summary>Creates a filter requiring every listed component registration.</summary>
     public static QuerySpec WhereAll(ReadOnlySpan<ComponentId> components)
-        => new(components, ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty);
+        => new(components, [], []);
 
     /// <summary>Creates a filter requiring at least one listed component registration.</summary>
     public static QuerySpec WhereAny(ReadOnlySpan<ComponentId> components)
-        => new(ReadOnlySpan<ComponentId>.Empty, components, ReadOnlySpan<ComponentId>.Empty);
+        => new([], components, []);
 
     /// <summary>Creates a filter excluding entities with any listed component registration.</summary>
     public static QuerySpec WhereNone(ReadOnlySpan<ComponentId> components)
-        => new(ReadOnlySpan<ComponentId>.Empty, ReadOnlySpan<ComponentId>.Empty, components);
+        => new([], [], components);
 
     /// <summary>Creates a filter requiring the specified component registration.</summary>
-    public static QuerySpec WhereAll(ComponentId component0) => WhereAll(stackalloc ComponentId[1] { component0 });
+    public static QuerySpec WhereAll(ComponentId component0) => WhereAll([component0]);
 
     /// <summary>Creates a filter matching the specified component registration.</summary>
-    public static QuerySpec WhereAny(ComponentId component0) => WhereAny(stackalloc ComponentId[1] { component0 });
+    public static QuerySpec WhereAny(ComponentId component0) => WhereAny([component0]);
 
     /// <summary>Creates a filter excluding entities with the specified component registration.</summary>
-    public static QuerySpec WhereNone(ComponentId component0) => WhereNone(stackalloc ComponentId[1] { component0 });
+    public static QuerySpec WhereNone(ComponentId component0) => WhereNone([component0]);
 
     /// <summary>Determines whether this filter has the same requirements as another filter.</summary>
     public bool Equals(QuerySpec other) => Hash == other.Hash

@@ -53,8 +53,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             .Where(static method => !method.IsStatic && !method.IsGenericMethod && method.ReturnsVoid
                 && method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
                 && method.Parameters.All(static parameter => CallbackReader.IsSupportedRefKind(parameter.RefKind)))
-            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
-            .ToArray();
+            .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true)).ToArray();
         if (methods.Length != 1)
         {
             return null;
@@ -100,7 +99,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
             : null;
 
     private static IEnumerable<ITypeParameterSymbol> TypeParameters(INamedTypeSymbol type)
-        => (type.ContainingType is null ? Enumerable.Empty<ITypeParameterSymbol>() : TypeParameters(type.ContainingType))
+        => (type.ContainingType is null ? [] : TypeParameters(type.ContainingType))
             .Concat(type.TypeParameters);
 
     private static string Selector(ITypeSymbol type, ITypeParameterSymbol[] parameters) => type switch
@@ -129,7 +128,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
         string[] constraints = new[] { primaryConstraint }
             .Where(static constraint => constraint.Length != 0)
             .Concat(parameter.ConstraintTypes.Select(GeneratorSupport.DisplayType))
-            .Concat(parameter.HasConstructorConstraint ? new[] { "new()" } : Array.Empty<string>())
+            .Concat(parameter.HasConstructorConstraint ? ["new()"] : Array.Empty<string>())
             .ToArray();
         return constraints.Length == 0 ? string.Empty : $"where {parameter.Name} : {string.Join(", ", constraints)}";
     }

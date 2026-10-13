@@ -2,26 +2,22 @@ namespace Delta.ECS;
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 /// <summary>Identifies one component registration within a layout registry.</summary>
-public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<ComponentId>
+/// <remarks>Creates a component identifier from its registry-local numeric value.</remarks>
+/// <param name="value">The numeric identifier; negative values are invalid.</param>
+public readonly struct ComponentId(int value) : IEquatable<ComponentId>, IComparable<ComponentId>
 {
 
     /// <summary>Gets the invalid component identifier.</summary>
     public static ComponentId Invalid => new(-1);
     /// <summary>Gets the registry-local numeric value of this identifier.</summary>
-    public int Value { get; }
+    public int Value { get; } = value;
 
     /// <summary>Gets whether this identifier represents a registered component.</summary>
     public bool IsValid => Value >= 0;
-
-    /// <summary>Creates a component identifier from its registry-local numeric value.</summary>
-    /// <param name="value">The numeric identifier; negative values are invalid.</param>
-    public ComponentId(int value)
-    {
-        Value = value;
-    }
 
     /// <summary>Determines whether two component identifiers are equal.</summary>
     public static bool operator ==(ComponentId left, ComponentId right) => left.Equals(right);
@@ -54,21 +50,16 @@ public readonly struct ComponentId : IEquatable<ComponentId>, IComparable<Compon
     public override int GetHashCode() => Value.GetHashCode();
 
     /// <summary>Returns the numeric identifier as text.</summary>
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 /// <summary>Stable application-defined identity for a component registration.</summary>
-public readonly struct SchemaId : IEquatable<SchemaId>
+/// <remarks>Creates a schema identifier from an application-defined value.</remarks>
+/// <param name="value">A nonzero identity that remains stable across runs.</param>
+public readonly struct SchemaId(ulong value) : IEquatable<SchemaId>
 {
     /// <summary>Gets the stable numeric schema value.</summary>
-    public ulong Value { get; }
-
-    /// <summary>Creates a schema identifier from an application-defined value.</summary>
-    /// <param name="value">A nonzero identity that remains stable across runs.</param>
-    public SchemaId(ulong value)
-    {
-        Value = value;
-    }
+    public ulong Value { get; } = value;
 
     /// <summary>Determines whether two schema identifiers are equal.</summary>
     public static bool operator ==(SchemaId left, SchemaId right) => left.Equals(right);
@@ -86,7 +77,7 @@ public readonly struct SchemaId : IEquatable<SchemaId>
     public override int GetHashCode() => Value.GetHashCode();
 
     /// <summary>Returns the numeric schema value as text.</summary>
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
 }
 
 /// <summary>

@@ -14,14 +14,14 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private const int WorkerPollSpinCount = 8;
     private const int CacheLineSize = 64;
     private const int MinimumEntitiesPerWorker = Chunk.Capacity / 2;
-    private WorkerSlot[] _workerSlots = Array.Empty<WorkerSlot>();
-    private Worker[] _workers = Array.Empty<Worker>();
-    private TInvoker[] _workerInvokers = Array.Empty<TInvoker>();
-    private ExceptionDispatchInfo?[] _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
-    private ParallelChunk[] _chunks = Array.Empty<ParallelChunk>();
-    private int[] _chunkOffsets = Array.Empty<int>();
-    private Entity[] _entities = Array.Empty<Entity>();
-    private ParallelRange[] _ranges = Array.Empty<ParallelRange>();
+    private WorkerSlot[] _workerSlots = [];
+    private Worker[] _workers = [];
+    private TInvoker[] _workerInvokers = [];
+    private ExceptionDispatchInfo?[] _workerFailures = [];
+    private ParallelChunk[] _chunks = [];
+    private int[] _chunkOffsets = [];
+    private Entity[] _entities = [];
+    private ParallelRange[] _ranges = [];
     private World? _entityWorld;
     private World? _world;
     private QueryPlan? _entityPlan;
@@ -68,14 +68,14 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
             workers.RefAt(workerIndex).Thread.Join();
         }
 
-        _workers = Array.Empty<Worker>();
-        _workerSlots = Array.Empty<WorkerSlot>();
-        _workerInvokers = Array.Empty<TInvoker>();
-        _workerFailures = Array.Empty<ExceptionDispatchInfo?>();
-        _chunks = Array.Empty<ParallelChunk>();
-        _entities = Array.Empty<Entity>();
-        _ranges = Array.Empty<ParallelRange>();
-        _chunkOffsets = Array.Empty<int>();
+        _workers = [];
+        _workerSlots = [];
+        _workerInvokers = [];
+        _workerFailures = [];
+        _chunks = [];
+        _entities = [];
+        _ranges = [];
+        _chunkOffsets = [];
     }
 
     internal void Execute(QueryPlan plan, ref TInvoker invoker, int requestedWorkerCount)

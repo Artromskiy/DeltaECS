@@ -10,9 +10,9 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
 
     internal nint Address { get; private set; }
 
-    internal Span<T> Span => ArrayAccess.AsSpan<T>(Address, Length);
+    internal readonly Span<T> Span => ArrayAccess.AsSpan<T>(Address, Length);
 
-    internal ReadOnlySpan<T> ReadOnlySpan => Span;
+    internal readonly ReadOnlySpan<T> ReadOnlySpan => Span;
     internal NativeMemory(int length)
     {
         ThrowHelper.ThrowIfNegative(length, nameof(length));
@@ -28,10 +28,10 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(Address, index);
+    internal readonly ref T RefAt(int index) => ref ArrayAccess.RefAt<T>(Address, index);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRefAtZero() => ref ArrayAccess.GetRefAtZero<T>(Address);
+    internal readonly ref T GetRefAtZero() => ref ArrayAccess.GetRefAtZero<T>(Address);
 
     internal void Resize(int length)
     {
@@ -53,7 +53,7 @@ internal struct NativeMemory<T> : IDisposable where T : unmanaged
         Length = length;
     }
 
-    internal void Clear()
+    internal readonly void Clear()
     {
         if (Length != 0)
         {

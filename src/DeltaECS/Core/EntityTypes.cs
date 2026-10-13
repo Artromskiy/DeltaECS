@@ -4,13 +4,16 @@ using System;
 using System.Runtime.CompilerServices;
 
 /// <summary>Stable handle for an entity slot and its current lifetime generation.</summary>
-public readonly struct Entity : IEquatable<Entity>
+/// <remarks>Creates an entity handle from its slot index and generation.</remarks>
+/// <param name="index">The entity slot index.</param>
+/// <param name="generation">The lifetime generation.</param>
+public readonly struct Entity(int index, int generation) : IEquatable<Entity>
 {
     /// <summary>Gets the entity's index in its world.</summary>
-    public int Index { get; }
+    public int Index { get; } = index;
 
     /// <summary>Gets the generation that distinguishes this lifetime from reused slots.</summary>
-    public int Generation { get; }
+    public int Generation { get; } = generation;
 
     /// <summary>
     /// Gets whether this handle has a non-negative index and a positive generation.
@@ -21,15 +24,6 @@ public readonly struct Entity : IEquatable<Entity>
     /// <see cref="World.IsAlive(Entity)"/> for a world-specific liveness check.
     /// </remarks>
     public bool IsValid => Index >= 0 && Generation > 0;
-
-    /// <summary>Creates an entity handle from its slot index and generation.</summary>
-    /// <param name="index">The entity slot index.</param>
-    /// <param name="generation">The lifetime generation.</param>
-    public Entity(int index, int generation)
-    {
-        Index = index;
-        Generation = generation;
-    }
 
     /// <summary>Determines whether two entity handles are equal.</summary>
     public static bool operator ==(Entity left, Entity right) => left.Equals(right);

@@ -2,6 +2,7 @@ namespace Delta.ECS.Systems;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 
@@ -17,8 +18,8 @@ public sealed class SystemScheduler : IDisposable
     private readonly List<ISystem> _systems = new();
     private readonly bool _optimizeSchedule;
     private readonly SchedulerWorkers? _workers;
-    private ScheduleBatch[] _batches = Array.Empty<ScheduleBatch>();
-    private QueryPlanVersion[] _queryPlanVersions = Array.Empty<QueryPlanVersion>();
+    private ScheduleBatch[] _batches = [];
+    private QueryPlanVersion[] _queryPlanVersions = [];
     private int _executing;
     private bool _disposed;
 
@@ -141,8 +142,8 @@ public sealed class SystemScheduler : IDisposable
         EnsureUsable();
         EnsureNotExecuting();
         _systems.Clear();
-        _batches = Array.Empty<ScheduleBatch>();
-        _queryPlanVersions = Array.Empty<QueryPlanVersion>();
+        _batches = [];
+        _queryPlanVersions = [];
         IsBuilt = false;
     }
 
@@ -351,8 +352,8 @@ public sealed class SystemScheduler : IDisposable
         int systemCount = _systems.Count;
         if (systemCount == 0)
         {
-            _batches = Array.Empty<ScheduleBatch>();
-            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
+            _batches = [];
+            _queryPlanVersions = [];
             _workers?.PrepareCapacity(0);
             IsBuilt = true;
             return;
@@ -369,8 +370,8 @@ public sealed class SystemScheduler : IDisposable
                 }
             }
 
-            _batches = new[] { new ScheduleBatch(systems) };
-            _queryPlanVersions = Array.Empty<QueryPlanVersion>();
+            _batches = [new ScheduleBatch(systems)];
+            _queryPlanVersions = [];
             IsBuilt = true;
             return;
         }
@@ -615,6 +616,7 @@ public sealed class SystemScheduler : IDisposable
             }
         }
 
+        [SuppressMessage("Performance", "CA1508:Avoid dead conditional code", Justification = "Worker threads publish failures before the locked batch completes.")]
         internal void Run(ISystem[] systems)
         {
             ExceptionDispatchInfo? failure;

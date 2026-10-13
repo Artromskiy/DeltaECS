@@ -124,17 +124,16 @@ internal static class GeneratedWhereTemplates
         int parameterIndex = 0;
         bool hasEntity = predicate ? shape.HasEntity : terminal.HasEntity;
         string[] prefixes = predicate
-            ? new[]
-            {
+            ?
+            [
                 shape.HasContext ? $"ref {InterceptedPredicateContextType(site)} {parameters[parameterIndex++]}" : string.Empty,
                 hasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty
-            }
-            : new[] { hasEntity ? $"EntityRef {parameters[parameterIndex++]}" : string.Empty };
+            ]
+            : [hasEntity ? $"EntityRef {parameters[parameterIndex++]}" : string.Empty];
         string[] declarations = prefixes
             .Concat(Enumerable.Range(0, slots.Arity).Select(index =>
                 slots.ComponentParameter(index, componentTypes[index], parameters[parameterIndex++])))
-            .Where(static declaration => declaration.Length != 0)
-            .ToArray();
+            .Where(static declaration => declaration.Length != 0).ToArray();
         string body = binding.LambdaBodyIsBlock
             ? GeneratorTemplates.Indent(binding.LambdaBody!, "        ")
             : binding.LambdaBody is { } expression
@@ -161,15 +160,14 @@ internal static class GeneratedWhereTemplates
     {
         int parameterIndex = 0;
         string[] prefix =
-        {
+        [
             hasContext ? "ref " + parameters[parameterIndex++] : string.Empty,
             hasEntity ? parameters[parameterIndex++] : string.Empty
-        };
+        ];
         string[] arguments = prefix
             .Concat(Enumerable.Range(0, slots.Arity)
                 .Select(index => slots.ComponentArgument(index, parameters[parameterIndex++])))
-            .Where(static argument => argument.Length != 0)
-            .ToArray();
+            .Where(static argument => argument.Length != 0).ToArray();
         return $"{target}({string.Join(", ", arguments)})";
     }
 
@@ -224,8 +222,8 @@ internal static class GeneratedWhereTemplates
                 : string.Empty,
             GeneratorTemplates.RenderBlock(
                 "for (int index = 0; index < count; index++)",
-                string.Join("\n", new[]
-                {
+                string.Join("\n",
+                [
                     RenderSlotLocals(shape.ComponentModels, site.PredicateComponents, "", elements: true),
                     shape.HasEntity
                         ? "Entity entity = global::System.Runtime.CompilerServices.Unsafe.Add(ref firstEntity, index);"
@@ -245,7 +243,7 @@ internal static class GeneratedWhereTemplates
                         }
                         """,
                     "runSelected = selected;"
-                })),
+                ])),
             $$"""context.ProcessRun(runStart, count - runStart, runSelected{{processRunInitializer}});"""
         });
         string invokerExecute = GeneratorTemplates.RenderBlock(
@@ -273,13 +271,13 @@ internal static class GeneratedWhereTemplates
             return $$"""var access{{index}} = global::Delta.ECS.GeneratedForEachRuntime.GetPrepared{{accessKind}}Access<{{site.PredicateComponents[index]}}>(in query);""";
         }, "\n");
         string invokerArguments = string.Join(", ", new[] { shape.HasContext ? "predicateContext" : string.Empty }
-            .Concat(values ? new[]
-            {
+            .Concat(values ?
+            [
                 terminalSlots.HasDynamicIds
                     ? "components"
                     : GeneratorTemplates.JoinIndexed(terminal.Arity, static index => "components[" + index + "]"),
                 terminalSlots.ValueNames()
-            } : Array.Empty<string>())
+            ] : Array.Empty<string>())
             .Concat(GeneratorTemplates.Indexed(shape.Arity, index =>
                 $"global::Delta.ECS.GeneratedForEachRuntime.Get{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}QueryComponentIndex(access{index})"))
             .Where(static argument => argument.Length != 0));
@@ -373,8 +371,7 @@ internal static class GeneratedWhereTemplates
                     : null,
                 RenderInvoker(shape, terminal, hash)
             })
-            .OfType<string>()
-            .ToArray();
+            .OfType<string>().ToArray();
         IEnumerable<string> componentSetKeys = shape.Terminals.Ordered()
             .Where(static terminal => terminal.Kind is TerminalKind.Add or TerminalKind.Remove
                 && !terminal.Api.Signature.HasExplicitIds)
@@ -391,8 +388,7 @@ internal static class GeneratedWhereTemplates
                 "GeneratedWhereExtensions_" + hash,
                 shape.IsFunctor,
                 RenderExtensionBody(shape, hash)))
-            .OfType<string>()
-            .ToArray();
+            .OfType<string>().ToArray();
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
             shape.Namespace,
             ImmutableArray.Create("using global::System;")
@@ -421,8 +417,7 @@ internal static class GeneratedWhereTemplates
                 shape.HasEntity ? "Entity entity" : string.Empty
             }
             .Append(slots.ComponentParameters())
-            .Where(static parameter => parameter.Length != 0)
-            .ToArray();
+            .Where(static parameter => parameter.Length != 0).ToArray();
         string declaration = $$"""
             public delegate bool GeneratedWherePredicate_{{hash}}{{PredicateGenericTypes(shape)}}({{string.Join(", ", parameters)}});
             """.Trim();
@@ -449,8 +444,7 @@ internal static class GeneratedWhereTemplates
                 entityParameter
             }
             .Append(slots.ComponentParameters(genericPrefix: "U"))
-            .Where(static parameter => parameter.Length != 0)
-            .ToArray();
+            .Where(static parameter => parameter.Length != 0).ToArray();
         string declaration = $$"""
             public delegate void GeneratedWhereAction_{{predicateHash}}_{{hash}}{{slots.GenericParameters("U")}}({{string.Join(", ", parameters)}});
             """.Trim();
@@ -1438,7 +1432,7 @@ internal static class GeneratedWhereTemplates
     private static string PredicateContextType(PredicateModel shape) => shape.IsFunctor ? shape.ContextType! : "C";
 
     private static string[] PredicateConcreteTypes(PredicateModel shape, WherePredicateBinding binding)
-        => (shape.HasContext ? new[] { binding.ContextType! } : Array.Empty<string>())
+        => (shape.HasContext ? [binding.ContextType!] : Array.Empty<string>())
             .Concat(binding.Components)
             .ToArray();
 

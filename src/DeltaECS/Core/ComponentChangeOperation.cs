@@ -12,10 +12,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private static ComponentChangeOperation<T>? s_invoking;
     private readonly World _world;
     private readonly ComponentChangeAction<T> _action;
-    private Entity[] _entities = Array.Empty<Entity>();
-    private Entity[] _currentEntities = Array.Empty<Entity>();
-    private ulong[] _entityPresence = Array.Empty<ulong>();
-    private ulong[] _currentEntityPresence = Array.Empty<ulong>();
+    private Entity[] _entities = [];
+    private Entity[] _currentEntities = [];
+    private ulong[] _entityPresence = [];
+    private ulong[] _currentEntityPresence = [];
     private DirtyChunkSet _dirtyChunks = new();
     private DirtyChunkSet _processingDirtyChunks = new();
     private readonly DirtyChunkSet[] _workerDirtyChunks = new DirtyChunkSet[Environment.ProcessorCount];
@@ -66,8 +66,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 (_entities, _currentEntities) = (_currentEntities, _entities);
                 (_entityPresence, _currentEntityPresence) = (_currentEntityPresence, _entityPresence);
                 _hasSnapshot = true;
-                _currentEntities = Array.Empty<Entity>();
-                _currentEntityPresence = Array.Empty<ulong>();
+                _currentEntities = [];
+                _currentEntityPresence = [];
             }
             else
             {
@@ -897,8 +897,8 @@ internal struct DirtyChunkState
 
 internal sealed class DirtyChunkSet
 {
-    private DirtyChunkState[] _states = Array.Empty<DirtyChunkState>();
-    private int[] _activeChunkIds = Array.Empty<int>();
+    private DirtyChunkState[] _states = [];
+    private int[] _activeChunkIds = [];
 
     internal int ActiveCount { get; private set; }
 
@@ -1009,7 +1009,7 @@ internal sealed class DirtyChunkSet
                 Remove(state.Chunk);
             }
 
-            state.Mask ??= Array.Empty<ulong>();
+            state.Mask ??= [];
             state = new DirtyChunkState { Chunk = chunk, Mask = state.Mask, ActiveIndex = -1 };
         }
 
@@ -1027,9 +1027,9 @@ internal struct ComponentMembershipChange
 
 internal sealed class ComponentMembershipChanges
 {
-    private Entity[] _entities = Array.Empty<Entity>();
-    private bool[] _present = Array.Empty<bool>();
-    private int[] _indices = Array.Empty<int>();
+    private Entity[] _entities = [];
+    private bool[] _present = [];
+    private int[] _indices = [];
     internal int Count { get; private set; }
     internal ComponentMembershipChange this[int index] => new() { Entity = _entities[index], Present = _present[index] };
 

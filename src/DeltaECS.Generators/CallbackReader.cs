@@ -11,9 +11,9 @@ internal static class CallbackReader
 {
     internal static ParameterSyntax[] LambdaParameters(LambdaExpressionSyntax? lambda) => lambda switch
     {
-        SimpleLambdaExpressionSyntax simple => new[] { simple.Parameter },
+        SimpleLambdaExpressionSyntax simple => [simple.Parameter],
         ParenthesizedLambdaExpressionSyntax parenthesized => parenthesized.ParameterList.Parameters.ToArray(),
-        _ => Array.Empty<ParameterSyntax>()
+        _ => []
     };
 
     internal static bool IsEntityParameter(SemanticModel model, ParameterSyntax parameter, bool allowImplicit = false)
@@ -132,8 +132,7 @@ internal static class CallbackReader
         {
             IMethodSymbol[] matches = members
                 .OfType<IMethodSymbol>()
-                .Where(candidate => SameCallbackSignature(candidate, invoke))
-                .ToArray();
+                .Where(candidate => SameCallbackSignature(candidate, invoke)).ToArray();
             if (matches.Length == 1)
             {
                 method = matches[0];
@@ -160,8 +159,7 @@ internal static class CallbackReader
             .OfType<IMethodSymbol>()
             .Where(candidate => candidate.Parameters.Length == expectedParameterCount)
             .Where(candidate => expectedTypes.IsDefaultOrEmpty
-                || MatchesGenericCallbackTypes(candidate, expectedTypes, hasEntity, entityRef))
-            .ToArray();
+                || MatchesGenericCallbackTypes(candidate, expectedTypes, hasEntity, entityRef)).ToArray();
         method = matches.Length == 1 ? matches[0] : null;
         return method is not null;
     }
@@ -191,8 +189,7 @@ internal static class CallbackReader
     {
         INamedTypeSymbol[] markers = type.AllInterfaces
             .Where(static candidate => candidate.ContainingNamespace.ToDisplayString() == GeneratorSupport.EcsNamespace)
-            .Where(candidate => name(candidate.Name))
-            .ToArray();
+            .Where(candidate => name(candidate.Name)).ToArray();
         marker = markers.Length == 1 ? markers[0] : null;
         return marker is not null;
     }
@@ -376,7 +373,7 @@ internal sealed class CallSiteBinding(
     string[]? parameterNames = null)
 {
     internal string[] LambdaParameterNames { get; } = lambda is null
-        ? parameterNames ?? Array.Empty<string>()
+        ? parameterNames ?? []
         : CallbackReader.LambdaParameters(lambda).Select(static parameter => parameter.Identifier.ValueText).ToArray();
     internal string? LambdaBody { get; } = lambda?.Body switch
     {

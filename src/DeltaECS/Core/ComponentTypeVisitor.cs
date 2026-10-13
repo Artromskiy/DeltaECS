@@ -1,6 +1,9 @@
 namespace Delta.ECS;
 
+using System.Diagnostics.CodeAnalysis;
+
 /// <summary>Marker for visitors that receive a registered component type.</summary>
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "This marker provides the common visitor constraint without adding runtime state.")]
 public interface IVisitor
 {
 }

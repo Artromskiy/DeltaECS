@@ -10,8 +10,8 @@ internal sealed class ChunkTagMasks
     private const int WordMask = (1 << WordShift) - 1;
     private const int WordsPerTag = (Chunk.Capacity + WordMask) >> WordShift;
 
-    private ulong[] _summaries = Array.Empty<ulong>();
-    private ulong[] _words = Array.Empty<ulong>();
+    private ulong[] _summaries = [];
+    private ulong[] _words = [];
 
     internal int TagCapacity => _summaries.Length;
 

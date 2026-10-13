@@ -25,7 +25,7 @@ internal static class GeneratorSupport
             .Select(argument => model.GetTypeInfo(argument).Type)
             .OfType<ITypeSymbol>()
             .ToArray()
-            ?? Array.Empty<ITypeSymbol>();
+            ?? [];
 
     internal static string ContainingNamespace(SemanticModel model, SyntaxNode node)
         => model.GetEnclosingSymbol(node.SpanStart)?.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
@@ -42,7 +42,7 @@ internal static class GeneratorSupport
     internal static bool IsInterceptionEnabled(AnalyzerConfigOptions options)
         => options.TryGetValue("build_property.InterceptorsNamespaces", out string? namespaces)
             && namespaces
-                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Split([';'], StringSplitOptions.RemoveEmptyEntries)
                 .Any(static value => string.Equals(value.Trim(), InterceptorNamespace, StringComparison.Ordinal));
 
     internal static bool SupportsInterceptors(Compilation compilation)
@@ -71,7 +71,7 @@ internal static class GeneratorSupport
             return false;
         }
 
-        object? location = getLocation.Invoke(null, new object?[] { model, invocation, default });
+        object? location = getLocation.Invoke(null, [model, invocation, default]);
         if (location is null)
         {
             return false;
@@ -91,7 +91,7 @@ internal static class GeneratorSupport
             return false;
         }
 
-        attributeSyntax = getAttribute.Invoke(null, new[] { location })?.ToString() ?? string.Empty;
+        attributeSyntax = getAttribute.Invoke(null, [location])?.ToString() ?? string.Empty;
         return attributeSyntax.Length > 0;
     }
 
@@ -193,7 +193,7 @@ internal static class GeneratorSupport
         return type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
 
-    internal static ImmutableArray<ComponentModel> ComponentModels(int arity, AccessKind access, string prefix = "T") => ComponentModels(new string('V', arity), Array.Empty<string>(), false, prefix, access);
+    internal static ImmutableArray<ComponentModel> ComponentModels(int arity, AccessKind access, string prefix = "T") => ComponentModels(new string('V', arity), [], false, prefix, access);
 
     internal static AccessKind AccessKindFrom(char pattern) => pattern switch
     {
@@ -287,8 +287,7 @@ internal static class GeneratorSupport
         var result = includeSourceUsings
             ? invocation.SyntaxTree.GetRoot().DescendantNodes()
                 .OfType<UsingDirectiveSyntax>()
-                .Select(static directive => directive.ToString())
-                .ToList()
+                .Select(static directive => directive.ToString()).ToArray()
             : new List<string>();
         var closedTypes = new List<ITypeSymbol?>();
         ISymbol? enclosing = model.GetEnclosingSymbol(invocation.SpanStart);
@@ -304,7 +303,7 @@ internal static class GeneratorSupport
             {
                 if (!IsAccessibleSymbol(containingType) && rejectInaccessibleContainingType)
                 {
-                    usings = Array.Empty<string>();
+                    usings = [];
                     return false;
                 }
 

@@ -172,6 +172,10 @@ public sealed partial class World
 
     /// <summary>Direct executor for a runtime-selected generic functor operation.</summary>
     [System.ComponentModel.EditorBrowsable(EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1034:Nested types should not be visible",
+        Justification = "The public operation return type exposes its invoker as a generic argument.")]
     public struct GenericFunctorOperationInvoker : IEcsOperationInvoker
     {
         private readonly World _world;
@@ -219,6 +223,10 @@ public sealed partial class World
 
     /// <summary>Direct executor for a runtime-selected generic functor with mutable context.</summary>
     [System.ComponentModel.EditorBrowsable(EditorBrowsableState.Never)]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1034:Nested types should not be visible",
+        Justification = "The public operation return type exposes its invoker as a generic argument.")]
     public struct GenericFunctorContextOperationInvoker<TContext> : IEcsOperationInvoker<TContext>
     {
         private readonly World _world;

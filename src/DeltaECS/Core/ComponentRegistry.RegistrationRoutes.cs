@@ -11,36 +11,42 @@ public sealed partial class ComponentRegistry :
 
 /// <summary>Routes component registry extension calls through the selected registration constraints.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Registration route markers select compile-time overload constraints without runtime state.")]
 public interface IComponentRegistryRoute
 {
 }
 
 /// <summary>Registration route marker for types that satisfy <c>new()</c>.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Registration route markers select compile-time overload constraints without runtime state.")]
 public interface IComponentRegistryNewRoute : IComponentRegistryRoute
 {
 }
 
 /// <summary>Registration route marker for struct types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Registration route markers select compile-time overload constraints without runtime state.")]
 public interface IComponentRegistryStructRoute : IComponentRegistryNewRoute
 {
 }
 
 /// <summary>Registration route marker for unmanaged types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Registration route markers select compile-time overload constraints without runtime state.")]
 public interface IComponentRegistryUnmanagedRoute : IComponentRegistryStructRoute
 {
 }
 
 /// <summary>Registration route marker for class types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Registration route markers select compile-time overload constraints without runtime state.")]
 public interface IComponentRegistryClassRoute : IComponentRegistryRoute
 {
 }
 
 /// <summary>Registration route marker for constructible class types.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
+[SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "Registration route markers select compile-time overload constraints without runtime state.")]
 public interface IComponentRegistryClassNewRoute :
     IComponentRegistryClassRoute,
     IComponentRegistryNewRoute

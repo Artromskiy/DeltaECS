@@ -35,7 +35,7 @@ public readonly struct OrderedQuery
         comparer.Validate(world, in query);
         return new OrderedQuery(new OrderedQueryState(
             query,
-            new[] { comparer }));
+            [comparer]));
     }
 
     /// <summary>Returns the first entity in ordering order, or <see langword="default"/> if the query has no result.</summary>

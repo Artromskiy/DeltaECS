@@ -22,3 +22,23 @@ if [[ "$mode" == "--check" ]]; then
 fi
 
 dotnet run --project "$tool_project" --no-launch-profile -- "${args[@]}"
+
+dotnet_format_sdk="$(dotnet --info | sed -n 's/^[[:space:]]*Base Path: //p' | head -n 1)"
+dotnet_format_dll="${dotnet_format_sdk%/}/DotnetTools/dotnet-format/dotnet-format.dll"
+style_args=(
+    "$project_dir/DeltaECS.slnx"
+    style
+    --diagnostics IDE0300 IDE0301 IDE0302
+    --severity info
+    --no-restore
+    --verbosity minimal
+)
+if [[ "$mode" == "--check" ]]; then
+    style_args+=(--verify-no-changes)
+fi
+
+if [[ -f "$dotnet_format_dll" ]]; then
+    dotnet "$dotnet_format_dll" "${style_args[@]}"
+else
+    dotnet format "${style_args[@]}"
+fi

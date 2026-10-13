@@ -48,9 +48,7 @@ internal static partial class DemandDrivenForEachTemplates
         string? componentSetKey = !shape.OrderedQueryReceiver && !shape.HasQuery && !shape.Api.Signature.HasExplicitIds
             ? GeneratorTemplates.PrimaryComponentSetKeyDeclaration(shape.Api.Selector.Arity)
             : null;
-        string[] members = new[] { componentSetKey, contracts, invoker, extension }
-            .OfType<string>()
-            .ToArray();
+        string[] members = new[] { componentSetKey, contracts, invoker, extension }.OfType<string>().ToArray();
         ImmutableArray<string> usings = ImmutableArray.Create("using System;")
             .AddRange(GeneratorSupport.EcsNamespaceUsings(shape.Namespace));
         return GeneratorTemplates.FileTemplate(new GeneratedFileModel(
@@ -311,8 +309,7 @@ internal static partial class DemandDrivenForEachTemplates
                 shape.IsFunctor ? $"{shape.FunctorType} functor" : $"{actionType} action",
                 shape.Api.Signature.AccessParameters(tokens: true)
             }
-            .Where(static parameter => parameter.Length != 0)
-            .ToArray();
+            .Where(static parameter => parameter.Length != 0).ToArray();
 
         string[] assignments = new[]
             {
@@ -321,8 +318,7 @@ internal static partial class DemandDrivenForEachTemplates
             }
             .Concat(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
                 $"_access{index} = GeneratedForEachRuntime.Get{(shape.ComponentModels[index].IsWrite ? "Write" : "Read")}QueryComponentIndex(access{index});"))
-            .Where(static assignment => assignment.Length != 0)
-            .ToArray();
+            .Where(static assignment => assignment.Length != 0).ToArray();
 
         return $$"""
                 internal {{ConstructorName(name)}}({{string.Join(", ", parameters)}})
@@ -495,9 +491,7 @@ internal static partial class DemandDrivenForEachTemplates
 
         string[] cursorNames = string.IsNullOrEmpty(visitRefArguments)
             ? []
-            : visitRefArguments.Split([", "], StringSplitOptions.None)
-                .Select(static part => part.StartsWith("ref ", StringComparison.Ordinal) ? part.Substring(4) : part)
-                .ToArray();
+            : visitRefArguments.Split([", "], StringSplitOptions.None).Select(static part => part.StartsWith("ref ", StringComparison.Ordinal) ? part.Substring(4) : part).ToArray();
 
         string ShiftedCursorArguments(string[] names, int shift)
         {
@@ -789,7 +783,7 @@ internal static partial class DemandDrivenForEachTemplates
             "try",
             "{",
             "    __entities = operationOrderedQuery.BeginForEach();",
-            $"    {closedMethodName}{stateGeneric}({string.Join(", ", new[] { "operationOrderedQuery.World", "__entities", "in __query" }.Concat(shape.Api.Signature.HasExplicitIds ? new[] { shape.Api.Signature.HasDynamicIds ? "operationComponentIds" : shape.Api.Signature.ComponentIdArguments("componentId") } : Array.Empty<string>()).Concat(shape.HasContext ? new[] { SignatureProjection.ContextArgument(shape.ContextMode, shape.ContextMode == ContextModeKind.Ref ? "context" : "operationContextCopy") } : Array.Empty<string>()).Append(shape.IsFunctor ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor") : "action"))});",
+            $"    {closedMethodName}{stateGeneric}({string.Join(", ", new[] { "operationOrderedQuery.World", "__entities", "in __query" }.Concat(shape.Api.Signature.HasExplicitIds ? [shape.Api.Signature.HasDynamicIds ? "operationComponentIds" : shape.Api.Signature.ComponentIdArguments("componentId")] : Array.Empty<string>()).Concat(shape.HasContext ? [SignatureProjection.ContextArgument(shape.ContextMode, shape.ContextMode == ContextModeKind.Ref ? "context" : "operationContextCopy")] : Array.Empty<string>()).Append(shape.IsFunctor ? SignatureProjection.ContextArgument(shape.FunctorPassMode, "functor") : "action"))});",
             "}",
             "finally",
             "{",
@@ -943,7 +937,7 @@ internal static partial class DemandDrivenForEachTemplates
         string countName = GeneratedLocalName(site, "count", 0);
         string indexName = GeneratedLocalName(site, "index", 0);
         string[] rowNames = shape.IsStamp
-            ? Array.Empty<string>()
+            ? []
             : GeneratorTemplates.Indexed(closedShape.ComponentModels.Length, index => GeneratedLocalName(site, "row", index)).ToArray();
         SignatureProjection slots = closedShape.Api.Signature;
         bool inlineLambda = CanInlineInterceptedLambda(site);
@@ -1227,7 +1221,7 @@ internal static partial class DemandDrivenForEachTemplates
         string countName = GeneratedLocalName(site, "count", 0);
         string indexName = GeneratedLocalName(site, "index", 0);
         string[] rowNames = shape.IsStamp
-            ? Array.Empty<string>()
+            ? []
             : GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => GeneratedLocalName(site, "row", index)).ToArray();
         var fields = new List<string>();
         if (shape.HasContext)
@@ -1952,7 +1946,7 @@ internal static partial class DemandDrivenForEachTemplates
         return closedMethod + "\n\n" + visitHelpers;
     }
 
-    private static string[] SplitLines(string text) => string.IsNullOrEmpty(text) ? Array.Empty<string>() : text.TrimEnd().Split(["\r\n", "\n"], StringSplitOptions.None);
+    private static string[] SplitLines(string text) => string.IsNullOrEmpty(text) ? [] : text.TrimEnd().Split(["\r\n", "\n"], StringSplitOptions.None);
 
     private static string RenderExtensionMethod(
         IterationModel shape,
@@ -2232,7 +2226,7 @@ internal static partial class DemandDrivenForEachTemplates
         SignatureProjection slots = shape.Api.Signature;
         var closedArguments = new List<string>(shape.HasEntityTarget
             ? new[] { "world", "operationEntities", "in operationQuery" }
-            : new[] { "world", "in operationQuery" });
+            : ["world", "in operationQuery"]);
         if (slots.HasExplicitIds)
         {
             closedArguments.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments("componentId"));
@@ -2297,9 +2291,7 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string AppendArchetypeWriteSetup(IterationModel shape, string indent)
     {
-        string[] routes = GeneratorTemplates.WriteIndices(shape.ComponentModels)
-            .Select(index => "route" + index)
-            .ToArray();
+        string[] routes = GeneratorTemplates.WriteIndices(shape.ComponentModels).Select(index => "route" + index).ToArray();
         return routes.Length == 0
             ? string.Empty
             : $"{indent}execution.RecordComponentWrites(stackalloc int[] {{ {string.Join(", ", routes)} }});";

@@ -22,7 +22,7 @@ internal sealed class PredicateModel(
     internal bool HasEntity { get; } = hasEntity;
     internal bool HasContext { get; } = hasContext;
     internal string? ContextType { get; } = contextType;
-    internal string[] Components { get; } = components ?? Array.Empty<string>();
+    internal string[] Components { get; } = components ?? [];
     internal ImmutableArray<ComponentModel> ComponentModels => Api.Selector.Components;
     internal ApiModel Api { get; } = new(
         OperationKind.Where,
@@ -31,7 +31,7 @@ internal sealed class PredicateModel(
         new SelectorModel(
             TypeBindingKind.CallbackInferred,
             RegistrationBindingKind.Primary,
-            GeneratorSupport.ComponentModels(pattern, components ?? Array.Empty<string>(), isFunctor, "T")),
+            GeneratorSupport.ComponentModels(pattern, components ?? [], isFunctor, "T")),
         new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),
         new CallbackModel(
             isFunctor ? CallbackSource.Functor : CallbackSource.Lambda,
@@ -41,7 +41,7 @@ internal sealed class PredicateModel(
     internal ShapeRegistry<TerminalModel> Terminals { get; } = new(static terminal => terminal.SignatureKey);
     internal List<WherePredicateBinding> StaticMethodGroupBindings { get; } = new();
     internal bool HasOrderedQuerySource { get; set; }
-    internal string[] ClosedTypeArguments { get; set; } = Array.Empty<string>();
+    internal string[] ClosedTypeArguments { get; set; } = [];
     internal bool HasOpenGenericArguments { get; set; }
     internal string Key => Namespace + "|" + Api.SignatureKey;
 
@@ -85,7 +85,7 @@ internal sealed class PredicateSourceRegistry
     internal PredicateModel[] Get(string ownerKey)
         => _sources.TryGetValue(ownerKey, out ShapeRegistry<PredicateModel>? sources)
             ? sources.Ordered().ToArray()
-            : Array.Empty<PredicateModel>();
+            : [];
 }
 
 /// <summary>Concrete callback types retained for one discovered Where call site.</summary>
@@ -127,7 +127,7 @@ internal sealed class TerminalModel(
     internal bool IsGeneratedEntityConsumer { get; } = isGeneratedEntityConsumer;
     internal bool HasContext { get; } = hasContext;
     internal string? ContextType { get; } = contextType;
-    internal string[] Components { get; } = components ?? Array.Empty<string>();
+    internal string[] Components { get; } = components ?? [];
     internal bool HasValues { get; } = hasValues;
     internal ImmutableArray<ComponentModel> ComponentModels => Api.Selector.Components;
     internal string? MethodGroupTarget { get; } = methodGroupTarget;
@@ -140,7 +140,7 @@ internal sealed class TerminalModel(
             registrationBinding,
             GeneratorSupport.ComponentModels(
                 pattern.Length == 0 ? new string('V', components?.Length ?? 0) : pattern,
-                components ?? Array.Empty<string>(),
+                components ?? [],
                 isFunctor,
                 "U")),
         new ContextModel(hasContext ? ContextModeKind.Value : ContextModeKind.None, contextType),

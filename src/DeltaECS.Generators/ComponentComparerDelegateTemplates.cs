@@ -7,8 +7,7 @@ internal static class ComponentComparerDelegateTemplates
         string genericNames = GenericParameterNames(model);
         string genericArguments = GenericArguments(genericNames);
         string delegateName = "Compare" + genericArguments;
-        string[] genericTypes = Enumerable.Range(0, model.ComponentTypes.Length)
-            .Select(index => "T" + (index + 1)).ToArray();
+        string[] genericTypes = Enumerable.Range(0, model.ComponentTypes.Length).Select(index => "T" + (index + 1)).ToArray();
         string delegateParameters = CallbackParameters(model, genericTypes, DefaultParameterNames(model));
         string invokeParameters = CallbackParameters(model, genericTypes, DefaultParameterNames(model));
         string invokeArguments = ComponentComparerTemplateSupport.Arguments(
@@ -133,7 +132,7 @@ internal static class ComponentComparerDelegateTemplates
         string directInvoke = "protected override int Invoke(" + directParameters + ")";
         string usings = string.Join("\n", site.Usings
             .Where(static value => value.Trim() is not ("using Delta.ECS;" or "using global::Delta.ECS;"))
-            .Concat(string.IsNullOrEmpty(site.NamespaceName) ? Array.Empty<string>() : new[] { "using global::" + site.NamespaceName + ";" })
+            .Concat(string.IsNullOrEmpty(site.NamespaceName) ? Array.Empty<string>() : ["using global::" + site.NamespaceName + ";"])
             .Distinct(StringComparer.Ordinal));
         string directAdapter = "new DirectAdapter(resolvedComponentIds" + contextArgument + ")";
         string returnExpression = ComponentComparerTemplateSupport.GeneratedOrderingFactory(

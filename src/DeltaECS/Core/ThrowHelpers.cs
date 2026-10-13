@@ -140,7 +140,7 @@ internal static class ThrowHelper
     internal static void ThrowGeneratedComponentTypeTokenMismatch(Type registeredType, Type tokenType)
         => throw new ArgumentException(
             $"The generated component type token represents {tokenType}, not the registered CLR type {registeredType}.",
-            "token");
+            nameof(tokenType));
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

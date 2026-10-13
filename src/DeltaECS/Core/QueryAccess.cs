@@ -44,11 +44,11 @@ internal sealed class QueryPlan
     private readonly int[] _anyTagIndices;
     private readonly int[] _noneTagIndices;
     private readonly WeakReference<QueryPlan> _weakReference;
-    private int[] _matchingArchetypes = Array.Empty<int>();
-    private ArchetypePlan[] _matchingPlans = Array.Empty<ArchetypePlan>();
-    private ChunkPlan[] _matchingChunkPlans = Array.Empty<ChunkPlan>();
-    private int[] _matchingChunkPlanIndices = Array.Empty<int>();
-    private int[] _planIndicesByArchetype = Array.Empty<int>();
+    private int[] _matchingArchetypes = [];
+    private ArchetypePlan[] _matchingPlans = [];
+    private ChunkPlan[] _matchingChunkPlans = [];
+    private int[] _matchingChunkPlanIndices = [];
+    private int[] _planIndicesByArchetype = [];
     private readonly int[] _readRoutesByComponent;
     private readonly ComponentId[] _dataComponentsByRoute;
     private readonly Type?[] _componentTypesByComponent;
@@ -58,7 +58,7 @@ internal sealed class QueryPlan
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
     private bool _matchingChunkPlansDirty;
-    private TagSlotCacheEntry?[] _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
+    private TagSlotCacheEntry?[] _tagSlotsByChunk = [];
     private readonly object _tagSlotGate = new();
 
     internal World Owner { get; }
@@ -441,11 +441,11 @@ internal sealed class QueryPlan
             _denseBindings.Clear();
         }
         _lastDenseBinding = null;
-        _matchingArchetypes = Array.Empty<int>();
-        _matchingPlans = Array.Empty<ArchetypePlan>();
-        _matchingChunkPlans = Array.Empty<ChunkPlan>();
-        _matchingChunkPlanIndices = Array.Empty<int>();
-        _planIndicesByArchetype = Array.Empty<int>();
+        _matchingArchetypes = [];
+        _matchingPlans = [];
+        _matchingChunkPlans = [];
+        _matchingChunkPlanIndices = [];
+        _planIndicesByArchetype = [];
         _matchingCount = 0;
         _matchingChunkCount = 0;
         MatchingVersion = 0;
@@ -453,7 +453,7 @@ internal sealed class QueryPlan
         _matchingChunkPlansDirty = false;
         _primaryReadRoutesByType.Clear();
         _tagSlotsByChunk.AsSpan().Clear();
-        _tagSlotsByChunk = Array.Empty<TagSlotCacheEntry?>();
+        _tagSlotsByChunk = [];
         _preparedReadAccessesByComponent.AsSpan().Clear();
         _preparedWriteAccessesByComponent.AsSpan().Clear();
         Array.Fill(_readRoutesByComponent, -1);
@@ -476,7 +476,7 @@ internal sealed class QueryPlan
     {
         if (source.IsEmpty)
         {
-            return (default, Array.Empty<int>());
+            return (default, []);
         }
 
         var dataIds = new ComponentId[source.Count];
@@ -884,8 +884,8 @@ internal sealed class QueryPlan
     {
         internal Chunk? Chunk;
         internal int Version = int.MinValue;
-        internal int[] Slots = Array.Empty<int>();
-        internal ulong[] Mask = Array.Empty<ulong>();
+        internal int[] Slots = [];
+        internal ulong[] Mask = [];
         internal int Count;
         internal bool Dense;
     }
@@ -899,20 +899,20 @@ internal struct ArchetypePlan
 
     internal Archetype Archetype { get; }
     internal int[] ComponentRows { get; }
-    internal ChunkPlan[] ChunkArray => _chunks;
+    internal readonly ChunkPlan[] ChunkArray => _chunks;
     internal int ChunkCount { get; private set; }
     internal ArchetypePlan(Archetype archetype, int[] componentRows)
     {
         Archetype = archetype;
         ComponentRows = componentRows;
-        _chunks = Array.Empty<ChunkPlan>();
+        _chunks = [];
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
         {
             OnChunkActivated(archetype.GetActiveChunk(chunkIndex), chunkIndex);
         }
     }
-    internal int FindChunkIndex(Chunk chunk, int startIndex = 0, int endIndex = -1)
+    internal readonly int FindChunkIndex(Chunk chunk, int startIndex = 0, int endIndex = -1)
     {
         int end = endIndex < 0 ? ChunkCount : Math.Min(endIndex, ChunkCount);
         for (int index = startIndex; index < end; index++)
@@ -1004,7 +1004,7 @@ internal struct ArchetypePlan
         return true;
     }
 
-    private ChunkPlan CreateChunkPlan(Chunk chunk)
+    private readonly ChunkPlan CreateChunkPlan(Chunk chunk)
     {
         Array[] resolvedRows = new Array[ComponentRows.Length];
         var sourceRows = chunk.RawComponentRows;

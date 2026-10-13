@@ -15,7 +15,7 @@ internal sealed class Archetype
     private NativeMemory<bool> _availableChunkFlags = new(0);
     private NativeMemory<int> _availableChunkPositions = new(0);
     private NativeMemory<int> _activeChunkIndices = new(0);
-    private Chunk[] _activeChunks = Array.Empty<Chunk>();
+    private Chunk[] _activeChunks = [];
     private NativeMemory<int> _activeChunkPositions = new(0);
     private readonly List<QueryPlanLink> _queryPlans = new();
     private bool _deferQueryPlanUpdates;

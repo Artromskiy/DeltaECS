@@ -6,8 +6,8 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World
 {
-    private Entity[] _orderedEntityBuffer = Array.Empty<Entity>();
-    private Entity[] _orderedEntityMergeBuffer = Array.Empty<Entity>();
+    private Entity[] _orderedEntityBuffer = [];
+    private Entity[] _orderedEntityMergeBuffer = [];
     private int _orderedEntityCount;
     private bool _orderedQueryOperationActive;
 

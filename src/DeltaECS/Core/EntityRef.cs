@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Delta.ECS;
@@ -22,6 +23,7 @@ public readonly ref struct EntityRef
     }
 
     /// <summary>Converts this scoped view to its stable entity handle.</summary>
+    [SuppressMessage("Usage", "CA2225:Operator overloads have named alternates", Justification = "The scoped API intentionally exposes only the implicit Entity conversion.")]
     public static implicit operator Entity(EntityRef entity) => entity.View.CurrentEntity;
 
     /// <summary>Reports whether the current entity has the specified component registration.</summary>
@@ -168,7 +170,7 @@ public struct GeneratedEntityRefView
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetPreparedComponentRef<T>()
+    internal readonly ref T GetPreparedComponentRef<T>()
         => ref Unsafe.Add(ref Unsafe.As<T[]>(_cachedComponentRow!).GetRefAtZero(), SlotIndex);
 
     internal void SetSlot(int slotIndex) => SlotIndex = slotIndex;

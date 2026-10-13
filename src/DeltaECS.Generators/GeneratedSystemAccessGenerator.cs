@@ -299,7 +299,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             ? GeneratorSupport.GenericArgumentTypes(
                 model,
                 (invocation.Expression as MemberAccessExpressionSyntax)?.Name as GenericNameSyntax)
-            : Array.Empty<ITypeSymbol>();
+            : [];
         ReadCallback(
             model,
             invocation.ArgumentList.Arguments[callbackIndex].Expression,
@@ -406,9 +406,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
     {
         if (expression is LambdaExpressionSyntax lambda)
         {
-            IParameterSymbol?[] parameters = CallbackReader.LambdaParameters(lambda)
-                .Select(parameter => model.GetDeclaredSymbol(parameter) as IParameterSymbol)
-                .ToArray();
+            IParameterSymbol?[] parameters = CallbackReader.LambdaParameters(lambda).Select(parameter => model.GetDeclaredSymbol(parameter) as IParameterSymbol).ToArray();
             int index = hasContext ? 1 : 0;
             if (hasEntity && index < parameters.Length)
             {
@@ -427,8 +425,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             hasEntity = markerEntity;
             IMethodSymbol[] methods = functor.GetMembers("Invoke")
                 .OfType<IMethodSymbol>()
-                .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
-                .ToArray();
+                .Where(method => CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true)).ToArray();
             if (methods.Length == 1)
             {
                 ReadMethodParameters(methods[0], hasContext, hasEntity, genericTypes, accumulator);
@@ -455,8 +452,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         {
             IMethodSymbol[] methods = whereFunctor.GetMembers("Invoke")
                 .OfType<IMethodSymbol>()
-                .Where(static method => method.ReturnType.SpecialType == SpecialType.System_Boolean)
-                .ToArray();
+                .Where(static method => method.ReturnType.SpecialType == SpecialType.System_Boolean).ToArray();
             if (methods.Length == 1)
             {
                 IMethodSymbol method = methods[0];

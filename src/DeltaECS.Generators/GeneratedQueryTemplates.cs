@@ -6,13 +6,13 @@ namespace Delta.ECS.Generators;
 internal static class GeneratedQueryTemplates
 {
     private static readonly (string Type, string Name, bool Query, bool QuerySpec, string Result)[] _factories =
-    {
+    [
         ("World", "world", false, false, "world.CreateQuery(additions)"),
         ("Query", "query", true,
             false,
             "GeneratedForEachRuntime.ComposeGeneratedQuery(in query, additions)"),
         ("QuerySpec", "spec", false, true, string.Empty),
-    };
+    ];
 
     internal static string Render(QueryModel model)
     {

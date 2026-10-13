@@ -130,12 +130,12 @@ public interface IEcsWorld
         Entity entity,
         ComponentId component,
         out ComponentSnapshot snapshot,
-        out EcsReadError error);
+        out EcsReadError readError);
 
     /// <summary>Writes a component value through the object API.</summary>
     bool TryWrite(
         Entity entity,
         ComponentId component,
         object? value,
-        out EcsWriteError error);
+        out EcsWriteError writeError);
 }

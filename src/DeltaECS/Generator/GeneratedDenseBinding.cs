@@ -9,10 +9,10 @@ using System.Runtime.CompilerServices;
 public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     where TRows : struct
 {
-    private TRows[] _rows = Array.Empty<TRows>();
+    private TRows[] _rows = [];
     private int _count;
     private int _version = -1;
-    private int[] _writes = Array.Empty<int>();
+    private int[] _writes = [];
     private QueryPlan? _queryPlan;
 
     /// <summary>Resolves the complete component signature once for the owning query.</summary>
@@ -92,7 +92,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     {
         // Clear the existing arrays as well: an escaped compiler-support binding must not retain rows.
         _rows.AsSpan().Clear();
-        _rows = Array.Empty<TRows>();
+        _rows = [];
         _count = 0;
         _version = -1;
         _queryPlan = null;

@@ -102,9 +102,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
             return false;
         }
 
-        ITypeSymbol?[] parameterTypes = parameters
-            .Select(parameter => semanticModel.GetTypeInfo(parameter.Type!).Type)
-            .ToArray();
+        ITypeSymbol?[] parameterTypes = parameters.Select(parameter => semanticModel.GetTypeInfo(parameter.Type!).Type).ToArray();
         if (parameterTypes.Any(static type => type is null))
         {
             return false;
@@ -112,7 +110,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
 
         ITypeSymbol?[] explicitTypes = member.Name is GenericNameSyntax genericName
             ? genericName.TypeArgumentList.Arguments.Select(argument => semanticModel.GetTypeInfo(argument).Type).ToArray()
-            : Array.Empty<ITypeSymbol?>();
+            : [];
         var matches = new List<(ComponentComparerDelegateModel Model, RegistrationBindingKind Binding, string[] ComponentTypes)>();
         bool hasEntitySignature = HasEntitySignature(parameters, parameterTypes);
 
@@ -227,9 +225,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
         }
 
         bool preferEntityForm = matches.Any(static match => match.Model.HasEntity);
-        int[] selectedIndices = Enumerable.Range(0, matches.Count)
-            .Where(index => !preferEntityForm || matches[index].Model.HasEntity)
-            .ToArray();
+        int[] selectedIndices = Enumerable.Range(0, matches.Count).Where(index => !preferEntityForm || matches[index].Model.HasEntity).ToArray();
         if (selectedIndices.Length != 1)
         {
             return false;
