@@ -2,7 +2,7 @@
 
 **Fast execution. Expressive C#.**
 
-An archetype ECS for .NET and Unity, with generated typed iteration and composable queries.
+An archetype Entity Component System for .NET and Unity, with generated typed iteration and composable queries.
 
 - Fast iteration over dense component storage, with benchmarks against other C# ECS libraries.
 - Typed systems generated at build time from the API shapes your code uses.
