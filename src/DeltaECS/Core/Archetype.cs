@@ -103,9 +103,10 @@ internal sealed class Archetype
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasAvailableChunk(int requestedCount, bool allowFreeRecordBlocks = true)
     {
-        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        ReadOnlySpan<int> available = ArrayAccess.AsSpan(_availableChunkStack);
+        for (int stackIndex = available.Length - 1; stackIndex >= 0; stackIndex--)
         {
-            Chunk candidate = _chunks[_availableChunkStack[stackIndex]];
+            Chunk candidate = _chunks[available[stackIndex]];
             if (!candidate.IsFull
                 && (allowFreeRecordBlocks || !candidate.HasFreeRecordBlock)
                 && (!candidate.HasFreeRecordBlock
@@ -492,9 +493,10 @@ internal sealed class Archetype
         out int chunkIndex,
         out Chunk chunk)
     {
-        for (int stackIndex = _availableChunkStack.Count - 1; stackIndex >= 0; stackIndex--)
+        Span<int> available = ArrayAccess.AsSpan(_availableChunkStack);
+        for (int stackIndex = available.Length - 1; stackIndex >= 0; stackIndex--)
         {
-            int candidateIndex = _availableChunkStack[stackIndex];
+            int candidateIndex = available[stackIndex];
             Chunk candidate = _chunks[candidateIndex];
             if (candidate.IsFull
                 || (!allowFreeRecordBlocks && candidate.HasFreeRecordBlock)
