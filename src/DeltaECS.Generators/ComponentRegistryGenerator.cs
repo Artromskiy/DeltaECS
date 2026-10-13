@@ -23,6 +23,11 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         "Component schema ID cannot be zero",
         "Component '{0}' resolved to schema ID 0; assign a non-zero explicit SchemaId",
         "Component registration");
+    private static readonly DiagnosticDescriptor InvalidGroup = GeneratorDiagnostics.Error(
+        "DECS0006",
+        "Component group must be identified by an enum",
+        "Component group arguments must be enum values or arrays of enum values",
+        "Component registration");
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -79,7 +84,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                 schemaId,
                 IsTagType(type),
                 ReadComponentAliases(type),
-                ReadComponentGroups(type));
+                ReadComponentGroups(context, type));
             if (schemas.TryGetValue(schemaId, out ComponentRegistration previous))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -116,7 +121,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                     && argument.Value.Value is int size
                     && size > 1);
 
-    private static List<ComponentGroupRegistration> ReadComponentGroups(INamedTypeSymbol componentType)
+    private static List<ComponentGroupRegistration> ReadComponentGroups(SourceProductionContext context, INamedTypeSymbol componentType)
     {
         var groups = new List<ComponentGroupRegistration>();
         var seen = new HashSet<(string EnumType, ulong Value)>();
@@ -124,29 +129,16 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         {
             INamedTypeSymbol? attributeType = attribute.AttributeClass;
             if (attributeType is null
-                || attributeType.OriginalDefinition.MetadataName != "ComponentGroupAttribute`1"
-                || attributeType.ContainingNamespace.ToDisplayString() != "Delta.ECS"
-                || attributeType.TypeArguments[0] is not INamedTypeSymbol enumType
-                || enumType.TypeKind != TypeKind.Enum)
+                || attributeType.MetadataName != "ComponentGroupAttribute"
+                || attributeType.ContainingNamespace.ToDisplayString() != "Delta.ECS")
             {
                 continue;
             }
 
-            bool isFlags = enumType.GetAttributes().Any(static enumAttribute =>
-                enumAttribute.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
+            Location location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? componentType.Locations[0];
             foreach (TypedConstant constructorArgument in attribute.ConstructorArguments)
             {
-                if (constructorArgument.Kind == TypedConstantKind.Array)
-                {
-                    foreach (TypedConstant groupId in constructorArgument.Values)
-                    {
-                        AddGroup(enumType, groupId, isFlags, groups, seen);
-                    }
-
-                    continue;
-                }
-
-                AddGroup(enumType, constructorArgument, isFlags, groups, seen);
+                AddGroup(context, location, constructorArgument, groups, seen);
             }
         }
 
@@ -173,18 +165,24 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         return aliases;
     }
 
-    private static void AddGroup(
-        INamedTypeSymbol enumType,
-        TypedConstant constant,
-        bool isFlags,
-        List<ComponentGroupRegistration> groups,
-        HashSet<(string EnumType, ulong Value)> seen)
+    private static void AddGroup(SourceProductionContext context, Location location, TypedConstant constant, List<ComponentGroupRegistration> groups, HashSet<(string EnumType, ulong Value)> seen)
     {
-        if (constant.Value is null || enumType.EnumUnderlyingType is null)
+        if (constant.Kind == TypedConstantKind.Array && !constant.IsNull)
         {
+            foreach (TypedConstant groupId in constant.Values)
+            {
+                AddGroup(context, location, groupId, groups, seen);
+            }
             return;
         }
 
+        if (constant.Type is not INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: not null } enumType || constant.Value is null)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(InvalidGroup, location));
+            return;
+        }
+
+        bool isFlags = enumType.GetAttributes().Any(static attribute => attribute.AttributeClass?.ToDisplayString() == "System.FlagsAttribute");
         ulong value = ToEnumBits(constant.Value, enumType.EnumUnderlyingType.SpecialType);
         if (!isFlags || value == 0)
         {

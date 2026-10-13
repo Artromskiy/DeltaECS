@@ -27,15 +27,15 @@ namespace Delta.ECS
         public string Alias { get; }
     }
 
-    /// <summary>Assigns a component to one or more groups identified by an enum.</summary>
+    /// <summary>Assigns a component to enum groups without a generic attribute type.</summary>
     [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
-    public sealed class ComponentGroupAttribute<TEnum> : Attribute where TEnum : struct, Enum
+    public sealed class ComponentGroupAttribute : Attribute
     {
-        /// <summary>Assigns a component to the specified enum groups.</summary>
-        public ComponentGroupAttribute(params TEnum[] groupIds) => GroupIds = groupIds;
+        /// <summary>Assigns a component to enum values or arrays of enum values.</summary>
+        public ComponentGroupAttribute(params object[] groupIds) => GroupIds = groupIds;
 
         /// <summary>Gets the enum values that identify the component groups.</summary>
-        public TEnum[] GroupIds { get; }
+        public object[] GroupIds { get; }
     }
 
     /// <summary>Generated strongly typed registration for one marked component.</summary>

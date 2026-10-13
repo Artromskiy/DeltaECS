@@ -247,7 +247,7 @@ public enum WorldComponentGroup
 
 [ComponentSchema(10)]
 [ComponentAlias("health")]
-[ComponentGroup<WorldComponentGroup>(WorldComponentGroup.History)]
+[ComponentGroup(WorldComponentGroup.History)]
 public struct Health { public int Value; }
 
 var layouts = new ComponentRegistry();

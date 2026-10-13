@@ -61,7 +61,7 @@ generator reports duplicate IDs within the consumer compilation; the Unity
 registry also checks for collisions when it combines catalogs from loaded
 assemblies.
 
-Use a generic `ComponentGroup<TEnum>` attribute to collect generated component
+Use the `ComponentGroup` attribute to collect generated component
 IDs by enum value:
 
 ```csharp
@@ -73,7 +73,7 @@ public enum ComponentGroups : byte
 }
 
 [ComponentSchema(42)]
-[ComponentGroup<ComponentGroups>(ComponentGroups.History | ComponentGroups.Replicated)]
+[ComponentGroup(ComponentGroups.History | ComponentGroups.Replicated)]
 public struct Health { public float Value; }
 
 ReadOnlySpan<ComponentId> history = layouts.GetGroup(ComponentGroups.History);

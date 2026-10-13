@@ -13,12 +13,11 @@ public struct NeedsRespawn { public int Value; }
 
 [ComponentSchema(920_008UL)]
 [ComponentAlias("catalog.component")]
-[ComponentGroup<CatalogGroups>(CatalogGroups.History | CatalogGroups.Replicated)]
-[ComponentGroup<CatalogTargets>(CatalogTargets.Server)]
+[ComponentGroup(CatalogGroups.History | CatalogGroups.Replicated, CatalogTargets.Server)]
 public struct CatalogComponent { public int Value; }
 
 [ComponentSchema(920_009UL)]
-[ComponentGroup<CatalogGroups>(CatalogGroups.History)]
+[ComponentGroup(CatalogGroups.History)]
 public struct CatalogTag { }
 
 [Flags]
