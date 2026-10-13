@@ -57,6 +57,9 @@ git diff --check
 
 Before every commit, run the shared Furnace wrappers against this repository:
 see [the common workflow](../REVIEW_PLAYBOOK.md#shared-local-formatter-and-metrics-wrappers).
+The shared formatter first runs `tools/format-order.sh` when the project provides
+it; `FORMAT_CHECK=1` checks ordering without rewriting files before checking
+whitespace.
 
 ```bash
 ../eng/format.sh "$PWD"
