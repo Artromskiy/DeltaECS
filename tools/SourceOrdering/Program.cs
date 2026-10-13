@@ -390,12 +390,11 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
         IReadOnlyList<MemberDeclarationSyntax> types,
         string mainName)
         => types
-            .Select((type, index) => new TypeOrder(type, index, GetTypeKey(type), GetTypeName(type), GetTypeAccessRank(type), GetTypeName(type) == mainName))
+            .Select((type, index) => new TypeOrder(type, index, GetTypeKey(type), GetTypeAccessRank(type), GetTypeName(type) == mainName))
             .GroupBy(static item => item.Key, StringComparer.Ordinal)
             .Select(static group => new TypeOrderGroup(group.OrderBy(static item => item.Index).ToArray()))
             .OrderByDescending(static group => group.IsMain)
             .ThenBy(static group => group.AccessRank)
-            .ThenBy(static group => group.Name, StringComparer.Ordinal)
             .ThenBy(static group => group.FirstIndex)
             .SelectMany(static group => group.Items)
             .Select(static item => item.Type);
@@ -603,7 +602,6 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
         MemberDeclarationSyntax Type,
         int Index,
         string Key,
-        string Name,
         int AccessRank,
         bool IsMain);
 
@@ -611,7 +609,6 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
     {
         internal TypeOrder[] Items { get; } = items;
         internal int AccessRank => Items[0].AccessRank;
-        internal string Name => Items[0].Name;
         internal bool IsMain => Items.Any(static item => item.IsMain);
         internal int FirstIndex => Items[0].Index;
     }
