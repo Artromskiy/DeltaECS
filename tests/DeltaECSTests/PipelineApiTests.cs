@@ -122,7 +122,7 @@ internal sealed class PipelineApiTests
                 entity.GetRef<PipelinePosition>(positionId).Value = entity.Index + velocity.Value;
             }).Invoke();
         world.ForEach(
-            [entities[0], withoutVelocity],
+            new Entity[] { entities[0], withoutVelocity },
             in query,
             static (ref PipelinePosition position, in PipelineVelocity velocity) =>
             {
