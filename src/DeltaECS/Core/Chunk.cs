@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 internal sealed class Chunk
 {
     internal const int Capacity = 1024;
+    internal const int WordCount = (Capacity + 63) >> 6;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private readonly Archetype _archetype;
     private Array[] _componentRows;

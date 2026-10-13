@@ -111,35 +111,61 @@ internal sealed class QueryPlan
 
     internal bool TryGetTagSlots(Chunk chunk, out ReadOnlySpan<int> slots)
     {
-        bool constrainByAnyTags = _anyTagIndices.Length != 0
-            && !_owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
-        if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
+        if (!TryGetTagSelection(chunk, out TagSlotCacheEntry? entry))
         {
             slots = default;
             return false;
         }
 
-        TagSlotCacheEntry entry = GetTagSlotCacheEntry(chunk.GlobalId);
-        int version = _owner.TagVersion;
-        if (Volatile.Read(ref entry.Version) != version)
-        {
-            lock (_tagSlotGate)
-            {
-                if (entry.Version != version)
-                {
-                    BuildTagSlots(chunk, constrainByAnyTags, entry);
-                    Volatile.Write(ref entry.Version, version);
-                }
-            }
-        }
-
-        if (entry.Dense)
+        if (entry!.Dense)
         {
             slots = default;
             return false;
         }
 
         slots = entry.Slots.AsSpan(0, entry.Count);
+        return true;
+    }
+
+    internal bool TryGetTagMask(Chunk chunk, out ReadOnlySpan<ulong> mask)
+    {
+        if (!TryGetTagSelection(chunk, out TagSlotCacheEntry? entry))
+        {
+            mask = default;
+            return false;
+        }
+
+        int wordCount = (chunk.Count + 63) >> 6;
+        mask = entry!.Mask.AsSpan(0, wordCount);
+        return true;
+    }
+
+    private bool TryGetTagSelection(Chunk chunk, out TagSlotCacheEntry? entry)
+    {
+        bool constrainByAnyTags = _anyTagIndices.Length != 0
+            && !_owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
+        if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
+        {
+            entry = null;
+            return false;
+        }
+
+        entry = GetTagSlotCacheEntry(chunk.GlobalId);
+        int version = _owner.TagVersion;
+        if (Volatile.Read(ref entry.Version) == version)
+        {
+            return true;
+        }
+
+        lock (_tagSlotGate)
+        {
+            if (entry.Version != version)
+            {
+                BuildTagSlots(chunk, constrainByAnyTags, entry);
+                Volatile.Write(ref entry.Version, version);
+            }
+        }
+
         return true;
     }
 
@@ -781,6 +807,13 @@ internal sealed class QueryPlan
             Array.Resize(ref entry.Slots, chunk.Count);
         }
 
+        if (entry.Mask.Length < wordCount)
+        {
+            Array.Resize(ref entry.Mask, wordCount);
+        }
+
+        Array.Clear(entry.Mask, 0, wordCount);
+
         for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
         {
             if ((candidateSummary & (1UL << wordIndex)) == 0)
@@ -812,6 +845,8 @@ internal sealed class QueryPlan
                 bits &= ~chunk.GetTagWord(_noneTagIndices[index], wordIndex);
             }
 
+            entry.Mask[wordIndex] = bits;
+
             while (bits != 0)
             {
                 int bit = BitOperationsCompat.TrailingZeroCount(bits);
@@ -836,6 +871,7 @@ internal sealed class QueryPlan
     {
         internal int Version = int.MinValue;
         internal int[] Slots = Array.Empty<int>();
+        internal ulong[] Mask = Array.Empty<ulong>();
         internal int Count;
         internal bool Dense;
     }

@@ -3,6 +3,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Buffers;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -235,7 +236,7 @@ public struct GeneratedWhereStructuralContext
             _world.UpdateChunkRecordSlotsSameChunk(_sourceChunk, _writeSlot, appendedCount);
         }
 
-        _sourceChunk.TrimTail(_sourceCount - _writeSlot);
+        _world.TrimChunkTail(_sourceChunk, _sourceCount - _writeSlot);
         _plan.SourceArchetype.ReleaseChunk(_sourceChunk.ArchetypeIndex);
         if (_plan.IsDestroy)
         {
@@ -562,6 +563,13 @@ public ref struct GeneratedReadDenseExecution
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static partial class GeneratedForEachRuntime
 {
+    private struct ComponentChangeWriteRoute
+    {
+        internal ComponentChangeObserver[]? Observers;
+        internal int ObserverCount;
+        internal int TagIndex;
+    }
+
     /// <summary>Gets the first entity reference for generated iteration.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -680,55 +688,136 @@ public static partial class GeneratedForEachRuntime
 
     internal static void RecordComponentWrites(QueryPlan plan, scoped ReadOnlySpan<int> routes)
     {
-        for (int index = 0; index < routes.Length; index++)
+        if (routes.IsEmpty || !plan.Owner.HasComponentChangeObserverRoutes)
         {
-            RecordComponentWrite(plan, routes.RefAt(index));
+            return;
         }
+
+        ComponentChangeWriteRoute[] writeRoutes = ArrayPool<ComponentChangeWriteRoute>.Shared.Rent(routes.Length);
+        int writeRouteCount = 0;
+        World world = plan.Owner;
+        for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+        {
+            int route = routes.RefAt(routeIndex);
+            bool isTag = QueryPlan.IsTagRoute(route);
+            ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
+            int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
+            ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
+            if (observers is null)
+            {
+                continue;
+            }
+
+            writeRoutes[writeRouteCount++] = new ComponentChangeWriteRoute
+            {
+                Observers = observers,
+                ObserverCount = observerCount,
+                TagIndex = tagIndex
+            };
+        }
+
+        if (writeRouteCount != 0)
+        {
+            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+            Span<ulong> writeMask = stackalloc ulong[Chunk.WordCount];
+            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+            {
+                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+                bool hasSelection = plan.TryGetTagMask(chunk, out ReadOnlySpan<ulong> selectionMask);
+                for (int routeIndex = 0; routeIndex < writeRouteCount; routeIndex++)
+                {
+                    ref ComponentChangeWriteRoute writeRoute = ref writeRoutes[routeIndex];
+                    RecordComponentWriteChunk(
+                        chunk,
+                        writeRoute.Observers!,
+                        writeRoute.ObserverCount,
+                        writeRoute.TagIndex,
+                        hasSelection,
+                        selectionMask,
+                        writeMask);
+                }
+            }
+        }
+
+        for (int routeIndex = 0; routeIndex < writeRouteCount; routeIndex++)
+        {
+            ref ComponentChangeWriteRoute writeRoute = ref writeRoutes[routeIndex];
+            World.ReturnComponentChangeObservers(writeRoute.Observers!, writeRoute.ObserverCount);
+        }
+
+        Array.Clear(writeRoutes, 0, writeRouteCount);
+        ArrayPool<ComponentChangeWriteRoute>.Shared.Return(writeRoutes);
     }
 
     internal static void RecordComponentWrite(QueryPlan plan, int route)
     {
-        World world = plan.Owner;
-        if (!world.HasComponentChangeObserverRoutes)
-        {
-            return;
-        }
+        Span<int> singleRoute = stackalloc int[1] { route };
+        RecordComponentWrites(plan, singleRoute);
+    }
 
-        bool isTag = QueryPlan.IsTagRoute(route);
-        ComponentId componentId = isTag ? QueryPlan.GetTagComponentId(route) : plan.GetDataComponentId(route);
-        ComponentChangeObserver[]? observers = world.ResolveComponentChangeObservers(componentId, out int observerCount);
-        if (observers is null)
-        {
-            return;
-        }
+    internal static void RecordComponentWriteChunk(
+        QueryPlan plan,
+        Chunk chunk,
+        ComponentChangeObserver[] observers,
+        int observerCount,
+        int tagIndex,
+        Span<ulong> writeMask)
+    {
+        bool hasSelection = plan.TryGetTagMask(chunk, out ReadOnlySpan<ulong> selectionMask);
+        RecordComponentWriteChunk(chunk, observers, observerCount, tagIndex, hasSelection, selectionMask, writeMask);
+    }
 
-        int tagIndex = isTag ? world.Components.GetTagIndex(componentId) : -1;
-
-        try
+    private static void RecordComponentWriteChunk(
+        Chunk chunk,
+        ComponentChangeObserver[] observers,
+        int observerCount,
+        int tagIndex,
+        bool hasSelection,
+        ReadOnlySpan<ulong> selectionMask,
+        Span<ulong> writeMask)
+    {
+        if (tagIndex < 0 && !hasSelection)
         {
-            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
-            for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
+            for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
             {
-                Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
-                if (isTag)
-                {
-                    for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
-                    {
-                        observers[observerIndex].RecordTagChunk(chunk, tagIndex, plan);
-                    }
-
-                    continue;
-                }
-
-                for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
-                {
-                    observers[observerIndex].RecordChunk(chunk, plan);
-                }
+                observers[observerIndex].RecordChunk(chunk);
             }
+
+            return;
         }
-        finally
+
+        int wordCount = (chunk.Count + 63) >> 6;
+        if (tagIndex < 0)
         {
-            World.ReturnComponentChangeObservers(observers, observerCount);
+            ReadOnlySpan<ulong> mask = selectionMask.Slice(0, wordCount);
+            for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
+            {
+                observers[observerIndex].RecordChunkMask(chunk, mask);
+            }
+
+            return;
+        }
+
+        bool any = false;
+        for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
+        {
+            int remaining = chunk.Count - (wordIndex << 6);
+            ulong valid = remaining >= 64 ? ulong.MaxValue : (1UL << remaining) - 1;
+            ulong selected = hasSelection ? selectionMask[wordIndex] : valid;
+            ulong word = selected & chunk.GetTagWord(tagIndex, wordIndex);
+            writeMask[wordIndex] = word;
+            any |= word != 0;
+        }
+
+        if (!any)
+        {
+            return;
+        }
+
+        ReadOnlySpan<ulong> tagWriteMask = writeMask.Slice(0, wordCount);
+        for (int observerIndex = 0; observerIndex < observerCount; observerIndex++)
+        {
+            observers[observerIndex].RecordChunkMask(chunk, tagWriteMask);
         }
     }
 
@@ -1127,7 +1216,7 @@ public static partial class GeneratedForEachRuntime
                         continue;
                     }
 
-                    World.RecordComponentChangeObservers(observers, observerCount, entity);
+                    World.RecordComponentChangeObservers(observers, observerCount, chunk, slotIndex);
                 }
             }
             finally

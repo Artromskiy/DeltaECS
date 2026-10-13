@@ -32,6 +32,7 @@ public sealed partial class World : IDisposable
     private readonly ComponentSetCache _componentSetCache = new();
     private readonly Dictionary<QuerySpec, WeakReference<QueryPlan>> _queryCache = new();
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
+    private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = Array.Empty<WeakReference<ComponentChangeObserver>>();
     private readonly object _componentChangeGate = new();
     private readonly List<Entity> _queryEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
@@ -205,6 +206,7 @@ public sealed partial class World : IDisposable
         _chunksById = Array.Empty<Chunk?>();
         _freeRecordChunks.Clear();
         Volatile.Write(ref _componentChangeObservers, null);
+        Volatile.Write(ref _componentChangeObserverList, Array.Empty<WeakReference<ComponentChangeObserver>>());
         GC.SuppressFinalize(this);
     }
 
@@ -273,9 +275,95 @@ public sealed partial class World : IDisposable
                 }
             }
 
-            observers.Add(new WeakReference<ComponentChangeObserver>(observer));
+            var observerReference = new WeakReference<ComponentChangeObserver>(observer);
+            observers.Add(observerReference);
             routes[observer.ComponentId.Value] = new ComponentChangeObserverRoute(observers.ToArray());
             Volatile.Write(ref _componentChangeObservers, routes);
+
+            WeakReference<ComponentChangeObserver>[] currentList = _componentChangeObserverList;
+            var observerList = new List<WeakReference<ComponentChangeObserver>>(currentList.Length + 1);
+            for (int index = 0; index < currentList.Length; index++)
+            {
+                if (currentList[index].TryGetTarget(out _))
+                {
+                    observerList.Add(currentList[index]);
+                }
+            }
+
+            observerList.Add(observerReference);
+            Volatile.Write(ref _componentChangeObserverList, observerList.ToArray());
+        }
+    }
+
+    internal void PrepareComponentChangeAddRange(Chunk chunk, int slotIndex, int count)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.PrepareAddRange(chunk, slotIndex, count);
+            }
+        }
+    }
+
+    internal void MoveComponentChangeRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.MoveRange(source, sourceSlot, target, targetSlot, count);
+            }
+        }
+    }
+
+    internal void CopyComponentChangeRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.CopyRangeWithin(chunk, sourceSlot, targetSlot, count);
+            }
+        }
+    }
+
+    internal void RemoveComponentChangeSwapBack(Chunk chunk, int slotIndex, int lastSlotIndex)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.RemoveSwapBack(chunk, slotIndex, lastSlotIndex);
+            }
+        }
+    }
+
+    internal void TrimComponentChangeChunkTail(Chunk chunk, int count)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.TrimTail(chunk, count);
+            }
+        }
+    }
+
+    private void ClearComponentChangeChunk(Chunk chunk)
+    {
+        WeakReference<ComponentChangeObserver>[] observers = Volatile.Read(ref _componentChangeObserverList);
+        for (int index = 0; index < observers.Length; index++)
+        {
+            if (observers[index].TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.ClearChunk(chunk);
+            }
         }
     }
 
@@ -442,12 +530,12 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static void RecordComponentChangeObservers(ComponentChangeObserver[] observers, int count, Entity entity)
+    internal static void RecordComponentChangeObservers(ComponentChangeObserver[] observers, int count, Chunk chunk, int slotIndex)
     {
         ref ComponentChangeObserver observer = ref observers.GetRefAtZero();
         while (count != 0)
         {
-            observer.Record(entity);
+            observer.RecordChunkSlot(chunk, slotIndex);
             observer = ref Unsafe.Add(ref observer, 1);
             count--;
         }
@@ -560,6 +648,7 @@ public sealed partial class World : IDisposable
                     out int reusedCount);
                 RegisterChunk(chunk);
                 int slotIndex = chunk.Count - reserved;
+                PrepareComponentChangeAddRange(chunk, slotIndex, reserved);
                 if (!tagIndices.IsEmpty)
                 {
                     chunk.EnsureTagCapacity(_layouts.TagCount);
@@ -661,6 +750,7 @@ public sealed partial class World : IDisposable
                     out int reusedCount);
                 RegisterChunk(chunk);
                 int slotIndex = chunk.Count - reserved;
+                PrepareComponentChangeAddRange(chunk, slotIndex, reserved);
                 if (!tagIndices.IsEmpty)
                 {
                     chunk.EnsureTagCapacity(_layouts.TagCount);
@@ -1683,6 +1773,7 @@ public sealed partial class World : IDisposable
             int copied = Math.Min(count, targetCursor.Remaining);
             Chunk target = targetCursor.Chunk!;
             int targetSlot = targetCursor.Slot;
+            PrepareComponentChangeAddRange(target, targetSlot, copied);
             CopyChunkRange(
                 sourceChunk,
                 target,
@@ -1690,6 +1781,7 @@ public sealed partial class World : IDisposable
                 targetSlot,
                 copied,
                 edge);
+            MoveComponentChangeRange(sourceChunk, sourceSlot, target, targetSlot, copied);
             if (!tagIndices.IsEmpty)
             {
                 target.EnsureTagCapacity(_layouts.TagCount);
@@ -1752,6 +1844,7 @@ public sealed partial class World : IDisposable
             return;
         }
 
+        CopyComponentChangeRangeWithin(chunk, sourceSlot, targetSlot, count);
         chunk.RawEntities.Slice(sourceSlot, count).CopyTo(chunk.RawEntities.Slice(targetSlot, count));
         chunk.CopyTagsWithin(sourceSlot, targetSlot, count);
         for (int componentIndex = 0; componentIndex < chunk.ComponentCount; componentIndex++)
@@ -1768,6 +1861,17 @@ public sealed partial class World : IDisposable
         {
             _tagVersion++;
         }
+    }
+
+    internal void TrimChunkTail(Chunk chunk, int count)
+    {
+        if (count == 0)
+        {
+            return;
+        }
+
+        TrimComponentChangeChunkTail(chunk, count);
+        chunk.TrimTail(count);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1811,8 +1915,10 @@ public sealed partial class World : IDisposable
                 int sourceSlot = sourceChunk.Count - copied;
                 int targetSlot = targetChunk.Count;
                 targetArchetype.ReserveExistingChunk(targetChunk, copied, out _);
+                PrepareComponentChangeAddRange(targetChunk, targetSlot, copied);
                 CopyChunkRange(sourceChunk, targetChunk, sourceSlot, targetSlot, copied, edge);
-                sourceChunk.TrimTail(copied);
+                MoveComponentChangeRange(sourceChunk, sourceSlot, targetChunk, targetSlot, copied);
+                TrimChunkTail(sourceChunk, copied);
                 if (!targetChunk.IsFull)
                 {
                     targetArchetype.RequeueBlockPartialChunk(targetChunk);
@@ -1862,6 +1968,7 @@ public sealed partial class World : IDisposable
 
     private void DisposeDetachedChunk(Chunk chunk)
     {
+        ClearComponentChangeChunk(chunk);
         if ((uint)chunk.GlobalId < (uint)_chunksById.Length
             && ReferenceEquals(_chunksById[chunk.GlobalId], chunk))
         {
@@ -1922,6 +2029,7 @@ public sealed partial class World : IDisposable
         chunk.BeginFreeRecordBlock(count);
         chunk.SetFreeRecordListIndex(_freeRecordChunks.Count);
         _freeRecordChunks.Add(chunk);
+        ClearComponentChangeChunk(chunk);
         chunk.ClearAll();
         archetype.ReleaseChunk(chunkIndex);
         AliveEntityCount -= count;
@@ -2005,7 +2113,10 @@ public sealed partial class World : IDisposable
         }
 
         int chunkIndex = chunk.ArchetypeIndex;
-        var moved = archetype.RemoveEntity(chunkIndex, record.SlotIndex);
+        int slotIndex = record.SlotIndex;
+        int lastSlotIndex = chunk.Count - 1;
+        var moved = archetype.RemoveEntity(chunkIndex, slotIndex);
+        RemoveComponentChangeSwapBack(chunk, slotIndex, lastSlotIndex);
         if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
@@ -2050,6 +2161,7 @@ public sealed partial class World : IDisposable
             out bool reusedTargetSlot);
         targetChunk = targetArchetype.GetChunk(targetChunkIndex);
         RegisterChunk(targetChunk);
+        PrepareComponentChangeAddRange(targetChunk, targetSlotIndex, 1);
         sourceChunk.CopyTagsTo(targetChunk, sourceSlotIndex, targetSlotIndex);
 
         for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
@@ -2065,7 +2177,10 @@ public sealed partial class World : IDisposable
         {
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
+        MoveComponentChangeRange(sourceChunk, sourceSlotIndex, targetChunk, targetSlotIndex, 1);
+        int sourceLastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
+        RemoveComponentChangeSwapBack(sourceChunk, sourceSlotIndex, sourceLastSlotIndex);
         sourceRecord.ChunkId = targetChunk.GlobalId;
         sourceRecord.SlotIndex = targetSlotIndex;
         if (moved.IsValid)

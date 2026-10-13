@@ -401,20 +401,17 @@ internal sealed class ArchetypeForEachComponentCase<TContext, TComponent, TProce
             return;
         }
 
-        if (_query.Owner.Components.TryGetTagIndex(_componentId, out int tagIndex))
-        {
-            for (int index = 0; index < _changeObserverCount; index++)
-            {
-                observers[index].RecordTagChunk(chunk, tagIndex, _query);
-            }
-
-            return;
-        }
-
-        for (int index = 0; index < _changeObserverCount; index++)
-        {
-            observers[index].RecordChunk(chunk, _query);
-        }
+        int tagIndex = _query.Owner.Components.TryGetTagIndex(_componentId, out int resolvedTagIndex)
+            ? resolvedTagIndex
+            : -1;
+        Span<ulong> writeMask = stackalloc ulong[Chunk.WordCount];
+        GeneratedForEachRuntime.RecordComponentWriteChunk(
+            _query,
+            chunk,
+            observers,
+            _changeObserverCount,
+            tagIndex,
+            writeMask);
     }
 
 }

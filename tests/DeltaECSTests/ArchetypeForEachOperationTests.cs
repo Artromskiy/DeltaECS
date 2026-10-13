@@ -436,6 +436,118 @@ internal sealed class ArchetypeForEachOperationTests
     }
 
     [Test]
+    public void ForEachChangeTransfersSparseChunkWritesWhenEntityMoves()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_334));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_335));
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_336));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[3];
+        world.Create([positionId], entities);
+        world.Add(entities[1], activeId);
+        Query active = world.WhereAll(positionId).WhereAll(activeId);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.ForEach<ComponentChangePosition>(in active, positionId,
+            static (ref ComponentChangePosition position) => position.Value++).Invoke();
+        world.Add(entities[1], velocityId);
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[] { (entities[1], ChangeKind.Modified) }));
+    }
+
+    [Test]
+    public void ForEachChangeKeepsNewEntitiesCleanWhenAppendingToAllDirtyChunk()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_337));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_338));
+        using var world = new World(layouts);
+        Entity dirty = world.Create([positionId, velocityId]);
+        Entity clean = world.Create([positionId]);
+        Query target = world.WhereAll(positionId).WhereAll(velocityId);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.ForEach<ComponentChangePosition>(in target, positionId,
+            static (ref ComponentChangePosition position) => position.Value++).Invoke();
+        world.Add(clean, velocityId);
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[] { (dirty, ChangeKind.Modified) }));
+    }
+
+    [Test]
+    public void ForEachChangeTransfersBulkDirtyChunkIntoExistingArchetypeTail()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_339));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_340));
+        using var world = new World(layouts);
+        Entity unchanged = world.Create([positionId, velocityId]);
+        Span<Entity> moved = stackalloc Entity[2];
+        world.Create([positionId], moved);
+        Query source = world.WhereAll(positionId).WhereNone(velocityId);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.ForEach<ComponentChangePosition>(in source, positionId,
+            static (ref ComponentChangePosition position) => position.Value++).Invoke();
+        world.Add(in source, velocityId);
+        operation.Invoke();
+
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            (moved[0], ChangeKind.Modified),
+            (moved[1], ChangeKind.Modified)
+        }));
+        Assert.That(changes, Does.Not.Contain((unchanged, ChangeKind.Modified)));
+    }
+
+    [Test]
+    public void ForEachChangeTransfersSparseMasksThroughGeneratedWhereCompaction()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<ComponentChangePosition>(new SchemaId(60_341));
+        ComponentId velocityId = layouts.Register<ComponentChangeVelocity>(new SchemaId(60_342));
+        ComponentId activeId = layouts.Register<Active>(new SchemaId(60_343));
+        using var world = new World(layouts);
+        Span<Entity> entities = stackalloc Entity[4];
+        world.Create([positionId], entities);
+        world.Add(entities[1], activeId);
+        world.Add(entities[3], activeId);
+        Query active = world.WhereAll(positionId).WhereAll(activeId);
+        var changes = new List<(Entity Entity, ChangeKind Kind)>();
+        var operation = world.ForEachChange<ComponentChangePosition>(positionId,
+            (Entity entity, ChangeKind kind, ref ComponentChangePosition _) => changes.Add((entity, kind)));
+
+        operation.Invoke();
+        changes.Clear();
+        world.ForEach<ComponentChangePosition>(in active, positionId,
+            static (ref ComponentChangePosition position) => position.Value++).Invoke();
+        world.Where(in active, static (in ComponentChangePosition _) => true)
+            .Add<ComponentChangeVelocity>().Invoke();
+        operation.Invoke();
+
+        Assert.That(changes, Is.EquivalentTo(new[]
+        {
+            (entities[1], ChangeKind.Modified),
+            (entities[3], ChangeKind.Modified)
+        }));
+    }
+
+    [Test]
     public void ForEachChangeObservesEntityListAndArchetypeIteration()
     {
         var layouts = new ComponentRegistry();
