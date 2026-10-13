@@ -181,16 +181,7 @@ namespace Delta.ECS.Unity
                 layouts.Register(registration);
             }
 
-            var world = new World(layouts, initialEntityCapacity);
-            try
-            {
-                return world;
-            }
-            catch (Exception exception)
-            {
-                world.Dispose();
-                return UnityThrowHelpers.Rethrow<World>(exception);
-            }
+            return new World(layouts, initialEntityCapacity);
         }
 
         internal void RebuildAuthoringEntities()
@@ -577,14 +568,7 @@ namespace Delta.ECS.Unity
             _stableIdsByEntity.Clear();
             _viewsByEntity.Clear();
             _entitiesByView.Clear();
-            try
-            {
-                _integration.Shutdown();
-            }
-            catch (InvalidOperationException)
-            {
-                // The ECS integration may already have been shut down during domain teardown.
-            }
+            _integration.Shutdown();
 
             if (_ownsWorld)
             {

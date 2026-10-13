@@ -1205,26 +1205,21 @@ public static partial class GeneratedForEachRuntime
                 continue;
             }
 
-            try
+            for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
             {
-                for (int entityIndex = 0; entityIndex < entities.Length; entityIndex++)
+                Entity entity = entities.RefAt(entityIndex);
+                if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
+                    || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
+                    || !plan.MatchesTagSlot(chunk, slotIndex)
+                    || (isTag && !chunk.HasTag(tagIndex, slotIndex)))
                 {
-                    Entity entity = entities.RefAt(entityIndex);
-                    if (!world.TryResolveEntityLocation(entity, out Chunk chunk, out int slotIndex)
-                        || !plan.TryGetChunkPlan(chunk.ArchetypeId, chunk.GlobalId, out _)
-                        || !plan.MatchesTagSlot(chunk, slotIndex)
-                        || (isTag && !chunk.HasTag(tagIndex, slotIndex)))
-                    {
-                        continue;
-                    }
-
-                    World.RecordComponentChangeObservers(observers, observerCount, chunk, slotIndex);
+                    continue;
                 }
+
+                World.RecordComponentChangeObservers(observers, observerCount, chunk, slotIndex);
             }
-            finally
-            {
-                World.ReturnComponentChangeObservers(observers, observerCount);
-            }
+            World.ReturnComponentChangeObservers(observers, observerCount);
+
         }
     }
 
