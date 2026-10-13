@@ -60,15 +60,15 @@ and are not intercepted. A parallel functor is copied to each worker, so
 mutable fields in the functor itself need an explicit synchronization strategy:
 
 ```csharp
+var move = new MoveFunctor();
+var operation = world.ForEachParallel(in query, ref move, workerCount: 4);
+operation.Invoke(ref move);
+
 struct MoveFunctor : IForEach
 {
     public void Invoke(ref Position position, in Velocity velocity) =>
         position.X += velocity.X;
 }
-
-var move = new MoveFunctor();
-var operation = world.ForEachParallel(in query, ref move, workerCount: 4);
-operation.Invoke(ref move);
 ```
 
 `workerCount: 0` selects the runtime default worker count and always uses the

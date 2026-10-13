@@ -27,7 +27,7 @@ query storage or plans, archetypes, or structural kernels.
   world.ForEach(in query,
       static (ref readonly Position position, ref Velocity velocity,
               in Acceleration acceleration, Scale scale) =>
-      velocity.Value += position.Value + acceleration.Value + scale.Value).Invoke();
+      velocity.X += position.X + acceleration.Value + scale.Value).Invoke();
   ```
 
 - Calls may include an `Entity`, mutable caller context, primary registrations,
@@ -63,6 +63,14 @@ query storage or plans, archetypes, or structural kernels.
   terminal functor can keep its own context too:
 
   ```csharp
+  var predicateState = new PredicateState();
+  var predicate = new IsDead();
+  var actionState = new ActionState();
+  var action = new Reset();
+  world.WhereEntity(in query, ref predicateState, ref predicate)
+      .ForEachEntity(ref actionState, ref action)
+      .Invoke(ref actionState, ref action);
+
   struct IsDead : IWherePredicate
   {
       public bool Invoke(ref PredicateState state, Entity entity, in Health health)
@@ -81,13 +89,6 @@ query storage or plans, archetypes, or structural kernels.
       }
   }
 
-  var predicateState = new PredicateState();
-  var predicate = new IsDead();
-  var actionState = new ActionState();
-  var action = new Reset();
-  world.WhereEntity(in query, ref predicateState, ref predicate)
-      .ForEachEntity(ref actionState, ref action)
-      .Invoke(ref actionState, ref action);
   ```
 
   The lambda form follows the same ordering:

@@ -144,6 +144,7 @@ For virtual dispatch, derive from `GeneralComponentTypeVisitor<TConstraint>`. Ov
 ```csharp
 layouts.BindInterface<Position, IMovable>();
 ComponentId positionId = layouts.Register<Position>(new SchemaId(7));
+layouts.TryVisit(positionId, new RoutedMovementVisitor());
 
 public sealed class RoutedMovementVisitor : GeneralComponentTypeVisitor<IMovable>
 {
@@ -157,8 +158,6 @@ public sealed class RoutedMovementVisitor : GeneralComponentTypeVisitor<IMovable
         // T is a class that implements IMovable.
     }
 }
-
-layouts.TryVisit(positionId, new RoutedMovementVisitor());
 ```
 
 The hooks are `Visit<T>` for an unconstrained route, `VisitUnmanaged<T>`, `VisitStruct<T>`, `VisitClass<T>`, `VisitConstructible<T>`, and `VisitClassConstructible<T>`. They are ordinary virtual methods with their constraints declared by the base class; no marker argument is needed in an override. This path uses the closed generic component route and virtual dispatch. Interface binding remains explicit for each component CLR type.
@@ -238,18 +237,6 @@ can be shared by worlds, so aliases and groups are shared as well:
 using System;
 using Delta.ECS;
 
-[Flags]
-public enum WorldComponentGroup
-{
-    History = 1,
-    Rollback = 2,
-}
-
-[ComponentSchema(10)]
-[ComponentAlias("health")]
-[ComponentGroup(WorldComponentGroup.History)]
-public struct Health { public int Value; }
-
 var layouts = new ComponentRegistry();
 foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
 {
@@ -261,6 +248,18 @@ ComponentId healthId = world.GetAlias("health");
 layouts.AddAlias("configured-health", healthId);
 layouts.AddGroup(WorldComponentGroup.Rollback, healthId);
 ReadOnlySpan<ComponentId> rollbackComponents = world.GetGroup(WorldComponentGroup.Rollback);
+
+[Flags]
+public enum WorldComponentGroup
+{
+    History = 1,
+    Rollback = 2,
+}
+
+[ComponentSchema(10)]
+[ComponentAlias("health")]
+[ComponentGroup(WorldComponentGroup.History)]
+public struct Health { public int Value; }
 ```
 
 `AddAlias` accepts repeated registration of the same alias/ID pair and rejects
@@ -352,7 +351,7 @@ world's entity table. This is useful when component registrations are selected
 at runtime:
 
 ```csharp
-world.ForEachEntity(in query, static (EntityRef entity) =>
+world.ForEachEntity(in query, (EntityRef entity) =>
 {
     if (entity.TryGet(positionId, out Position position))
     {
@@ -654,6 +653,14 @@ the entity-aware form, followed by its component rows. The context can itself
 be used to carry state such as counters or services:
 
 ```csharp
+ComponentId valueId = layouts.Register<float>(new SchemaId(20));
+ComponentId historyId = layouts.Register(typeof(History<>), valueId, new SchemaId(21));
+Query query = world.WhereAll(valueId, historyId);
+var context = new HistoryContext();
+var saveHistory = world.ForEach(in query, ref context, valueId, typeof(SaveHistory<>));
+saveHistory.Invoke(ref context);
+saveHistory.Invoke(ref context);
+
 public struct HistoryContext { public int Saved; }
 public struct History<T> { public T Value; }
 
@@ -665,14 +672,6 @@ public struct SaveHistory<T> : IForEachContext<HistoryContext>
         context.Saved++;
     }
 }
-
-ComponentId valueId = layouts.Register<float>(new SchemaId(20));
-ComponentId historyId = layouts.Register(typeof(History<>), valueId, new SchemaId(21));
-Query query = world.WhereAll(valueId, historyId);
-var context = new HistoryContext();
-var saveHistory = world.ForEach(in query, ref context, valueId, typeof(SaveHistory<>));
-saveHistory.Invoke(ref context);
-saveHistory.Invoke(ref context);
 ```
 
 The context is strongly typed through the generated adapter. No boxing or
@@ -683,7 +682,7 @@ forms provide read-only or local-copy behavior. Parallel forms reject mutable
 
 Query-wide forms require `Q`:
 
-```csharp
+```text
 world.ForEach(in query, componentId0, typeof(SaveHistory<>)).Invoke();
 world.ForEachEntity(in query, componentId0, typeof(VisitEntity<>)).Invoke();
 
@@ -722,10 +721,20 @@ parameters can bind three callback rows, including a derived registration:
 
 ```csharp
 world.ForEach(in query, firstId, secondId, typeof(CopyPair<,>)).Invoke();
-world.ForEach(in query, id0, id1, id2, typeof(Action<,,>)).Invoke();
+world.ForEach(in query, id0, id1, id2, typeof(CopyTriple<,,>)).Invoke();
 
 ReadOnlySpan<ComponentId> genericArguments = stackalloc ComponentId[] { firstId, secondId };
 world.ForEach(in query, genericArguments, typeof(CopyPair<,>)).Invoke();
+
+public struct CopyPair<TFirst, TSecond> : IForEach
+{
+    public void Invoke(in TFirst first, in TSecond second) { }
+}
+
+public struct CopyTriple<TFirst, TSecond, TThird> : IForEach
+{
+    public void Invoke(in TFirst first, in TSecond second, in TThird third) { }
+}
 ```
 
 Order and repeated IDs are preserved. Generic arity is independent of callback
@@ -755,6 +764,19 @@ the corresponding values for the right entity. Pass the functor by `ref`:
 
 ```csharp
 Query candidates = world.WhereAll<Priority, SyncId, Health>();
+var pairComparer = default(PriorityAndSyncIdComparer);
+var healthComparer = default(HealthComparer);
+
+OrderedQuery ordered = candidates
+    .OrderBy(ref pairComparer)
+    .ThenBy(ref healthComparer);
+
+ordered.ForEachEntity(static (EntityRef entity, in Priority priority, in SyncId syncId) =>
+{
+    ProcessInOrder(entity, priority, syncId);
+}).Invoke();
+
+Entity first = ordered.First().Invoke();
 
 public struct PriorityAndSyncIdComparer : IComponentComparer
 {
@@ -776,20 +798,6 @@ public struct HealthComparer : IComponentComparer
     public int Invoke(in Health left, in Health right)
         => left.Value.CompareTo(right.Value);
 }
-
-var pairComparer = default(PriorityAndSyncIdComparer);
-var healthComparer = default(HealthComparer);
-
-OrderedQuery ordered = candidates
-    .OrderBy(ref pairComparer)
-    .ThenBy(ref healthComparer);
-
-ordered.ForEachEntity(static (EntityRef entity, in Priority priority, in SyncId syncId) =>
-{
-    ProcessInOrder(entity, priority, syncId);
-}).Invoke();
-
-Entity first = ordered.First().Invoke();
 ```
 
 Use `IComponentComparerEntity` when the comparison also needs the entity
@@ -798,6 +806,9 @@ component values, then the right `Entity` before the right values. A context may
 be the first parameter in either comparer contract:
 
 ```csharp
+var entityComparer = default(SyncIdAndEntityComparer);
+OrderedQuery byStableEntity = candidates.OrderBy(ref entityComparer);
+
 public struct SyncIdAndEntityComparer : IComponentComparerEntity
 {
     public int Invoke(
@@ -810,9 +821,6 @@ public struct SyncIdAndEntityComparer : IComponentComparerEntity
         return order != 0 ? order : leftEntity.Index.CompareTo(rightEntity.Index);
     }
 }
-
-var entityComparer = default(SyncIdAndEntityComparer);
-OrderedQuery byStableEntity = candidates.OrderBy(ref entityComparer);
 ```
 
 For one-off comparisons, pass a typed delegate lambda instead of declaring a
@@ -821,11 +829,6 @@ lambdas are intercepted by the generator and emitted as direct comparer code;
 capturing lambdas use the generated delegate adapter.
 
 ```csharp
-struct OrderingContext
-{
-    public int Offset;
-}
-
 var orderingContext = new OrderingContext { Offset = 3 };
 
 OrderedQuery byPriority = candidates.OrderBy(
@@ -853,6 +856,11 @@ OrderedQuery withContextAndEntity = candidates
                 ? syncOrder
                 : (leftEntity.Index + context.Offset).CompareTo(rightEntity.Index + context.Offset);
         });
+
+struct OrderingContext
+{
+    public int Offset;
+}
 ```
 
 The delegate grammar also accepts a positional `ComponentId` for each key

@@ -14,7 +14,7 @@ The interface combines:
 ```csharp
 if (ecs.TryRead(entity, component, out var snapshot, out var readError))
 {
-    bool written = ecs.TryWrite(entity, component, editedValue, out EcsWriteError writeError);
+    bool written = ecs.TryWrite(entity, component, editedValue, out var writeError);
 }
 ```
 

@@ -38,7 +38,8 @@ layouts.Register<Position>(new SchemaId(1));
 layouts.Register<Velocity>(new SchemaId(2));
 layouts.Register<Paused>(new SchemaId(3));
 
-Entity player = world.Create(new Position(Vector2.Zero));
+Entity player = world.Create<Position>();
+world.GetRef<Position>(player) = new Position(Vector2.Zero);
 world.Add(player, new Velocity(new Vector2(2, 1)));
 
 Query moving = world

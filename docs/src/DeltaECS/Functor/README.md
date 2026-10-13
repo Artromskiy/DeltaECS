@@ -13,15 +13,15 @@ The stable marker contracts are:
 - `IForEachContextEntity<TContext>`
 
 ```csharp
+var counter = new Counter();
+var counterOperation = world.ForEachEntity(in query, ref counter);
+counterOperation.Invoke(ref counter);
+
 struct Counter : IForEachEntity
 {
     public int Value;
     public void Invoke(EntityRef entity) => Value += entity.Index;
 }
-
-var counter = new Counter();
-var counterOperation = world.ForEachEntity(in query, ref counter);
-counterOperation.Invoke(ref counter);
 ```
 
 The interfaces are markers only: they do not declare `Invoke` and never encode
@@ -39,15 +39,15 @@ ambiguous, or incompatible `Invoke` implementations rather than selecting one
 through reflection at runtime.
 
 ```csharp
+var movement = new Movement();
+var movementOperation = world.ForEach(in query, ref movement);
+movementOperation.Invoke(ref movement);
+
 struct Movement : IForEach
 {
     public void Invoke(ref Position position, in Velocity velocity)
         => position.X += velocity.X;
 }
-
-var movement = new Movement();
-var movementOperation = world.ForEach(in query, ref movement);
-movementOperation.Invoke(ref movement);
 ```
 
 Query-wide filters use the same value-type callback model. Implement
@@ -60,9 +60,9 @@ var predicateState = new PredicateState();
 var predicate = new IsDeadPredicate();
 var actionState = new ActionState();
 var action = new ResetHealthAction();
-var aliveFilter = world.WhereEntity(in query, ref predicateState, ref predicate);
-var resetHealth = aliveFilter.ForEachEntity(ref actionState, ref action);
-resetHealth.Invoke(ref actionState, ref action);
+world.WhereEntity(in query, ref predicateState, ref predicate)
+    .ForEachEntity(ref actionState, ref action)
+    .Invoke(ref actionState, ref action);
 ```
 
 The predicate `Invoke` order is `ref context` when a context is supplied,
@@ -73,10 +73,11 @@ context, retaining their updated state when reused. A no-entity predicate can
 be as small as:
 
 ```csharp
+var predicate = new IsDead();
+world.Where(in query, ref predicate).Destroy().Invoke();
+
 struct IsDead : IWherePredicate
 {
     public bool Invoke(in Health health) => health.Value <= 0;
 }
-
-world.Where(in query, ref predicate).Destroy().Invoke();
 ```

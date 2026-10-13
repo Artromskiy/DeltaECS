@@ -37,7 +37,7 @@ bool primaryAdded = world.Add(primaryEntity, new Velocity());
 int primaryBatchAdded = world.Add<Velocity>(primaryDestination, new Velocity());
 
 bool hasPosition = world.Has<Position>(primaryEntity);
-bool hasExplicitPosition = world.Has<Position>(primaryEntity, positionId);
+bool hasExplicitPosition = world.Has(primaryEntity, positionId);
 
 if (world.TryGet(primaryEntity, out Position primaryPosition))
 {
@@ -48,7 +48,8 @@ if (world.TryGet(primaryEntity, out Position primaryPosition))
 world.Remove<Velocity>(primaryEntity);
 int primaryRemoved = world.Remove<Velocity>(primaryDestination);
 
-Entity entity = world.Create(positionId, new Position());
+Entity entity = world.Create(positionId);
+world.Add(entity, positionId, new Position());
 Span<Entity> entities = stackalloc Entity[10];
 int createdEntities = world.Create(stackalloc ComponentId[] { positionId }, entities.Length, entities);
 Span<Entity> destination = stackalloc Entity[10];
@@ -62,8 +63,8 @@ if (world.TryGet(entity, positionId, out Position position))
     world.GetRef<Position>(entity, positionId) = position;
 }
 
-world.Remove<Velocity>(entity, velocityId);
-int removed = world.Remove<Velocity>(entities, velocityId);
+world.Remove(entity, velocityId);
+int removed = world.Remove(entities, velocityId);
 ```
 
 The overloads without a `ComponentId` resolve the registered primary component
@@ -89,7 +90,6 @@ int removed = world.Remove<Position, Velocity>(entities);
 bool addedToEntity = world.Add<Position, Velocity>(entity);
 bool removedFromEntity = world.Remove<Position, Velocity>(entity);
 
-Entity created = world.Create<Position, Velocity>();
 int createdCount = world.Create<Position, Velocity>(10);
 Span<Entity> output = stackalloc Entity[10];
 int createdIntoOutput = world.Create<Position, Velocity>(10, output);

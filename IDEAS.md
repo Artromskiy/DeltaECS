@@ -59,7 +59,7 @@ not dominate.
 
 The first useful API shape is conceptually:
 
-```csharp
+```text
 var graph = world.CreateSystemGraph();
 graph.Add("Movement", movementQuery,
     reads: new[] { velocityId },

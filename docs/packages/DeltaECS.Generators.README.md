@@ -65,6 +65,9 @@ Use the `ComponentGroup` attribute to collect generated component
 IDs by enum value:
 
 ```csharp
+ReadOnlySpan<ComponentId> history = layouts.GetGroup(ComponentGroups.History);
+ReadOnlySpan<ComponentId> replicated = layouts.GetGroup(ComponentGroups.Replicated);
+
 [Flags]
 public enum ComponentGroups : byte
 {
@@ -75,17 +78,13 @@ public enum ComponentGroups : byte
 [ComponentSchema(42)]
 [ComponentGroup(ComponentGroups.History | ComponentGroups.Replicated)]
 public struct Health { public float Value; }
-
-ReadOnlySpan<ComponentId> history = layouts.GetGroup(ComponentGroups.History);
-ReadOnlySpan<ComponentId> replicated = layouts.GetGroup(ComponentGroups.Replicated);
 ```
 
 For a `[Flags]` enum, combined values add the component to every set bit. For
 an ordinary enum, each supplied value names one independent group. Register
 the component through its generated registration for the group membership to
-be added to that layout registry. Generic attributes require C# 11 or later;
-other generated component registration forms remain available to older C#
-consumers.
+be added to that component registry. The group attribute uses ordinary enum
+values and works with the language versions supported by the consumer.
 
 Where functors implement `IWherePredicate`. Use `Where` for component-only
 predicates and `WhereEntity` when the predicate also needs the current entity.
