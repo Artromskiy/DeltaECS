@@ -18,7 +18,7 @@ Add the npm-compatible registry and package to the Unity project's
     }
   ],
   "dependencies": {
-    "com.artromskiy.deltaecs.unity": "0.0.54"
+    "com.artromskiy.deltaecs.unity": "0.0.56"
   }
 }
 ```
