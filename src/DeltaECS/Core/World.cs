@@ -405,7 +405,7 @@ public sealed partial class World : IDisposable
     public bool Has(Entity entity, ComponentId componentId)
     {
         EnsureExecutionAccess();
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             return false;
         }

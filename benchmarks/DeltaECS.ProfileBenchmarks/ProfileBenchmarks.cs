@@ -4,10 +4,12 @@ extern alias candidateAdapter;
 namespace DeltaECS.ProfileBenchmarks;
 
 using BaselineBatchScenario = baselineAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario;
+using BaselineHasScenario = baselineAdapter::DeltaECS.ProfileAdapter.HasScenario;
 using BaselineScenario = baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using CandidateBatchScenario = candidateAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario;
+using CandidateHasScenario = candidateAdapter::DeltaECS.ProfileAdapter.HasScenario;
 using CandidateScenario = candidateAdapter::DeltaECS.ProfileAdapter.ProfileScenario;
 
 [MemoryDiagnoser]
@@ -134,6 +136,77 @@ public class ComponentAccessBenchmarks : ProfileBenchmarkBase
     public long Mainline_GetRefShuffled() => PreviousGetRefShuffled();
     [Benchmark, BenchmarkCategory("GetRef shuffled")]
     public long Candidate_GetRefShuffled() => CandidateGetRefShuffled();
+}
+
+[MemoryDiagnoser]
+[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
+public class HasDispatchBenchmarks
+{
+    private BaselineHasScenario _baseline = null!;
+    private CandidateHasScenario _candidate = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _baseline = new BaselineHasScenario(ProfileOptions.Amount);
+        _candidate = new CandidateHasScenario(ProfileOptions.Amount);
+        RequireEqual(_baseline.HasDataByIdSequential(), _candidate.HasDataByIdSequential(), "data ID sequential");
+        RequireEqual(_baseline.HasDataByIdShuffled(), _candidate.HasDataByIdShuffled(), "data ID shuffled");
+        RequireEqual(_baseline.HasTagByIdSequential(), _candidate.HasTagByIdSequential(), "tag ID sequential");
+        RequireEqual(_baseline.HasTagByIdShuffled(), _candidate.HasTagByIdShuffled(), "tag ID shuffled");
+        RequireEqual(_baseline.HasDataGenericSequential(), _candidate.HasDataGenericSequential(), "data generic sequential");
+        RequireEqual(_baseline.HasDataGenericShuffled(), _candidate.HasDataGenericShuffled(), "data generic shuffled");
+        if (_baseline.HasDataByIdSequential() != _baseline.ExpectedDataCount
+            || _baseline.HasTagByIdSequential() != _baseline.ExpectedTagCount)
+        {
+            throw new InvalidOperationException("Has benchmark fixture does not contain the expected component mix.");
+        }
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _baseline.Dispose();
+        _candidate.Dispose();
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("data ID sequential")]
+    public long Mainline_DataIdSequential() => _baseline.HasDataByIdSequential();
+    [Benchmark, BenchmarkCategory("data ID sequential")]
+    public long Candidate_DataIdSequential() => _candidate.HasDataByIdSequential();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("data ID shuffled")]
+    public long Mainline_DataIdShuffled() => _baseline.HasDataByIdShuffled();
+    [Benchmark, BenchmarkCategory("data ID shuffled")]
+    public long Candidate_DataIdShuffled() => _candidate.HasDataByIdShuffled();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("tag ID sequential")]
+    public long Mainline_TagIdSequential() => _baseline.HasTagByIdSequential();
+    [Benchmark, BenchmarkCategory("tag ID sequential")]
+    public long Candidate_TagIdSequential() => _candidate.HasTagByIdSequential();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("tag ID shuffled")]
+    public long Mainline_TagIdShuffled() => _baseline.HasTagByIdShuffled();
+    [Benchmark, BenchmarkCategory("tag ID shuffled")]
+    public long Candidate_TagIdShuffled() => _candidate.HasTagByIdShuffled();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("data generic sequential")]
+    public long Mainline_DataGenericSequential() => _baseline.HasDataGenericSequential();
+    [Benchmark, BenchmarkCategory("data generic sequential")]
+    public long Candidate_DataGenericSequential() => _candidate.HasDataGenericSequential();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("data generic shuffled")]
+    public long Mainline_DataGenericShuffled() => _baseline.HasDataGenericShuffled();
+    [Benchmark, BenchmarkCategory("data generic shuffled")]
+    public long Candidate_DataGenericShuffled() => _candidate.HasDataGenericShuffled();
+
+    private static void RequireEqual(long baseline, long candidate, string workload)
+    {
+        if (baseline != candidate)
+        {
+            throw new InvalidOperationException($"Has benchmark {workload} checksum differs: {baseline} != {candidate}.");
+        }
+    }
 }
 
 [MemoryDiagnoser]
