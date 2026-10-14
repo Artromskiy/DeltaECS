@@ -53,6 +53,25 @@ internal sealed class ArchetypeComponentIndexTests
     }
 
     [Test]
+    public void ComponentRowsBeyondUshortEncodingPreserveFullIndices()
+    {
+        ComponentMask mask = ComponentMask.From(
+            Enumerable.Range(0, 65_540).Select(static value => new ComponentId(value)).ToArray());
+        Archetype archetype = CreateArchetype(mask);
+        try
+        {
+            foreach (int value in new[] { 0, 65_533, 65_534, 65_535, 65_539, 65_540 })
+            {
+                AssertLookup(archetype, mask, new ComponentId(value));
+            }
+        }
+        finally
+        {
+            archetype.Dispose();
+        }
+    }
+
+    [Test]
     public void DisposingArchetypePreservesSharedImmutableMaskForRecreation()
     {
         ComponentMask mask = ComponentMask.From([new ComponentId(2), new ComponentId(300)]);

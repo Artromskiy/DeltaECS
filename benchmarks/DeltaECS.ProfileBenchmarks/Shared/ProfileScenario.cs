@@ -15,6 +15,7 @@ public sealed class ProfileScenario : IDisposable
     private readonly ComponentId[] _optionalIds;
     private readonly Entity[] _entities;
     private readonly Entity[] _shuffledEntities;
+    private ComponentId[]? _variedLookupIds;
     private readonly Query _denseQuery;
     private readonly Query _sortQuery;
     private readonly OrderedQuery _orderedQuery;
@@ -103,6 +104,10 @@ public sealed class ProfileScenario : IDisposable
 
     public long HasShuffled() => Has(_shuffledEntities);
 
+    public long HasVariedIdsSequential() => HasVariedIds(_entities);
+
+    public long HasVariedIdsShuffled() => HasVariedIds(_shuffledEntities);
+
     public long GetSequential() => Get(_entities);
 
     public long GetShuffled() => Get(_shuffledEntities);
@@ -184,7 +189,10 @@ public sealed class ProfileScenario : IDisposable
             object? storage = archetype.GetType().GetField("_componentIndices", flags)?.GetValue(archetype);
             if (storage is not null)
             {
-                indexBytes += (int)storage.GetType().GetProperty("Length", flags)!.GetValue(storage)! * sizeof(int);
+                Type elementType = storage.GetType().GetGenericArguments()[0];
+                int elementSize = (int)typeof(System.Runtime.CompilerServices.Unsafe).GetMethod("SizeOf")!
+                    .MakeGenericMethod(elementType).Invoke(null, null)!;
+                indexBytes += (long)(int)storage.GetType().GetProperty("Length", flags)!.GetValue(storage)! * elementSize;
             }
         }
 
@@ -215,6 +223,32 @@ public sealed class ProfileScenario : IDisposable
         }
 
         return GC.GetAllocatedBytesForCurrentThread() - before;
+    }
+
+    private long HasVariedIds(Entity[] entities)
+    {
+        ComponentId[] ids = _variedLookupIds ??= CreateVariedLookupIds();
+        long count = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            count += _world.Has(entities[index], ids[index]) ? 1 : 0;
+        }
+
+        return count;
+    }
+
+    private ComponentId[] CreateVariedLookupIds()
+    {
+        int unusedComponentCount = _optionalIds[0].Value;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(unusedComponentCount);
+        var ids = new ComponentId[_entities.Length];
+        var random = new Random(73);
+        for (int index = 0; index < ids.Length; index++)
+        {
+            ids[index] = (index & 1) == 0 ? _hasPrimary : new ComponentId(random.Next(unusedComponentCount));
+        }
+
+        return ids;
     }
 
     private long Has(Entity[] entities)

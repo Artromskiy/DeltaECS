@@ -127,11 +127,14 @@ internal static class ProfileSmoke
         Require(baseline.LookupShuffled() == expectedLookup && candidate.LookupShuffled() == expectedLookup, "shuffled high-ID lookup checksum");
         Require(baseline.HasSequential() == 20 && candidate.HasSequential() == 20, "sequential component presence");
         Require(baseline.HasShuffled() == 20 && candidate.HasShuffled() == 20, "shuffled component presence");
+        Require(baseline.HasVariedIdsSequential() == 10 && candidate.HasVariedIdsSequential() == 10, "varied-ID sequential component presence");
+        Require(baseline.HasVariedIdsShuffled() == 10 && candidate.HasVariedIdsShuffled() == 10, "varied-ID shuffled component presence");
         Require(baselineHas.HasDataByIdSequential() == 11 && candidateHas.HasDataByIdSequential() == 11, "mixed data presence by ID");
         Require(baselineHas.HasTagByIdSequential() == 11 && candidateHas.HasTagByIdSequential() == 11, "mixed tag presence by ID");
         Require(baselineHas.HasDataGenericSequential() == 11 && candidateHas.HasDataGenericSequential() == 11, "mixed data presence by type");
         Require(baseline.GetSequential() == 210 && candidate.GetSequential() == 210, "sequential Get checksum");
         Require(baseline.GetShuffled() == 210 && candidate.GetShuffled() == 210, "shuffled Get checksum");
+        Require(baseline.GetPrimarySequential() == 210 && candidate.GetPrimarySequential() == 210, "primary Get checksum");
         Require(baseline.GetRefSequential() == 210 && candidate.GetRefSequential() == 210, "sequential GetRef checksum");
         Require(baseline.GetRefShuffled() == 210 && candidate.GetRefShuffled() == 210, "shuffled GetRef checksum");
         Require(baseline.DenseEntityWalk() == 190 && candidate.DenseEntityWalk() == 190, "dense traversal checksum");

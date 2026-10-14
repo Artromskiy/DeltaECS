@@ -8,7 +8,7 @@ internal sealed class Archetype
 {
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private NativeMemory<ComponentId> _componentIds;
-    private NativeMemory<int> _componentIndices;
+    private NativeMemory<ushort> _componentIndices;
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
     private readonly List<int> _blockPartialChunkCandidates = new();
@@ -59,11 +59,11 @@ internal sealed class Archetype
         Mask = mask;
         _componentRowArrayPool = componentRowArrayPool;
         _componentIds = new NativeMemory<ComponentId>(componentIds);
-        _componentIndices = new NativeMemory<int>(
+        _componentIndices = new NativeMemory<ushort>(
             componentIds.Length == 0 ? 0 : checked(componentIds[componentIds.Length - 1].Value + 1));
         for (int index = 0; index < componentIds.Length; index++)
         {
-            _componentIndices.RefAt(componentIds.RefAt(index).Value) = index + 1;
+            _componentIndices.RefAt(componentIds.RefAt(index).Value) = (ushort)Math.Min(index + 1, ushort.MaxValue);
         }
 
         Layouts = layouts;
@@ -111,6 +111,12 @@ internal sealed class Archetype
         index = (uint)componentId.Value < (uint)_componentIndices.Length
             ? _componentIndices.RefAt(componentId.Value) - 1
             : -1;
+        // The reserved value preserves unusually large archetypes without wider tables.
+        if (index == ushort.MaxValue - 1)
+        {
+            index = Mask.Rank(componentId);
+        }
+
         return index >= 0;
     }
 
