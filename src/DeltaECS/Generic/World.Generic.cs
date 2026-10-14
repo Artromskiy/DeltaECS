@@ -478,7 +478,7 @@ public sealed partial class World
             ThrowHelper.ThrowStructuralCreateFailed();
         }
 
-        Archetype archetype = Archetypes[chunk.ArchetypeId];
+        Archetype archetype = chunk.Archetype;
         var writer = new GeneratedComponentValueWriter(_layouts, chunk, archetype, slotIndex);
         initializer.Initialize(ref writer);
         return entity;
@@ -540,21 +540,21 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetRegisteredCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
     {
+        Archetype archetype = chunk.Archetype;
+        if (archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
+            return true;
+        }
+
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
             value = default!;
             return chunk.HasTag(tagIndex, slotIndex);
         }
 
-        Archetype archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            value = default!;
-            return false;
-        }
-
-        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
-        return true;
+        value = default!;
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
