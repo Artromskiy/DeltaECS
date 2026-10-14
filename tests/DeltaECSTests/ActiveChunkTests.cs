@@ -44,6 +44,61 @@ internal sealed class ActiveChunkTests
         Assert.That(SumPositions(world, queryHandle), Is.EqualTo(24));
     }
 
+    [Test]
+    public void BulkDestroyedChunkReuseDoesNotResolveStaleEntityRecords()
+    {
+        var layouts = new ComponentRegistry();
+        layouts.Register<Position>(new SchemaId(2));
+        using var world = new World(layouts);
+        var stale = new Entity[Chunk.Capacity];
+        world.Create([PositionId], stale);
+
+        Assert.That(world.Destroy(stale), Is.EqualTo(stale.Length));
+        var replacements = new Entity[stale.Length];
+        world.Create([PositionId], replacements);
+        world.GetRef<Position>(replacements[0], PositionId) = new Position { X = 29 };
+
+        Assert.That(world.IsAlive(stale[0]), Is.False);
+        Assert.That(world.TryGet<Position>(stale[0], PositionId, out _), Is.False);
+        Assert.That(world.IsAlive(replacements[0]), Is.True);
+        Assert.That(world.GetRef<Position>(replacements[0], PositionId).X, Is.EqualTo(29));
+    }
+
+    [Test]
+    public void EntityRecordsFollowChunksAcrossAddAndRemoveTransitions()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<int>(new SchemaId(3));
+        ComponentId velocityId = layouts.Register<float>(new SchemaId(4));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId);
+        world.GetRef<int>(entity, positionId) = 17;
+
+        Assert.That(world.Add(entity, [velocityId]), Is.True);
+        world.GetRef<float>(entity, velocityId) = 2.5f;
+        Assert.That(world.GetRef<int>(entity, positionId), Is.EqualTo(17));
+        Assert.That(world.GetRef<float>(entity, velocityId), Is.EqualTo(2.5f));
+
+        Assert.That(world.Remove(entity, [velocityId]), Is.True);
+        Assert.That(world.IsAlive(entity), Is.True);
+        Assert.That(world.GetRef<int>(entity, positionId), Is.EqualTo(17));
+        Assert.That(world.Has(entity, velocityId), Is.False);
+    }
+
+    [Test]
+    public void DisposedWorldDoesNotResolveRecordsPointingToReleasedChunks()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId id = layouts.Register<int>(new SchemaId(5));
+        var world = new World(layouts);
+        Entity entity = world.Create(id);
+        world.Dispose();
+
+        Assert.That(world.IsAlive(entity), Is.False);
+        Assert.That(world.Has(entity, id), Is.False);
+        Assert.That(world.TryGet(entity, id, out int _), Is.False);
+    }
+
     private static int CountQueriedSlots(World world, in Query query)
     {
         int count = 0;

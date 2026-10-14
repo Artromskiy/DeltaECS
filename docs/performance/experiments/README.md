@@ -451,3 +451,38 @@ Raw reports: `artifacts/null-guard-million/{A1,B1,B2,A2}`.
 The small difference does not establish a useful performance improvement;
 the earlier 100k result is not a robust general speedup. No code changes made
 as part of this follow-up.
+
+
+## Real-project deep profile: component lookup and ordering — 2026-10-14
+
+Baseline `64c3ef8` plus identical compilation/artifacts corrections versus
+working-tree V1–V4 candidates. Native archetype index tables remove rank;
+records resolve chunks directly; tag indices use one array; ordered keys
+read live cached typed rows. Scalar stack buffers and one inactive chunk
+binding remove transient structural allocations. Cold ordered-cache helpers
+reduce comparator duplication. Public signatures and Entity layout/hash remain
+unchanged. The previous rejected dense-driver field cache differs from this
+reactivation cache: it removes measured heap allocation outside entity loops.
+
+.NET 10.0.13 x64/CoreCLR, BDN 0.15.8 InProcessEmit, tiering/R2R disabled,
+8 warmups / 20 × 300 ms in the final rounds. On netstandard2.1 at 4,096
+entities, final lookup is 232.487 → 153.127 μs and two-key sorting
+3.957 → 1.427 ms. At 100K entities / 1,024 filler registrations / 64 shapes,
+net10 lookup is 10.463 → 6.424 ms; dense traversal 176.7 → 175.5 μs is
+neutral within overlapping intervals. Structural allocations fall from
+68/64 B per add-remove/create-destroy call to 0 B on netstandard and
+36/32 → 0 B on net10, independently checked on the current thread.
+Native table payload is 4 × Σ(highest data ID + 1), including 19.53 MiB
+for 10K archetypes × 512 IDs; actual 257-archetype probe totals 538,672 B.
+Record stride is verified 12 → 16 B. Comparator outlining reduces candidate
+FullOpts code 5,428 → 2,481 B; lookup shrinks 1,746 → 1,542 B and its two
+rank call sites disappear.
+
+Decision: retain the measured implementation; do not claim Unity frame-time
+gains or an isolated throughput win from cold-path outlining. Initial 354
+tests passed; later changes built and passed benchmark checks, but final full
+tests and two new binding tests were not run after the user requested stopping
+at benchmark completion. All Mean/Error/StdDev/Allocated/ratio tables, noisy
+rounds, opcode summaries and reproduction details are in
+[the detailed report](real-project-profile-2026-10-14.md). Raw files stay under
+`artifacts/profile-optimization-20261014/`.

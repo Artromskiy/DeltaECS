@@ -23,6 +23,12 @@ internal sealed class EntityRecordStorage
         }
     }
 
+    internal void Clear()
+    {
+        _items = [];
+        Count = 0;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Add(EntityRecord value)
     {
