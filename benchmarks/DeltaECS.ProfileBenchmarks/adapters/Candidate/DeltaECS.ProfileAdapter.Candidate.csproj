@@ -2,6 +2,7 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><AssemblyName>DeltaECS.ProfileAdapter.Candidate</AssemblyName><RootNamespace>DeltaECS.ProfileAdapter</RootNamespace><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Shared/ProfileScenario.cs" Link="ProfileScenario.cs" />
+    <Compile Include="../../Shared/HasScenario.cs" Link="HasScenario.cs" />
     <Compile Include="../../Shared/QueryPlanScenario.cs" Link="QueryPlanScenario.cs" />
     <Compile Include="../../Shared/BatchStructuralScenario.cs" Link="BatchStructuralScenario.cs" />
     <ProjectReference Include="$(CandidateRoot)/src/DeltaECS/DeltaECS.csproj" AdditionalProperties="AssemblyName=DeltaECS.Profile.Candidate" SetTargetFramework="TargetFramework=$(ProfileRuntimeFramework)" SkipGetTargetFrameworkProperties="true" />

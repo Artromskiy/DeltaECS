@@ -117,6 +117,8 @@ internal static class ProfileSmoke
     {
         using var baseline = new baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario(20, 16, 4);
         using var candidate = new candidateAdapter::DeltaECS.ProfileAdapter.ProfileScenario(20, 16, 4);
+        using var baselineHas = new baselineAdapter::DeltaECS.ProfileAdapter.HasScenario(21);
+        using var candidateHas = new candidateAdapter::DeltaECS.ProfileAdapter.HasScenario(21);
         using var baselineQueryPlans = new baselineAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario();
         using var candidateQueryPlans = new candidateAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario();
         using var baselineBatchStructural = new baselineAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario(64);
@@ -125,6 +127,9 @@ internal static class ProfileSmoke
         Require(baseline.LookupShuffled() == expectedLookup && candidate.LookupShuffled() == expectedLookup, "shuffled high-ID lookup checksum");
         Require(baseline.HasSequential() == 20 && candidate.HasSequential() == 20, "sequential component presence");
         Require(baseline.HasShuffled() == 20 && candidate.HasShuffled() == 20, "shuffled component presence");
+        Require(baselineHas.HasDataByIdSequential() == 11 && candidateHas.HasDataByIdSequential() == 11, "mixed data presence by ID");
+        Require(baselineHas.HasTagByIdSequential() == 11 && candidateHas.HasTagByIdSequential() == 11, "mixed tag presence by ID");
+        Require(baselineHas.HasDataGenericSequential() == 11 && candidateHas.HasDataGenericSequential() == 11, "mixed data presence by type");
         Require(baseline.GetSequential() == 210 && candidate.GetSequential() == 210, "sequential Get checksum");
         Require(baseline.GetShuffled() == 210 && candidate.GetShuffled() == 210, "shuffled Get checksum");
         Require(baseline.GetRefSequential() == 210 && candidate.GetRefSequential() == 210, "sequential GetRef checksum");
@@ -156,7 +161,7 @@ internal static class ProfileSmoke
                      .ThenBy(static index => index))
             expectedSort = unchecked(expectedSort * 31 + index);
         Require(baseline.StableSortTwoKeys() == expectedSort && candidate.StableSortTwoKeys() == expectedSort, "two-key stable sort checksum");
-        Console.WriteLine("Profile benchmark smoke passed: query plans, component access, batch create/destroy, add/remove, single create/destroy, sorting, dense traversal.");
+        Console.WriteLine("Profile benchmark smoke passed: query plans, Has presence, component access, batch create/destroy, add/remove, single create/destroy, sorting, dense traversal.");
     }
 
     private static void Require(bool condition, string workload)
