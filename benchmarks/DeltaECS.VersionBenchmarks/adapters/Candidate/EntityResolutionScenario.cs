@@ -8,8 +8,6 @@ public sealed class EntityResolutionScenario
     private readonly Entity[] _entities;
     private readonly ComponentId _marker;
 
-    private struct Marker { public int Value; }
-
     public EntityResolutionScenario(int amount)
     {
         var layouts = new ComponentRegistry();
@@ -80,4 +78,6 @@ public sealed class EntityResolutionScenario
 
         return sum;
     }
+
+    private struct Marker { public int Value; }
 }

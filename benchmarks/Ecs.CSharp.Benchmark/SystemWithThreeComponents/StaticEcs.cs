@@ -7,6 +7,9 @@ namespace Ecs.CSharp.Benchmark;
 
 public partial class SystemWithThreeComponents
 {
+    [Context]
+    internal readonly StaticEcsSystemThreeContext _staticEcs;
+
     [BenchmarkCategory(Categories.StaticEcs, Categories.SingleThread)]
     [Benchmark]
     public int StaticEcsBlock()

@@ -233,15 +233,15 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Creates one entity with the supplied component registration.</summary>
-    public Entity Create(ComponentId componentId) => Create(stackalloc ComponentId[1] { componentId });
+    public Entity Create(ComponentId componentId) => Create([componentId]);
 
     /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
     public int Create(ComponentId componentId, int count, Span<Entity> output)
-        => Create(stackalloc ComponentId[1] { componentId }, count, output);
+        => Create([componentId], count, output);
 
     /// <summary>Creates entities with the supplied component registration without retaining handles.</summary>
     public int Create(ComponentId componentId, int count)
-        => Create(stackalloc ComponentId[1] { componentId }, count);
+        => Create([componentId], count);
 
     /// <summary>Creates one entity for each output slot and stores its handle.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
@@ -430,7 +430,7 @@ public sealed partial class World : IDisposable
     public bool Add(Entity entity, ComponentId[] componentIds) => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
     /// <summary>Adds one component registration to one entity.</summary>
-    public bool Add(Entity entity, ComponentId componentId) => Add(entity, stackalloc ComponentId[1] { componentId });
+    public bool Add(Entity entity, ComponentId componentId) => Add(entity, [componentId]);
 
     /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -442,7 +442,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Adds one component registration to each entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Add(entities, stackalloc ComponentId[1] { componentId });
+        => Add(entities, [componentId]);
 
     /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
     public bool Remove(Entity entity, ReadOnlySpan<ComponentId> componentIds)
@@ -454,7 +454,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from one entity.</summary>
     public bool Remove(Entity entity, ComponentId componentId)
-        => Remove(entity, stackalloc ComponentId[1] { componentId });
+        => Remove(entity, [componentId]);
 
     /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
     public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -462,14 +462,14 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from each entity in a caller-owned batch.</summary>
     public int Remove(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Remove(entities, stackalloc ComponentId[1] { componentId });
+        => Remove(entities, [componentId]);
 
     /// <summary>Adds a component set to every entity matched by a query.</summary>
     public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, true, componentIds);
 
     /// <summary>Adds one component registration to every entity matched by a query.</summary>
-    public int Add(in Query query, ComponentId componentId) => Add(in query, stackalloc ComponentId[1] { componentId });
+    public int Add(in Query query, ComponentId componentId) => Add(in query, [componentId]);
 
     /// <summary>Removes a component set from every entity matched by a query.</summary>
     public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
@@ -477,7 +477,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from every entity matched by a query.</summary>
     public int Remove(in Query query, ComponentId componentId)
-        => Remove(in query, stackalloc ComponentId[1] { componentId });
+        => Remove(in query, [componentId]);
 
     /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
     public int Destroy(in Query query)
