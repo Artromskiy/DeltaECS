@@ -60,6 +60,7 @@ public sealed class ProfileScenario : IDisposable
         {
             var value = new ProfileValue { Value = index + 1 };
             _world.GetRef<ProfileValue>(_entities[index], _primary) = value;
+            _world.GetRef<ProfileHasValue>(_entities[index], _hasPrimary) = new ProfileHasValue { Value = index + 1 };
             var sortPrimary = new ProfileValue { Value = (index * 73) % 19 };
             var sortSecondary = new ProfileValue { Value = index };
             _world.GetRef<ProfileValue>(_entities[index], _sortPrimary) = sortPrimary;
@@ -105,6 +106,10 @@ public sealed class ProfileScenario : IDisposable
     public long GetSequential() => Get(_entities);
 
     public long GetShuffled() => Get(_shuffledEntities);
+
+    public long GetPrimarySequential() => GetPrimary(_entities);
+
+    public long GetPrimaryShuffled() => GetPrimary(_shuffledEntities);
 
     public long GetRefSequential() => GetRef(_entities);
 
@@ -225,6 +230,17 @@ public sealed class ProfileScenario : IDisposable
         for (int index = 0; index < entities.Length; index++)
         {
             sum += _world.Get<ProfileValue>(entities[index], _primary).Value;
+        }
+
+        return sum;
+    }
+
+    private long GetPrimary(Entity[] entities)
+    {
+        long sum = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            sum += _world.Get<ProfileHasValue>(entities[index]).Value;
         }
 
         return sum;

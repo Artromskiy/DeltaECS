@@ -29,6 +29,8 @@ public abstract class ProfileBenchmarkBase
         RequireEqual(_baseline.HasShuffled(), _candidate.HasShuffled(), "shuffled Has setup");
         RequireEqual(_baseline.GetSequential(), _candidate.GetSequential(), "sequential Get setup");
         RequireEqual(_baseline.GetShuffled(), _candidate.GetShuffled(), "shuffled Get setup");
+        RequireEqual(_baseline.GetPrimarySequential(), _candidate.GetPrimarySequential(), "sequential primary Get setup");
+        RequireEqual(_baseline.GetPrimaryShuffled(), _candidate.GetPrimaryShuffled(), "shuffled primary Get setup");
         RequireEqual(_baseline.GetRefSequential(), _candidate.GetRefSequential(), "sequential GetRef setup");
         RequireEqual(_baseline.GetRefShuffled(), _candidate.GetRefShuffled(), "shuffled GetRef setup");
         RequireEqual(_baseline.StableSortTwoKeys(), _candidate.StableSortTwoKeys(), "sort setup");
@@ -55,6 +57,10 @@ public abstract class ProfileBenchmarkBase
     protected long CandidateGetSequential() => _candidate.GetSequential();
     protected long PreviousGetShuffled() => _baseline.GetShuffled();
     protected long CandidateGetShuffled() => _candidate.GetShuffled();
+    protected long PreviousGetPrimarySequential() => _baseline.GetPrimarySequential();
+    protected long CandidateGetPrimarySequential() => _candidate.GetPrimarySequential();
+    protected long PreviousGetPrimaryShuffled() => _baseline.GetPrimaryShuffled();
+    protected long CandidateGetPrimaryShuffled() => _candidate.GetPrimaryShuffled();
     protected long PreviousGetRefSequential() => _baseline.GetRefSequential();
     protected long CandidateGetRefSequential() => _candidate.GetRefSequential();
     protected long PreviousGetRefShuffled() => _baseline.GetRefShuffled();
@@ -126,6 +132,16 @@ public class ComponentAccessBenchmarks : ProfileBenchmarkBase
     public long Mainline_GetShuffled() => PreviousGetShuffled();
     [Benchmark, BenchmarkCategory("Get shuffled")]
     public long Candidate_GetShuffled() => CandidateGetShuffled();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("Get primary sequential")]
+    public long Mainline_GetPrimarySequential() => PreviousGetPrimarySequential();
+    [Benchmark, BenchmarkCategory("Get primary sequential")]
+    public long Candidate_GetPrimarySequential() => CandidateGetPrimarySequential();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("Get primary shuffled")]
+    public long Mainline_GetPrimaryShuffled() => PreviousGetPrimaryShuffled();
+    [Benchmark, BenchmarkCategory("Get primary shuffled")]
+    public long Candidate_GetPrimaryShuffled() => CandidateGetPrimaryShuffled();
 
     [Benchmark(Baseline = true), BenchmarkCategory("GetRef sequential")]
     public long Mainline_GetRefSequential() => PreviousGetRefSequential();
