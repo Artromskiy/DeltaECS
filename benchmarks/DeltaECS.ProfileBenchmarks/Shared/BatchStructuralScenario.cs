@@ -12,6 +12,7 @@ public sealed class BatchStructuralScenario : IDisposable
     private readonly Entity[] _entities;
     private readonly Entity[] _shuffledEntities;
     private readonly Entity[] _halfEntities;
+    private Query _componentQuery;
 
     public int AliveEntityCount => _world.AliveEntityCount;
 
@@ -27,6 +28,7 @@ public sealed class BatchStructuralScenario : IDisposable
         _registry = new ComponentRegistry();
         _component = _registry.Register<ProfileValue>(new SchemaId(400_001));
         _world = new World(_registry, initialEntityCapacity: amount + 8);
+        _componentQuery = _world.CreateQuery(QuerySpec.WhereAll(_component));
         _entities = new Entity[amount];
         _shuffledEntities = new Entity[amount];
         _halfEntities = new Entity[amount / 2];
@@ -41,10 +43,25 @@ public sealed class BatchStructuralScenario : IDisposable
     {
         _world.Dispose();
         _world = new World(_registry, initialEntityCapacity: _amount + 8);
+        _componentQuery = _world.CreateQuery(QuerySpec.WhereAll(_component));
     }
+
+    public void PrepareForCreateWithoutOutput()
+    {
+        if (_world.AliveEntityCount != 0)
+        {
+            _world.Destroy(in _componentQuery);
+        }
+    }
+
+    public void PrepareForAppendOnlyCreateWithoutOutput()
+        => PrepareForAppendOnlyCreate();
 
     public int CreateBatch()
         => _world.Create(_component, _entities.Length, _entities);
+
+    public int CreateBatchWithoutOutput()
+        => _world.Create(_component, _amount);
 
     public void PrepareForDestroy()
     {

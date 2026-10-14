@@ -150,6 +150,12 @@ internal static class ProfileSmoke
         Require(candidateBatchStructural.DestroyRandomFullBatch() == 64, "candidate full batch destroy");
         Require(baselineBatchStructural.AliveEntityCount == 0 && candidateBatchStructural.AliveEntityCount == 0,
             "full batch destroy state");
+        Require(baselineBatchStructural.CreateBatchWithoutOutput() == 64, "baseline batch creation without output");
+        Require(candidateBatchStructural.CreateBatchWithoutOutput() == 64, "candidate batch creation without output");
+        baselineBatchStructural.PrepareForCreateWithoutOutput();
+        candidateBatchStructural.PrepareForCreateWithoutOutput();
+        Require(baselineBatchStructural.AliveEntityCount == 0 && candidateBatchStructural.AliveEntityCount == 0,
+            "batch creation without output state");
         long expectedSort = 0;
         foreach (int index in Enumerable.Range(0, 20)
                      .OrderBy(static index => (index * 73) % 19)
