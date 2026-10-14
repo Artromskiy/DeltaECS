@@ -9,7 +9,7 @@ replay="$game_root/Replays/skypirates-20261015-005758-186.json"
 dotnet_cmd="${DOTNET:-dotnet}"
 cpu_affinity="${CPU_AFFINITY:-1}"
 warmups="${WARMUPS:-3}"
-repeats="${REPEATS:-10}"
+repeats="${REPEATS:-30}"
 csv="${CSV:-/tmp/skypirates-replay-$(date -u +%Y%m%dT%H%M%SZ)-$$.csv}"
 
 if [[ ! -f "$game_root/.git" && ! -d "$game_root/.git" ]]; then

@@ -12,7 +12,7 @@ checkout's `src/DeltaECS` project. The benchmark script always selects that
 mode, so performance changes in the active DeltaECS branch are exercised by
 the real replay while the game and replay remain fixed.
 
-Initialize the submodule and run the standard three warmups and ten measured
+Initialize the submodule and run the standard three warmups and thirty measured
 replays:
 
 ```bash
@@ -27,7 +27,7 @@ on `PATH`; use `CPU_AFFINITY=none` when CPU pinning is unavailable. `WARMUPS`,
 `REPEATS`, and `CSV` override the defaults. For example:
 
 ```bash
-DOTNET=/path/to/dotnet WARMUPS=5 REPEATS=20 \
+DOTNET=/path/to/dotnet WARMUPS=5 REPEATS=50 \
   CSV=/tmp/skypirates-candidate.csv bash benchmarks/run-skypirates-replay.sh
 ```
 
