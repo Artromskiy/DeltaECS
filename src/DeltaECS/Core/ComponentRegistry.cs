@@ -18,8 +18,7 @@ public sealed partial class ComponentRegistry
     private readonly Dictionary<(RuntimeTypeHandle ComponentType, RuntimeTypeHandle InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
     private readonly Dictionary<(RuntimeTypeHandle EnumType, ulong GroupId), ComponentGroupMembers> _componentGroups = new();
     private readonly Dictionary<string, ComponentId> _componentIdsByAlias = new(StringComparer.Ordinal);
-    private readonly List<bool> _isTag = new();
-    private readonly List<int> _tagIndices = new();
+    private int[] _tagIndices = [];
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
 
     internal int Count => _layouts.Count;
@@ -258,11 +257,11 @@ public sealed partial class ComponentRegistry
         return componentId;
     }
 
-    internal bool IsTag(ComponentId id) => id.IsValid && (uint)id.Value < (uint)_isTag.Count && _isTag[id.Value];
+    internal bool IsTag(ComponentId id) => TryGetTagIndex(id, out _);
 
     internal bool TryGetTagIndex(ComponentId id, out int tagIndex)
     {
-        if (id.IsValid && (uint)id.Value < (uint)_tagIndices.Count && (tagIndex = _tagIndices[id.Value]) >= 0)
+        if ((uint)id.Value < (uint)_layouts.Count && (tagIndex = _tagIndices[id.Value]) >= 0)
         {
             return true;
         }
@@ -418,7 +417,7 @@ public sealed partial class ComponentRegistry
         if (_idsBySchema.TryGetValue(layout.SchemaId, out int existingId))
         {
             var existingLayout = _layouts[existingId];
-            if (!existingLayout.Equals(layout) || _isTag[existingId] != isTag)
+            if (!existingLayout.Equals(layout) || (_tagIndices[existingId] >= 0) != isTag)
             {
                 ThrowHelper.ThrowSchemaConflict(layout.SchemaId);
             }
@@ -427,16 +426,32 @@ public sealed partial class ComponentRegistry
         }
 
         var id = new ComponentId(_layouts.Count);
+        EnsureTagIndexCapacity(_layouts.Count + 1);
+        _tagIndices[id.Value] = isTag ? TagCount : -1;
+        if (isTag)
+        {
+            TagCount++;
+        }
+
         _layouts.Add(layout);
         _rowOperations.Add(rowOperations);
         _componentTypeTokens.Add(typeToken);
         _componentVisitorTokens.Add(componentRegistrationToken);
-        _isTag.Add(isTag);
-        _tagIndices.Add(isTag ? TagCount++ : -1);
         _idsBySchema.Add(layout.SchemaId, id.Value);
         _primaryIdsByType.TryAdd(layout.RuntimeType, id);
 
         return id;
+    }
+
+    private void EnsureTagIndexCapacity(int required)
+    {
+        if (required <= _tagIndices.Length)
+        {
+            return;
+        }
+
+        int capacity = Math.Max(required, _tagIndices.Length == 0 ? 4 : _tagIndices.Length * 2);
+        Array.Resize(ref _tagIndices, capacity);
     }
 
     private sealed class ComponentGroupMembers

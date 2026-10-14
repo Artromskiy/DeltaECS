@@ -101,6 +101,55 @@ internal sealed class GeneratedDenseBindingTests
     }
 
     [Test]
+    public void ChunkPlanRowArrayIsReusedWhenItsChunkReactivates()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId health = layouts.Register<Health>(new SchemaId(96010));
+        using var world = new World(layouts);
+        Query query = world.WhereAll<Health>();
+        Entity first = world.Create(health);
+        world.GetRef<Health>(first, health).Value = 41;
+        ChunkPlan originalPlan = query.Cached.MatchingChunkPlans()[0];
+
+        Assert.That(world.Destroy(first), Is.True);
+        Entity replacement = world.Create(health);
+        world.GetRef<Health>(replacement, health).Value = 43;
+        ChunkPlan reactivatedPlan = query.Cached.MatchingChunkPlans()[0];
+
+        Assert.That(reactivatedPlan.Chunk, Is.SameAs(originalPlan.Chunk));
+        Assert.That(reactivatedPlan.ComponentRows, Is.SameAs(originalPlan.ComponentRows));
+        Assert.That(world.GetRef<Health>(replacement, health).Value, Is.EqualTo(43));
+    }
+
+    [Test]
+    public void ChunkPlanRowsRemainValidWhenChunkLayoutIsAdoptedAndRestored()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId health = layouts.Register<Health>(new SchemaId(96011));
+        ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96012));
+        using var world = new World(layouts);
+        var entities = new Entity[Chunk.Capacity];
+        world.Create([health], entities.Length, entities);
+        world.GetRef<Health>(entities[0], health).Value = 47;
+        Query healthQuery = world.WhereAll<Health>();
+        _ = healthQuery.Cached.MatchingChunkPlans()[0];
+
+        Assert.That(world.Add(in healthQuery, [velocity]), Is.EqualTo(entities.Length));
+        QuerySpec bothSpec = QuerySpec.WhereAll([health, velocity]);
+        Query both = world.CreateQuery(in bothSpec);
+        Assert.That(world.Remove(in both, velocity), Is.EqualTo(entities.Length));
+
+        ReadOnlySpan<ChunkPlan> restoredPlans = healthQuery.Cached.MatchingChunkPlans();
+        Assert.That(restoredPlans.Length, Is.EqualTo(1));
+        Assert.That(world.GetRef<Health>(entities[0], health).Value, Is.EqualTo(47));
+        Assert.That(world.Has(entities[0], velocity), Is.False);
+        int total = 0;
+        world.ForEach(in healthQuery, ref total,
+            static (ref int sum, in Health value) => sum += value.Value).Invoke(ref total);
+        Assert.That(total, Is.EqualTo(47));
+    }
+
+    [Test]
     public void ReadOnlySignatureAndDisposedWorldRejectCachedBinding()
     {
         var layouts = new ComponentRegistry();

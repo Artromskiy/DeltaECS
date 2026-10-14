@@ -895,6 +895,7 @@ internal struct ArchetypePlan
 {
 
     private ChunkPlan[] _chunks;
+    private ChunkPlan _inactiveChunkPlan;
     private int _chunkTopologyVersion;
 
     internal Archetype Archetype { get; }
@@ -906,6 +907,7 @@ internal struct ArchetypePlan
         Archetype = archetype;
         ComponentRows = componentRows;
         _chunks = [];
+        _inactiveChunkPlan = default;
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
         {
@@ -950,12 +952,13 @@ internal struct ArchetypePlan
             ThrowHelper.ThrowPlanDeactivationOutOfSync();
         }
 
+        _inactiveChunkPlan = _chunks.RefAt(activePosition);
         if (activePosition != lastPosition)
         {
             _chunks.RefAt(activePosition) = _chunks.RefAt(lastPosition);
         }
 
-        ChunkCount--;
+        _chunks.RefAt(--ChunkCount) = default;
     }
 
     internal bool RefreshChunks(Archetype archetype)
@@ -997,6 +1000,7 @@ internal struct ArchetypePlan
         ChunkCount = activeCount;
         for (int index = activeCount; index < previousCount; index++)
         {
+            _inactiveChunkPlan = _chunks.RefAt(index);
             _chunks.RefAt(index) = default;
         }
 
@@ -1004,8 +1008,32 @@ internal struct ArchetypePlan
         return true;
     }
 
-    private readonly ChunkPlan CreateChunkPlan(Chunk chunk)
+    private ChunkPlan CreateChunkPlan(Chunk chunk)
     {
+        ChunkPlan cached = _inactiveChunkPlan;
+        if (ReferenceEquals(cached.Chunk, chunk)
+            && cached.ComponentRows.Length == ComponentRows.Length)
+        {
+            var currentRows = chunk.RawComponentRows;
+            bool rowsMatch = true;
+            for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)
+            {
+                if (!ReferenceEquals(
+                    cached.ComponentRows.RefAt(queryRow),
+                    currentRows.RefAt(ComponentRows.RefAt(queryRow))))
+                {
+                    rowsMatch = false;
+                    break;
+                }
+            }
+
+            if (rowsMatch)
+            {
+                _inactiveChunkPlan = default;
+                return cached;
+            }
+        }
+
         Array[] resolvedRows = new Array[ComponentRows.Length];
         var sourceRows = chunk.RawComponentRows;
         for (int queryRow = 0; queryRow < ComponentRows.Length; queryRow++)

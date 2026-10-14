@@ -287,7 +287,7 @@ internal static class GeneratorSupport
         var result = includeSourceUsings
             ? invocation.SyntaxTree.GetRoot().DescendantNodes()
                 .OfType<UsingDirectiveSyntax>()
-                .Select(static directive => directive.ToString()).ToArray()
+                .Select(static directive => directive.ToString()).ToList()
             : new List<string>();
         var closedTypes = new List<ITypeSymbol?>();
         ISymbol? enclosing = model.GetEnclosingSymbol(invocation.SpanStart);

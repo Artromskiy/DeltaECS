@@ -187,6 +187,71 @@ internal sealed class OrderedQueryTests
         });
     }
 
+    [Test]
+    public void OrderedKeyRoutesReadLiveValuesAfterComparerChangesLayouts()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_041));
+        ComponentId extraId = layouts.Register<TieKey>(new SchemaId(71_042));
+        using var world = new World(layouts);
+        var entities = new Entity[8];
+        world.Create([keyId], entities.Length, entities);
+        for (int index = 0; index < entities.Length; index++)
+        {
+            world.GetRef<OrderKey>(entities[index], keyId).Value = entities.Length - index;
+        }
+
+        Query query = world.WhereAll(keyId);
+        int comparisons = 0;
+        OrderedQuery ordered = query.OrderBy(keyId,
+            (Entity leftEntity, in OrderKey left, Entity rightEntity, in OrderKey right) =>
+            {
+                Assert.That(left.Value, Is.EqualTo(world.Get<OrderKey>(leftEntity, keyId).Value));
+                Assert.That(right.Value, Is.EqualTo(world.Get<OrderKey>(rightEntity, keyId).Value));
+                int result = left.Value.CompareTo(right.Value);
+                if (comparisons++ == 0)
+                {
+                    world.Add(entities, extraId);
+                    for (int index = 0; index < entities.Length; index++)
+                    {
+                        world.GetRef<OrderKey>(entities[index], keyId).Value += 100;
+                    }
+                }
+
+                return result;
+            });
+
+        Assert.That(Collect(ordered), Is.EqualTo(Enumerable.Range(0, entities.Length).Reverse()));
+        Assert.That(comparisons, Is.GreaterThan(1));
+        world.Remove(entities, extraId);
+        Assert.That(Collect(ordered), Is.EqualTo(Enumerable.Range(0, entities.Length).Reverse()));
+    }
+
+    [Test]
+    public void OrderedKeyRoutesRefreshAfterMissingKeyAndChunkReuse()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId keyId = layouts.Register<OrderKey>(new SchemaId(71_051));
+        ComponentId extraId = layouts.Register<TieKey>(new SchemaId(71_052));
+        using var world = new World(layouts);
+        Entity entity = world.Create([keyId]);
+        world.GetRef<OrderKey>(entity, keyId).Value = 7;
+        Query query = world.WhereAll(keyId);
+        world.ValidateGeneratedOrderedQueryKey<OrderKey>(in query, keyId);
+        Assert.That(world.GetGeneratedOrderedQueryKey<OrderKey>(entity, keyId).Value, Is.EqualTo(7));
+
+        world.Add(entity, extraId);
+        Assert.That(world.GetGeneratedOrderedQueryKey<OrderKey>(entity, keyId).Value, Is.EqualTo(7));
+        world.Remove(entity, keyId);
+        Assert.That(() => world.GetGeneratedOrderedQueryKey<OrderKey>(entity, keyId).Value, Throws.Exception);
+        world.Destroy(entity);
+        Assert.That(() => world.GetGeneratedOrderedQueryKey<OrderKey>(entity, keyId).Value, Throws.Exception);
+
+        Entity replacement = world.Create([keyId]);
+        world.GetRef<OrderKey>(replacement, keyId).Value = 19;
+        Assert.That(world.GetGeneratedOrderedQueryKey<OrderKey>(replacement, keyId).Value, Is.EqualTo(19));
+    }
+
     private static int[] Collect(OrderedQuery query)
     {
         var result = new List<int>();

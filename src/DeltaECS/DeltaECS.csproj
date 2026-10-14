@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>DeltaECS</AssemblyName>
+    <ArtifactsProjectName>$(AssemblyName)</ArtifactsProjectName>
     <PackageId>DeltaECS</PackageId>
     <Version>0.0.55</Version>
     <Authors>Artromskiy</Authors>
@@ -29,7 +30,7 @@
     <ProjectReference Include="..\DeltaECS.Generators\DeltaECS.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier"
+                      GlobalPropertiesToRemove="PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier;AssemblyName"
                       PrivateAssets="all" />
   </ItemGroup>
 

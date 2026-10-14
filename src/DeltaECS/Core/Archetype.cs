@@ -8,6 +8,7 @@ internal sealed class Archetype
 {
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private NativeMemory<ComponentId> _componentIds;
+    private NativeMemory<int> _componentIndices;
     private readonly List<Chunk> _chunks = new();
     private readonly List<int> _availableChunkStack = new();
     private readonly List<int> _blockPartialChunkCandidates = new();
@@ -58,6 +59,13 @@ internal sealed class Archetype
         Mask = mask;
         _componentRowArrayPool = componentRowArrayPool;
         _componentIds = new NativeMemory<ComponentId>(componentIds);
+        _componentIndices = new NativeMemory<int>(
+            componentIds.Length == 0 ? 0 : checked(componentIds[componentIds.Length - 1].Value + 1));
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            _componentIndices.RefAt(componentIds.RefAt(index).Value) = index + 1;
+        }
+
         Layouts = layouts;
         RowOperations = rowOperations;
     }
@@ -92,11 +100,17 @@ internal sealed class Archetype
         }
     }
 
-    internal bool Contains(ComponentId componentId) => Mask.Contains(componentId);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool Contains(ComponentId componentId)
+        => (uint)componentId.Value < (uint)_componentIndices.Length
+            && _componentIndices.RefAt(componentId.Value) != 0;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetComponentIndex(ComponentId componentId, out int index)
     {
-        index = Mask.Rank(componentId);
+        index = (uint)componentId.Value < (uint)_componentIndices.Length
+            ? _componentIndices.RefAt(componentId.Value) - 1
+            : -1;
         return index >= 0;
     }
 
@@ -479,6 +493,7 @@ internal sealed class Archetype
         }
 
         _componentIds.Dispose();
+        _componentIndices.Dispose();
         _availableChunkFlags.Dispose();
         _availableChunkPositions.Dispose();
         _activeChunkIndices.Dispose();

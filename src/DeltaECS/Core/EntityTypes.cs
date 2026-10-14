@@ -120,7 +120,9 @@ public readonly struct Query
 
 internal struct EntityRecord
 {
+    internal Chunk? Chunk;
     internal int Generation;
-    internal int ChunkId;
     internal int SlotIndex;
+
+    internal int ChunkId => Chunk?.GlobalId ?? -1;
 }
