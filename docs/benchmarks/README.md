@@ -4,6 +4,10 @@ The benchmark directory contains one supported measurement family: iteration.
 Every comparative result answers the same question: how fast does each ECS
 iterate the same data shape?
 
+The optional [Sky Pirates gameplay replay](skypirates-replay.md) benchmark
+measures the shared simulation against a real recorded game replay using the
+DeltaECS source in the current checkout.
+
 ## Projects
 
 - `DeltaECS.Benchmarks` compares DeltaECS, Arch, Friflo.Engine.ECS, DefaultEcs

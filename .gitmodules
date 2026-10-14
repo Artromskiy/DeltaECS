@@ -1,0 +1,4 @@
+[submodule "benchmarks/SkyPirates"]
+	path = benchmarks/SkyPirates
+	url = https://github.com/Artromskiy/SkyPirates.git
+	branch = perf/latest-gameplay-replay
