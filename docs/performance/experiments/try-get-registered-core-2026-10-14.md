@@ -60,13 +60,21 @@ accept this as a stable result.
 
 ## Decision
 
-No runtime change is retained. The first data-first candidate had a strong
-data-read signal, but its tag guardrail did not rule out a slowdown. The
-type-classified variant avoided that concern but the longer confirmation run
-was too noisy to prove the required benefit. The direct owner reference alone
-was also inconclusive. The benchmark scenarios remain in the harness so a
-future run on a quieter machine can revisit the question without changing the
-workload.
+No runtime change is retained on the benchmark/evidence branch. The first
+data-first candidate had a strong data-read signal, but its tag guardrail did
+not rule out a slowdown. The type-classified variant avoided that concern but
+the longer confirmation run was too noisy to prove the required benefit. The
+direct owner reference alone was also inconclusive. The benchmark scenarios
+remain in the harness so a future run on a quieter machine can revisit the
+question without changing the workload. To keep the tested implementations
+available without treating them as accepted runtime changes, each is preserved
+in its own branch:
+
+- `perf/tryget-core-owner-ref` (`5766f0d`): direct chunk-to-archetype reference.
+- `perf/tryget-core-data-first` (`2183a72`): data column lookup followed by a
+  tag-layout fallback.
+- `perf/tryget-core-typed-route` (`aafbe93`): cached generic tag classification
+  selects the tag or data lookup route.
 
 All raw reports are under the ignored `/workspace/scratch/try-get-registered-core-*`
 directories. The final confirmation reports are:
