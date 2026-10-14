@@ -398,7 +398,7 @@ public sealed partial class World : IDisposable
     public bool IsAlive(Entity entity)
     {
         EnsureExecutionAccess();
-        return TryResolve(entity, out _, out _, out _);
+        return IsAliveCore(entity);
     }
 
     /// <summary>Reports whether an alive entity owns the specified component.</summary>
@@ -2674,6 +2674,22 @@ public sealed partial class World : IDisposable
         chunk = storedChunk;
         slotIndex = record.SlotIndex;
         return chunk.RawEntities.RefAt(slotIndex) == entity;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsAliveCore(Entity entity)
+    {
+        int recordIndex = entity.Index;
+        if ((uint)recordIndex >= (uint)_records.Count)
+        {
+            return false;
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        Chunk? storedChunk = record.Chunk;
+        return record.Generation == entity.Generation
+            && storedChunk is not null
+            && (uint)record.SlotIndex < (uint)storedChunk.Count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
