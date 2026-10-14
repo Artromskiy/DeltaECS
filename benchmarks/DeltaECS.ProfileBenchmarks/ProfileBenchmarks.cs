@@ -150,8 +150,13 @@ public class BatchCreateBenchmarks
         _baseline.PrepareForCreate();
         _candidate.PrepareForCreate();
         RequireEqual(_baseline.CreateBatch(), _candidate.CreateBatch());
-        _baseline.PrepareForCreateWithoutOutput();
-        _candidate.PrepareForCreateWithoutOutput();
+    }
+
+    [IterationSetup]
+    public void PrepareIteration()
+    {
+        _baseline.PrepareForCreate();
+        _candidate.PrepareForCreate();
     }
 
     [GlobalCleanup]
@@ -159,13 +164,6 @@ public class BatchCreateBenchmarks
     {
         _baseline.Dispose();
         _candidate.Dispose();
-    }
-
-    [IterationSetup]
-    public void PrepareIteration()
-    {
-        _baseline.PrepareForCreateWithoutOutput();
-        _candidate.PrepareForCreateWithoutOutput();
     }
 
     [Benchmark(Baseline = true)]
@@ -201,18 +199,18 @@ public class BatchCreateAppendOnlyBenchmarks
         _candidate.PrepareForAppendOnlyCreate();
     }
 
-    [GlobalCleanup]
-    public void Cleanup()
-    {
-        _baseline.Dispose();
-        _candidate.Dispose();
-    }
-
     [IterationSetup]
     public void PrepareIteration()
     {
         _baseline.PrepareForAppendOnlyCreate();
         _candidate.PrepareForAppendOnlyCreate();
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _baseline.Dispose();
+        _candidate.Dispose();
     }
 
     [Benchmark(Baseline = true)]
@@ -226,100 +224,6 @@ public class BatchCreateAppendOnlyBenchmarks
         if (baseline != candidate)
         {
             throw new InvalidOperationException($"Append-only batch create count differs: {baseline} != {candidate}.");
-        }
-    }
-}
-
-[MemoryDiagnoser]
-public class BatchCreateWithoutOutputBenchmarks
-{
-    private BaselineBatchScenario _baseline = null!;
-    private CandidateBatchScenario _candidate = null!;
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _baseline = new BaselineBatchScenario(ProfileOptions.Amount);
-        _candidate = new CandidateBatchScenario(ProfileOptions.Amount);
-        _baseline.PrepareForCreateWithoutOutput();
-        _candidate.PrepareForCreateWithoutOutput();
-        RequireEqual(_baseline.CreateBatchWithoutOutput(), _candidate.CreateBatchWithoutOutput());
-        _baseline.PrepareForCreateWithoutOutput();
-        _candidate.PrepareForCreateWithoutOutput();
-    }
-
-    [GlobalCleanup]
-    public void Cleanup()
-    {
-        _baseline.Dispose();
-        _candidate.Dispose();
-    }
-
-    [IterationSetup]
-    public void PrepareIteration()
-    {
-        _baseline.PrepareForCreateWithoutOutput();
-        _candidate.PrepareForCreateWithoutOutput();
-    }
-
-    [Benchmark(Baseline = true)]
-    public int Mainline_CreateWithoutOutputBatch() => _baseline.CreateBatchWithoutOutput();
-
-    [Benchmark]
-    public int Candidate_CreateWithoutOutputBatch() => _candidate.CreateBatchWithoutOutput();
-
-    private static void RequireEqual(int baseline, int candidate)
-    {
-        if (baseline != candidate)
-        {
-            throw new InvalidOperationException($"Batch creation count differs: {baseline} != {candidate}.");
-        }
-    }
-}
-
-[MemoryDiagnoser]
-public class BatchCreateWithoutOutputAppendOnlyBenchmarks
-{
-    private BaselineBatchScenario _baseline = null!;
-    private CandidateBatchScenario _candidate = null!;
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        _baseline = new BaselineBatchScenario(ProfileOptions.Amount);
-        _candidate = new CandidateBatchScenario(ProfileOptions.Amount);
-        _baseline.PrepareForAppendOnlyCreateWithoutOutput();
-        _candidate.PrepareForAppendOnlyCreateWithoutOutput();
-        RequireEqual(_baseline.CreateBatchWithoutOutput(), _candidate.CreateBatchWithoutOutput());
-        _baseline.PrepareForAppendOnlyCreateWithoutOutput();
-        _candidate.PrepareForAppendOnlyCreateWithoutOutput();
-    }
-
-    [GlobalCleanup]
-    public void Cleanup()
-    {
-        _baseline.Dispose();
-        _candidate.Dispose();
-    }
-
-    [IterationSetup]
-    public void PrepareIteration()
-    {
-        _baseline.PrepareForAppendOnlyCreateWithoutOutput();
-        _candidate.PrepareForAppendOnlyCreateWithoutOutput();
-    }
-
-    [Benchmark(Baseline = true)]
-    public int Mainline_CreateWithoutOutputAppendOnlyBatch() => _baseline.CreateBatchWithoutOutput();
-
-    [Benchmark]
-    public int Candidate_CreateWithoutOutputAppendOnlyBatch() => _candidate.CreateBatchWithoutOutput();
-
-    private static void RequireEqual(int baseline, int candidate)
-    {
-        if (baseline != candidate)
-        {
-            throw new InvalidOperationException($"Append-only batch creation count differs: {baseline} != {candidate}.");
         }
     }
 }
