@@ -1688,7 +1688,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetCore<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             return TryGetCore(chunk, slotIndex, componentId, out value);
         }
@@ -2690,6 +2690,31 @@ public sealed partial class World : IDisposable
         return record.Generation == entity.Generation
             && storedChunk is not null
             && (uint)record.SlotIndex < (uint)storedChunk.Count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryResolveAliveLocation(Entity entity, out Chunk chunk, out int slotIndex)
+    {
+        int recordIndex = entity.Index;
+        chunk = null!;
+        slotIndex = -1;
+        if ((uint)recordIndex >= (uint)_records.Count)
+        {
+            return false;
+        }
+
+        ref readonly var record = ref RecordAt(recordIndex);
+        Chunk? storedChunk = record.Chunk;
+        if (record.Generation != entity.Generation
+            || storedChunk is null
+            || (uint)record.SlotIndex >= (uint)storedChunk.Count)
+        {
+            return false;
+        }
+
+        chunk = storedChunk;
+        slotIndex = record.SlotIndex;
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

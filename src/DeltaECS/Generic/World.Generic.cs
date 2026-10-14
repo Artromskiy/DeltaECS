@@ -301,7 +301,7 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefUnchecked<T>(Entity entity, ComponentId componentId)
     {
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
@@ -520,7 +520,7 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetRegisteredCore<T>(Entity entity, ComponentId componentId, out T value)
     {
-        if (TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             return TryGetRegisteredCore<T>(chunk, slotIndex, componentId, out value);
         }
@@ -560,7 +560,7 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref T GetRefUnchecked<T>(Entity entity, ComponentId componentId)
     {
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }

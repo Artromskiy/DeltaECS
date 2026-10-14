@@ -2,6 +2,8 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><AssemblyName>DeltaECS.ProfileAdapter.Baseline</AssemblyName><RootNamespace>DeltaECS.ProfileAdapter</RootNamespace><LangVersion>latest</LangVersion><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Shared/ProfileScenario.cs" Link="ProfileScenario.cs" />
+    <Compile Include="../../Shared/QueryPlanScenario.cs" Link="QueryPlanScenario.cs" />
+    <Compile Include="../../Shared/BatchStructuralScenario.cs" Link="BatchStructuralScenario.cs" />
     <ProjectReference Include="$(BaselineRoot)/src/DeltaECS/DeltaECS.csproj" AdditionalProperties="AssemblyName=DeltaECS.Profile.Baseline" SetTargetFramework="TargetFramework=$(ProfileRuntimeFramework)" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="$(BaselineRoot)/src/DeltaECS.Generators/DeltaECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="AssemblyName;PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
   </ItemGroup>

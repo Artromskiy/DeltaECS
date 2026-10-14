@@ -7,6 +7,7 @@ public sealed class ProfileScenario : IDisposable
 {
     private readonly World _world;
     private readonly ComponentId _primary;
+    private readonly ComponentId _hasPrimary;
     private readonly ComponentId _optional;
     private readonly ComponentId _sortPrimary;
     private readonly ComponentId _sortSecondary;
@@ -40,9 +41,10 @@ public sealed class ProfileScenario : IDisposable
         _sortPrimary = registry.Register<ProfileValue>(new SchemaId(300_002));
         _sortSecondary = registry.Register<ProfileValue>(new SchemaId(300_003));
         _structural = registry.Register<ProfileValue>(new SchemaId(300_004));
+        _hasPrimary = registry.Register<ProfileHasValue>(new SchemaId(300_005));
         _world = new World(registry, initialEntityCapacity: amount + 8);
         _entities = new Entity[amount];
-        _world.Create([_primary, _sortPrimary, _sortSecondary], amount, _entities);
+        _world.Create([_primary, _sortPrimary, _sortSecondary, _hasPrimary], amount, _entities);
         _shuffledEntities = (Entity[])_entities.Clone();
         new Random(42).Shuffle(_shuffledEntities);
         _denseQuery = _world.CreateQuery(QuerySpec.WhereAll(_primary));
@@ -95,6 +97,18 @@ public sealed class ProfileScenario : IDisposable
         }
         return sum;
     }
+
+    public long HasSequential() => Has(_entities);
+
+    public long HasShuffled() => Has(_shuffledEntities);
+
+    public long GetSequential() => Get(_entities);
+
+    public long GetShuffled() => Get(_shuffledEntities);
+
+    public long GetRefSequential() => GetRef(_entities);
+
+    public long GetRefShuffled() => GetRef(_shuffledEntities);
 
     public int StructuralToggle()
     {
@@ -151,22 +165,6 @@ public sealed class ProfileScenario : IDisposable
             CreateDestroyBytes = MeasureAllocations(() => CreateDestroy())
         });
 
-    private static long MeasureAllocations(Action operation)
-    {
-        for (int index = 0; index < 64; index++)
-        {
-            operation();
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int index = 0; index < 1000; index++)
-        {
-            operation();
-        }
-
-        return GC.GetAllocatedBytesForCurrentThread() - before;
-    }
-
     public string DescribeStorage()
     {
         const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
@@ -193,6 +191,57 @@ public sealed class ProfileScenario : IDisposable
             EntityCapacity = _entities.Length + 8
         });
     }
+
+    private static long MeasureAllocations(Action operation)
+    {
+        for (int index = 0; index < 64; index++)
+        {
+            operation();
+        }
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1000; index++)
+        {
+            operation();
+        }
+
+        return GC.GetAllocatedBytesForCurrentThread() - before;
+    }
+
+    private long Has(Entity[] entities)
+    {
+        long count = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            count += _world.Has<ProfileHasValue>(entities[index]) ? 1 : 0;
+        }
+
+        return count;
+    }
+
+    private long Get(Entity[] entities)
+    {
+        long sum = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            sum += _world.Get<ProfileValue>(entities[index], _primary).Value;
+        }
+
+        return sum;
+    }
+
+    private long GetRef(Entity[] entities)
+    {
+        long sum = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            sum += _world.GetRef<ProfileValue>(entities[index], _primary).Value;
+        }
+
+        return sum;
+    }
 }
 
 public struct ProfileValue { public int Value; }
+
+public struct ProfileHasValue { public int Value; }

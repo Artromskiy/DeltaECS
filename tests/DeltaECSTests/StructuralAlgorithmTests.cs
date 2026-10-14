@@ -97,6 +97,40 @@ internal sealed class StructuralAlgorithmTests
     }
 
     [Test]
+    public void DestroyBatchDeduplicatesCompleteChunksBeforeRecyclingRecords()
+    {
+        var layouts = new ComponentRegistry();
+        var valueId = layouts.Register<DestroyValue>(new SchemaId(30_004));
+        using var world = new World(layouts);
+        var entities = new Entity[512];
+        world.Create([valueId], entities);
+
+        var requested = new List<Entity>(entities.Length + entities.Length / 8);
+        for (int index = entities.Length - 1; index >= 0; index--)
+        {
+            requested.Add(entities[index]);
+            if ((index & 7) == 0)
+            {
+                requested.Add(entities[index]);
+            }
+        }
+
+        Assert.That(world.Destroy(CollectionsMarshalCompat.AsSpan(requested)), Is.EqualTo(entities.Length));
+        Assert.That(world.AliveEntityCount, Is.Zero);
+        foreach (var entity in entities)
+        {
+            Assert.That(world.IsAlive(entity), Is.False);
+        }
+
+        var recreated = new Entity[entities.Length];
+        world.Create([valueId], recreated);
+        foreach (var entity in recreated)
+        {
+            Assert.That(world.IsAlive(entity), Is.True);
+        }
+    }
+
+    [Test]
     public void DestroyBatch10KSmokeUsesExactCountAndLeavesValidHandles()
     {
         var layouts = new ComponentRegistry();
