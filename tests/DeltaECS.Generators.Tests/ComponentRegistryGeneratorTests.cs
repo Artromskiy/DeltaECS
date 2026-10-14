@@ -5,8 +5,11 @@ using System.Text;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CodeActions;
+using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
+using Microsoft.CodeAnalysis.Text;
 
 using NUnit.Framework;
 
@@ -144,6 +147,52 @@ public sealed class ComponentRegistryGeneratorTests
 
         Assert.That(diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0001"));
         Assert.That(diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0002"));
+    }
+
+    [Test]
+    public async Task SchemaIdCodeFixPinsTheNameDerivedId()
+    {
+        const string source = "using Delta.ECS;\n[ComponentSchema]\npublic struct Position { }";
+        CSharpCompilation compilation = CreateCompilation(source);
+        Diagnostic diagnostic = (await compilation
+                .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComponentSchemaIdAnalyzer()))
+                .GetAnalyzerDiagnosticsAsync()
+                .ConfigureAwait(false))
+            .Single(static item => item.Id == ComponentSchemaIdAnalyzer.PinSchemaIdDiagnosticId);
+
+        using var workspace = new AdhocWorkspace();
+        ProjectId projectId = ProjectId.CreateNewId();
+        DocumentId documentId = DocumentId.CreateNewId(projectId);
+        IEnumerable<MetadataReference> references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
+            .Append(typeof(World).Assembly.Location)
+            .Distinct(StringComparer.Ordinal)
+            .Select(static path => MetadataReference.CreateFromFile(path));
+        Solution solution = workspace.CurrentSolution
+            .AddProject(ProjectInfo.Create(
+                projectId,
+                VersionStamp.Create(),
+                "CodeFixTest",
+                "CodeFixTest",
+                LanguageNames.CSharp,
+                parseOptions: new CSharpParseOptions(LanguageVersion.CSharp9),
+                compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
+                metadataReferences: references))
+            .AddDocument(documentId, "Components.cs", SourceText.From(source));
+        Document document = solution.GetDocument(documentId)!;
+        var actions = new List<CodeAction>();
+        var context = new CodeFixContext(document, diagnostic, (action, _) => actions.Add(action), CancellationToken.None);
+
+        await new ComponentSchemaIdCodeFixProvider().RegisterCodeFixesAsync(context).ConfigureAwait(false);
+
+        Assert.That(actions, Has.Count.EqualTo(1));
+        ImmutableArray<CodeActionOperation> operations = await actions[0]
+            .GetOperationsAsync(CancellationToken.None)
+            .ConfigureAwait(false);
+        Solution fixedSolution = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution;
+        string fixedSource = (await fixedSolution.GetDocument(documentId)!.GetTextAsync().ConfigureAwait(false)).ToString();
+        ulong expectedSchemaId = ComputeFNV1A("Position");
+
+        Assert.That(fixedSource, Does.Contain($"[ComponentSchema(0x{expectedSchemaId:X16}UL)]"));
     }
 
     [Test]

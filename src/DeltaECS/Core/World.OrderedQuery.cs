@@ -10,7 +10,7 @@ public sealed partial class World
     private Entity[] _orderedEntityMergeBuffer = [];
     private int _orderedEntityCount;
     private bool _orderedQueryOperationActive;
-    private object?[] _orderedQueryKeyRoutes = [];
+    private OrderedQueryKeyRouteBase?[] _orderedQueryKeyRoutes = [];
 
     /// <summary>Validates a key registration selected by a generated ordered-query comparer.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -35,10 +35,6 @@ public sealed partial class World
 
         return ref GetUnpreparedOrderedQueryKey<T>(entity, componentId);
     }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private ref readonly T GetUnpreparedOrderedQueryKey<T>(Entity entity, ComponentId componentId)
-        => ref GetReadRefUnchecked<T>(entity, componentId);
 
     internal void ValidateOrderedQueryKey<T>(in Query query, ComponentId componentId)
     {
@@ -161,7 +157,13 @@ public sealed partial class World
         _orderedEntityBuffer[_orderedEntityCount++] = entity;
     }
 
-    private sealed class OrderedQueryKeyRoute<T>(int tagIndex)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private ref readonly T GetUnpreparedOrderedQueryKey<T>(Entity entity, ComponentId componentId)
+        => ref GetReadRefUnchecked<T>(entity, componentId);
+
+    private abstract class OrderedQueryKeyRouteBase;
+
+    private sealed class OrderedQueryKeyRoute<T>(int tagIndex) : OrderedQueryKeyRouteBase
     {
         private OrderedQueryKeyRow[] _rows = [];
 
@@ -196,10 +198,6 @@ public sealed partial class World
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void GrowRows(int chunkId)
-            => Array.Resize(ref _rows, Math.Max(chunkId + 1, Math.Max(4, _rows.Length * 2)));
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
         private static void RefreshRow(World world, Entity entity, ComponentId componentId, Chunk chunk, ref OrderedQueryKeyRow row)
         {
             if (!world.Archetypes[chunk.ArchetypeId].TryGetComponentIndex(componentId, out int componentIndex))
@@ -211,6 +209,10 @@ public sealed partial class World
             row.Identity = chunk.RawComponentRows;
             row.Owner = chunk;
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void GrowRows(int chunkId)
+            => Array.Resize(ref _rows, Math.Max(chunkId + 1, Math.Max(4, _rows.Length * 2)));
 
         private struct OrderedQueryKeyRow
         {

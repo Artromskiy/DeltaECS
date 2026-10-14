@@ -10,6 +10,7 @@
   <Project Path="tools/SourceOrdering/SourceOrdering.csproj" />
   <Project Path="src/DeltaECS/DeltaECS.csproj" />
   <Project Path="src/DeltaECS.Generators/DeltaECS.Generators.csproj" />
+  <Project Path="src/DeltaECS.Generators.CodeFixes/DeltaECS.Generators.CodeFixes.csproj" />
   <Project Path="src/DeltaECS.Systems/DeltaECS.Systems.csproj" />
   <Project Path="tests/DeltaECSTests/DeltaECSTests.csproj" />
   <Project Path="tests/DeltaECS.Systems.Tests/DeltaECS.Systems.Tests.csproj" />

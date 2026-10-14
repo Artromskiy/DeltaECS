@@ -1,11 +1,32 @@
 namespace Delta.ECS;
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 internal static class ArrayAccess
 {
+#if NETSTANDARD2_1
+    // Mirrors List<T>'s first field on the supported netstandard2.1 runtimes.
+    [StructLayout(LayoutKind.Sequential)]
+    private sealed class ListStorage<T>
+    {
+        internal T[] Items = null!;
+    }
+#endif
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static Span<T> AsSpan<T>(List<T> list)
+    {
+#if NETSTANDARD2_1
+        ListStorage<T> storage = Unsafe.As<List<T>, ListStorage<T>>(ref list);
+        return storage.Items.AsSpan(0, list.Count);
+#else
+        return CollectionsMarshal.AsSpan(list);
+#endif
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Span<T> AsSpan<T>(T[] array) => array;
 
