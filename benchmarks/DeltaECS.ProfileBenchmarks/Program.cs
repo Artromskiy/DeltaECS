@@ -117,20 +117,46 @@ internal static class ProfileSmoke
     {
         using var baseline = new baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario(20, 16, 4);
         using var candidate = new candidateAdapter::DeltaECS.ProfileAdapter.ProfileScenario(20, 16, 4);
+        using var baselineQueryPlans = new baselineAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario();
+        using var candidateQueryPlans = new candidateAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario();
+        using var baselineBatchStructural = new baselineAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario(64);
+        using var candidateBatchStructural = new candidateAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario(64);
         const long expectedLookup = 210 + 20 + 10 + 20;
         Require(baseline.LookupShuffled() == expectedLookup && candidate.LookupShuffled() == expectedLookup, "shuffled high-ID lookup checksum");
+        Require(baseline.HasSequential() == 20 && candidate.HasSequential() == 20, "sequential component presence");
+        Require(baseline.HasShuffled() == 20 && candidate.HasShuffled() == 20, "shuffled component presence");
+        Require(baseline.GetSequential() == 210 && candidate.GetSequential() == 210, "sequential Get checksum");
+        Require(baseline.GetShuffled() == 210 && candidate.GetShuffled() == 210, "shuffled Get checksum");
+        Require(baseline.GetRefSequential() == 210 && candidate.GetRefSequential() == 210, "sequential GetRef checksum");
+        Require(baseline.GetRefShuffled() == 210 && candidate.GetRefShuffled() == 210, "shuffled GetRef checksum");
         Require(baseline.DenseEntityWalk() == 190 && candidate.DenseEntityWalk() == 190, "dense traversal checksum");
         Require(baseline.StructuralToggle() == 1 && baseline.StructuralToggle() == -2, "baseline add/remove state");
         Require(candidate.StructuralToggle() == 1 && candidate.StructuralToggle() == -2, "candidate add/remove state");
         Require(baseline.CreateDestroy() == 1 && candidate.CreateDestroy() == 1, "create/destroy state");
         Require(baseline.CreateDestroy() == 2 && candidate.CreateDestroy() == 2, "repeated create/destroy state");
+        Require(baselineQueryPlans.CreateQueryBatch() == 512, "baseline query plan creation");
+        Require(candidateQueryPlans.CreateQueryBatch() == 512, "candidate query plan creation");
+        baselineBatchStructural.PrepareForCreate();
+        candidateBatchStructural.PrepareForCreate();
+        Require(baselineBatchStructural.CreateBatch() == 64, "baseline batch creation");
+        Require(candidateBatchStructural.CreateBatch() == 64, "candidate batch creation");
+        baselineBatchStructural.PrepareForDestroy();
+        candidateBatchStructural.PrepareForDestroy();
+        Require(baselineBatchStructural.DestroyRandomHalf() == 32, "baseline partial batch destroy");
+        Require(candidateBatchStructural.DestroyRandomHalf() == 32, "candidate partial batch destroy");
+        baselineBatchStructural.PrepareForDestroy();
+        candidateBatchStructural.PrepareForDestroy();
+        Require(baselineBatchStructural.DestroyRandomFullBatch() == 64, "baseline full batch destroy");
+        Require(candidateBatchStructural.DestroyRandomFullBatch() == 64, "candidate full batch destroy");
+        Require(baselineBatchStructural.AliveEntityCount == 0 && candidateBatchStructural.AliveEntityCount == 0,
+            "full batch destroy state");
         long expectedSort = 0;
         foreach (int index in Enumerable.Range(0, 20)
                      .OrderBy(static index => (index * 73) % 19)
                      .ThenBy(static index => index))
             expectedSort = unchecked(expectedSort * 31 + index);
         Require(baseline.StableSortTwoKeys() == expectedSort && candidate.StableSortTwoKeys() == expectedSort, "two-key stable sort checksum");
-        Console.WriteLine("Profile benchmark smoke passed: high-ID lookup, two-key sort, add/remove, create/destroy, dense traversal.");
+        Console.WriteLine("Profile benchmark smoke passed: query plans, component access, batch create/destroy, add/remove, single create/destroy, sorting, dense traversal.");
     }
 
     private static void Require(bool condition, string workload)

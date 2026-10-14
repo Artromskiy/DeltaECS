@@ -359,7 +359,8 @@ internal sealed class QueryPlan
         int componentIndex = 0;
         foreach (var componentId in _allDataMask)
         {
-            indices.RefAt(componentIndex++) = archetype.Mask.Rank(componentId);
+            archetype.TryGetComponentIndex(componentId, out int rowIndex);
+            indices.RefAt(componentIndex++) = rowIndex;
         }
 
         EnsureMatchingCapacity(_matchingCount + 1);

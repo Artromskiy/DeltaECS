@@ -17,6 +17,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="ProfileBenchmarks.cs" />
+    <Compile Include="QueryPlanSetupBenchmarks.cs" />
     <ProjectReference Include="adapters/Baseline/DeltaECS.ProfileAdapter.Baseline.csproj" Aliases="baselineAdapter" AdditionalProperties="BaselineRoot=$(BaselineRoot);ProfileRuntimeFramework=$(ProfileRuntimeFramework)" />
     <ProjectReference Include="adapters/Candidate/DeltaECS.ProfileAdapter.Candidate.csproj" Aliases="candidateAdapter" AdditionalProperties="CandidateRoot=$(CandidateRoot);ProfileRuntimeFramework=$(ProfileRuntimeFramework)" />
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
