@@ -216,8 +216,9 @@ internal sealed class EntityRefTests
         ComponentId healthId = layouts.Register<Health>(new SchemaId(40_082));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(40_083));
         using var world = new World(layouts);
+        ComponentId[] firstComponents = [positionId, healthId];
         Entity first = world.Create(
-            [positionId, healthId],
+            firstComponents,
             new Position { X = 1 },
             new Health { Value = 10 });
         Query query = world.CreateQuery(
@@ -237,8 +238,9 @@ internal sealed class EntityRefTests
         Assert.That(state.VelocityEntities, Is.Zero);
         Assert.That(state.HealthValue, Is.EqualTo(10));
 
+        ComponentId[] secondComponents = [positionId, velocityId];
         Entity second = world.Create(
-            [positionId, velocityId],
+            secondComponents,
             new Position { X = 2 },
             new Velocity { X = 3 });
 

@@ -137,6 +137,24 @@ internal sealed class ComponentRegistryTests
     }
 
     [Test]
+    public void TagIndicesRemainCorrectAcrossRegistryCapacityGrowth()
+    {
+        var layouts = new ComponentRegistry();
+        for (int index = 0; index < 300; index++)
+        {
+            _ = layouts.Register<int>(new SchemaId((ulong)(72_000 + index)));
+        }
+
+        ComponentId tagId = layouts.Register<LateRegistryTag>(new SchemaId(72_300));
+        ComponentId dataId = layouts.Register<long>(new SchemaId(72_301));
+
+        Assert.That(layouts.IsTag(tagId), Is.True);
+        Assert.That(layouts.IsTag(dataId), Is.False);
+        Assert.That(layouts.IsTag(ComponentId.Invalid), Is.False);
+        Assert.That(layouts.IsTag(new ComponentId(layouts.Count)), Is.False);
+    }
+
+    [Test]
     public void PrimaryIdsAreIsolatedPerRegistryAndWorld()
     {
         var firstLayouts = new ComponentRegistry();
@@ -178,6 +196,10 @@ internal sealed class ComponentRegistryTests
     private readonly struct Velocity
     {
         public float Value { get; init; }
+    }
+
+    private readonly struct LateRegistryTag
+    {
     }
 
     private readonly struct ValueComponent

@@ -182,6 +182,8 @@ public sealed partial class World : IDisposable
         _componentRowArrayPool.Clear();
         _freeChunkIds.Clear();
         _chunksById = [];
+        _records.Clear();
+        _orderedQueryKeyRoutes = [];
         _freeRecordChunks.Clear();
         _componentChangeObservers = null;
         _componentChangeObserverList = [];
@@ -231,15 +233,15 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Creates one entity with the supplied component registration.</summary>
-    public Entity Create(ComponentId componentId) => Create([componentId]);
+    public Entity Create(ComponentId componentId) => Create(stackalloc ComponentId[1] { componentId });
 
     /// <summary>Creates entities with the supplied component registration and caller-owned output storage.</summary>
     public int Create(ComponentId componentId, int count, Span<Entity> output)
-        => Create([componentId], count, output);
+        => Create(stackalloc ComponentId[1] { componentId }, count, output);
 
     /// <summary>Creates entities with the supplied component registration without retaining handles.</summary>
     public int Create(ComponentId componentId, int count)
-        => Create([componentId], count);
+        => Create(stackalloc ComponentId[1] { componentId }, count);
 
     /// <summary>Creates one entity for each output slot and stores its handle.</summary>
     public int Create(ReadOnlySpan<ComponentId> componentIds, Span<Entity> output)
@@ -428,7 +430,7 @@ public sealed partial class World : IDisposable
     public bool Add(Entity entity, ComponentId[] componentIds) => Add(entity, (ReadOnlySpan<ComponentId>)componentIds);
 
     /// <summary>Adds one component registration to one entity.</summary>
-    public bool Add(Entity entity, ComponentId componentId) => Add(entity, [componentId]);
+    public bool Add(Entity entity, ComponentId componentId) => Add(entity, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -440,7 +442,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Adds one component registration to each entity in a caller-owned batch.</summary>
     public int Add(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Add(entities, [componentId]);
+        => Add(entities, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Removes the component set from one entity and reports whether it changed.</summary>
     public bool Remove(Entity entity, ReadOnlySpan<ComponentId> componentIds)
@@ -452,7 +454,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from one entity.</summary>
     public bool Remove(Entity entity, ComponentId componentId)
-        => Remove(entity, [componentId]);
+        => Remove(entity, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
     public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
@@ -460,14 +462,14 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from each entity in a caller-owned batch.</summary>
     public int Remove(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => Remove(entities, [componentId]);
+        => Remove(entities, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Adds a component set to every entity matched by a query.</summary>
     public int Add(in Query query, ReadOnlySpan<ComponentId> componentIds)
         => ApplyQueryComponents(query, true, componentIds);
 
     /// <summary>Adds one component registration to every entity matched by a query.</summary>
-    public int Add(in Query query, ComponentId componentId) => Add(in query, [componentId]);
+    public int Add(in Query query, ComponentId componentId) => Add(in query, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Removes a component set from every entity matched by a query.</summary>
     public int Remove(in Query query, ReadOnlySpan<ComponentId> componentIds)
@@ -475,7 +477,7 @@ public sealed partial class World : IDisposable
 
     /// <summary>Removes one component registration from every entity matched by a query.</summary>
     public int Remove(in Query query, ComponentId componentId)
-        => Remove(in query, [componentId]);
+        => Remove(in query, stackalloc ComponentId[1] { componentId });
 
     /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
     public int Destroy(in Query query)
@@ -1016,7 +1018,7 @@ public sealed partial class World : IDisposable
         {
             Entity entity = entities.RefAt(index);
             ref var record = ref RecordAt(entity.Index);
-            record.ChunkId = -1;
+            record.Chunk = null;
             record.SlotIndex = -1;
             freeRecords.RefAt(index) = entity.Index;
         }
@@ -1482,7 +1484,7 @@ public sealed partial class World : IDisposable
                     appendedRecords[recordOffset + reservedIndex] = new EntityRecord
                     {
                         Generation = 1,
-                        ChunkId = chunk.GlobalId,
+                        Chunk = chunk,
                         SlotIndex = reservedSlot
                     };
                     var entity = new Entity(recordIndex, 1);
@@ -1512,7 +1514,7 @@ public sealed partial class World : IDisposable
 
                     ref var record = ref RecordAt(recordIndex);
                     var entity = new Entity(recordIndex, record.Generation);
-                    record.ChunkId = chunk.GlobalId;
+                    record.Chunk = chunk;
                     record.SlotIndex = reservedSlot;
                     chunkEntities[reservedSlot] = entity;
                     output.RefAt(outputIndex++) = entity;
@@ -1580,7 +1582,7 @@ public sealed partial class World : IDisposable
                     appendedRecords[created + reservedIndex] = new EntityRecord
                     {
                         Generation = 1,
-                        ChunkId = chunk.GlobalId,
+                        Chunk = chunk,
                         SlotIndex = reservedSlot
                     };
                     var entity = new Entity(recordIndex, 1);
@@ -1609,7 +1611,7 @@ public sealed partial class World : IDisposable
 
                     ref var record = ref RecordAt(recordIndex);
                     var entity = new Entity(recordIndex, record.Generation);
-                    record.ChunkId = chunk.GlobalId;
+                    record.Chunk = chunk;
                     record.SlotIndex = reservedSlot;
                     chunkEntities[reservedSlot] = entity;
                 }
@@ -2022,12 +2024,11 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void UpdateChunkRecordLocations(Chunk chunk, int slotIndex, int count)
     {
-        int chunkId = chunk.GlobalId;
         Span<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
         for (int index = 0; index < count; index++)
         {
             ref var record = ref RecordAt(entities.RefAt(index).Index);
-            record.ChunkId = chunkId;
+            record.Chunk = chunk;
             record.SlotIndex = slotIndex + index;
         }
     }
@@ -2260,11 +2261,12 @@ public sealed partial class World : IDisposable
         if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
-            movedRecord.ChunkId = chunk.GlobalId;
+            movedRecord.Chunk = chunk;
             movedRecord.SlotIndex = record.SlotIndex;
         }
 
-        record.ChunkId = -1;
+        record.Chunk = null;
+        record.SlotIndex = -1;
         PushFree(recordIndex);
         AliveEntityCount--;
         if (_layouts.TagCount != 0)
@@ -2320,12 +2322,12 @@ public sealed partial class World : IDisposable
         int sourceLastSlotIndex = sourceChunk.Count - 1;
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
         RemoveComponentChangeSwapBack(sourceChunk, sourceSlotIndex, sourceLastSlotIndex);
-        sourceRecord.ChunkId = targetChunk.GlobalId;
+        sourceRecord.Chunk = targetChunk;
         sourceRecord.SlotIndex = targetSlotIndex;
         if (moved.IsValid)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
-            movedRecord.ChunkId = sourceChunk.GlobalId;
+            movedRecord.Chunk = sourceChunk;
             movedRecord.SlotIndex = sourceSlotIndex;
         }
 
@@ -2543,7 +2545,7 @@ public sealed partial class World : IDisposable
         }
 
         int index = _records.Count;
-        _records.Add(new EntityRecord { Generation = 1, ChunkId = -1, SlotIndex = -1 });
+        _records.Add(new EntityRecord { Generation = 1, Chunk = null, SlotIndex = -1 });
         return index;
     }
 
@@ -2644,7 +2646,7 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private Chunk GetRecordChunk(in EntityRecord record) => GetChunkById(record.ChunkId);
+    private Chunk GetRecordChunk(in EntityRecord record) => record.Chunk!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref EntityRecord RecordAt(int recordIndex) => ref _records.RefAt(recordIndex);
@@ -2661,14 +2663,15 @@ public sealed partial class World : IDisposable
         }
 
         ref readonly var record = ref RecordAt(recordIndex);
+        Chunk? storedChunk = record.Chunk;
         if (record.Generation != entity.Generation
-            || record.ChunkId < 0
-            || !TryGetChunkById(record.ChunkId, out chunk)
-            || (uint)record.SlotIndex >= (uint)chunk.Count)
+            || storedChunk is null
+            || (uint)record.SlotIndex >= (uint)storedChunk.Count)
         {
             return false;
         }
 
+        chunk = storedChunk;
         slotIndex = record.SlotIndex;
         return chunk.RawEntities.RefAt(slotIndex) == entity;
     }
@@ -2678,7 +2681,7 @@ public sealed partial class World : IDisposable
     {
         ref readonly EntityRecord record = ref RecordAt(entity.Index);
         slotIndex = record.SlotIndex;
-        return _chunksById[record.ChunkId]!;
+        return record.Chunk!;
     }
 
     private QueryPlan GetOrCreateQuery(QuerySpec spec)
