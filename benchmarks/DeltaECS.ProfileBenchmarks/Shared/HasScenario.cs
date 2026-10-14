@@ -73,6 +73,10 @@ public sealed class HasScenario : IDisposable
 
     public long HasDataGenericShuffled() => HasDataGeneric(_shuffled);
 
+    public long TryGetTagGenericSequential() => TryGetTagGeneric(_sequential);
+
+    public long TryGetTagGenericShuffled() => TryGetTagGeneric(_shuffled);
+
     public void Dispose() => _world.Dispose();
 
     private long HasById(Entity[] entities, ComponentId componentId)
@@ -92,6 +96,17 @@ public sealed class HasScenario : IDisposable
         for (int index = 0; index < entities.Length; index++)
         {
             count += _world.Has<HasDataValue>(entities[index]) ? 1 : 0;
+        }
+
+        return count;
+    }
+
+    private long TryGetTagGeneric(Entity[] entities)
+    {
+        long count = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            count += _world.TryGet<HasTag>(entities[index], out _) ? 1 : 0;
         }
 
         return count;

@@ -111,6 +111,10 @@ public sealed class ProfileScenario : IDisposable
 
     public long GetPrimaryShuffled() => GetPrimary(_shuffledEntities);
 
+    public long TryGetPrimarySequential() => TryGetPrimary(_entities);
+
+    public long TryGetPrimaryShuffled() => TryGetPrimary(_shuffledEntities);
+
     public long GetRefSequential() => GetRef(_entities);
 
     public long GetRefShuffled() => GetRef(_shuffledEntities);
@@ -241,6 +245,20 @@ public sealed class ProfileScenario : IDisposable
         for (int index = 0; index < entities.Length; index++)
         {
             sum += _world.Get<ProfileHasValue>(entities[index]).Value;
+        }
+
+        return sum;
+    }
+
+    private long TryGetPrimary(Entity[] entities)
+    {
+        long sum = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            if (_world.TryGet<ProfileHasValue>(entities[index], out ProfileHasValue value))
+            {
+                sum += value.Value;
+            }
         }
 
         return sum;

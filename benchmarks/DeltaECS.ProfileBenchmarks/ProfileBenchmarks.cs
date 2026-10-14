@@ -31,6 +31,14 @@ public abstract class ProfileBenchmarkBase
         RequireEqual(_baseline.GetShuffled(), _candidate.GetShuffled(), "shuffled Get setup");
         RequireEqual(_baseline.GetPrimarySequential(), _candidate.GetPrimarySequential(), "sequential primary Get setup");
         RequireEqual(_baseline.GetPrimaryShuffled(), _candidate.GetPrimaryShuffled(), "shuffled primary Get setup");
+        RequireEqual(_baseline.TryGetPrimarySequential(), _candidate.TryGetPrimarySequential(), "sequential primary TryGet setup");
+        RequireEqual(_baseline.TryGetPrimaryShuffled(), _candidate.TryGetPrimaryShuffled(), "shuffled primary TryGet setup");
+        long expectedPrimarySum = (long)Amount * (Amount + 1) / 2;
+        if (_baseline.GetPrimarySequential() != expectedPrimarySum
+            || _baseline.TryGetPrimarySequential() != expectedPrimarySum)
+        {
+            throw new InvalidOperationException("Primary Get/TryGet benchmark fixture checksum differs from expected values.");
+        }
         RequireEqual(_baseline.GetRefSequential(), _candidate.GetRefSequential(), "sequential GetRef setup");
         RequireEqual(_baseline.GetRefShuffled(), _candidate.GetRefShuffled(), "shuffled GetRef setup");
         RequireEqual(_baseline.StableSortTwoKeys(), _candidate.StableSortTwoKeys(), "sort setup");
@@ -61,6 +69,10 @@ public abstract class ProfileBenchmarkBase
     protected long CandidateGetPrimarySequential() => _candidate.GetPrimarySequential();
     protected long PreviousGetPrimaryShuffled() => _baseline.GetPrimaryShuffled();
     protected long CandidateGetPrimaryShuffled() => _candidate.GetPrimaryShuffled();
+    protected long PreviousTryGetPrimarySequential() => _baseline.TryGetPrimarySequential();
+    protected long CandidateTryGetPrimarySequential() => _candidate.TryGetPrimarySequential();
+    protected long PreviousTryGetPrimaryShuffled() => _baseline.TryGetPrimaryShuffled();
+    protected long CandidateTryGetPrimaryShuffled() => _candidate.TryGetPrimaryShuffled();
     protected long PreviousGetRefSequential() => _baseline.GetRefSequential();
     protected long CandidateGetRefSequential() => _candidate.GetRefSequential();
     protected long PreviousGetRefShuffled() => _baseline.GetRefShuffled();
@@ -143,6 +155,16 @@ public class ComponentAccessBenchmarks : ProfileBenchmarkBase
     [Benchmark, BenchmarkCategory("Get primary shuffled")]
     public long Candidate_GetPrimaryShuffled() => CandidateGetPrimaryShuffled();
 
+    [Benchmark(Baseline = true), BenchmarkCategory("TryGet primary sequential")]
+    public long Mainline_TryGetPrimarySequential() => PreviousTryGetPrimarySequential();
+    [Benchmark, BenchmarkCategory("TryGet primary sequential")]
+    public long Candidate_TryGetPrimarySequential() => CandidateTryGetPrimarySequential();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("TryGet primary shuffled")]
+    public long Mainline_TryGetPrimaryShuffled() => PreviousTryGetPrimaryShuffled();
+    [Benchmark, BenchmarkCategory("TryGet primary shuffled")]
+    public long Candidate_TryGetPrimaryShuffled() => CandidateTryGetPrimaryShuffled();
+
     [Benchmark(Baseline = true), BenchmarkCategory("GetRef sequential")]
     public long Mainline_GetRefSequential() => PreviousGetRefSequential();
     [Benchmark, BenchmarkCategory("GetRef sequential")]
@@ -172,10 +194,13 @@ public class HasDispatchBenchmarks
         RequireEqual(_baseline.HasTagByIdShuffled(), _candidate.HasTagByIdShuffled(), "tag ID shuffled");
         RequireEqual(_baseline.HasDataGenericSequential(), _candidate.HasDataGenericSequential(), "data generic sequential");
         RequireEqual(_baseline.HasDataGenericShuffled(), _candidate.HasDataGenericShuffled(), "data generic shuffled");
+        RequireEqual(_baseline.TryGetTagGenericSequential(), _candidate.TryGetTagGenericSequential(), "tag TryGet sequential");
+        RequireEqual(_baseline.TryGetTagGenericShuffled(), _candidate.TryGetTagGenericShuffled(), "tag TryGet shuffled");
         if (_baseline.HasDataByIdSequential() != _baseline.ExpectedDataCount
-            || _baseline.HasTagByIdSequential() != _baseline.ExpectedTagCount)
+            || _baseline.HasTagByIdSequential() != _baseline.ExpectedTagCount
+            || _baseline.TryGetTagGenericSequential() != _baseline.ExpectedTagCount)
         {
-            throw new InvalidOperationException("Has benchmark fixture does not contain the expected component mix.");
+            throw new InvalidOperationException("Component access benchmark fixture does not contain the expected component mix.");
         }
     }
 
@@ -215,6 +240,16 @@ public class HasDispatchBenchmarks
     public long Mainline_DataGenericShuffled() => _baseline.HasDataGenericShuffled();
     [Benchmark, BenchmarkCategory("data generic shuffled")]
     public long Candidate_DataGenericShuffled() => _candidate.HasDataGenericShuffled();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("tag TryGet sequential")]
+    public long Mainline_TryGetTagGenericSequential() => _baseline.TryGetTagGenericSequential();
+    [Benchmark, BenchmarkCategory("tag TryGet sequential")]
+    public long Candidate_TryGetTagGenericSequential() => _candidate.TryGetTagGenericSequential();
+
+    [Benchmark(Baseline = true), BenchmarkCategory("tag TryGet shuffled")]
+    public long Mainline_TryGetTagGenericShuffled() => _baseline.TryGetTagGenericShuffled();
+    [Benchmark, BenchmarkCategory("tag TryGet shuffled")]
+    public long Candidate_TryGetTagGenericShuffled() => _candidate.TryGetTagGenericShuffled();
 
     private static void RequireEqual(long baseline, long candidate, string workload)
     {
