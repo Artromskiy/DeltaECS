@@ -158,7 +158,7 @@ internal sealed class PublicApiShapeTests
                     modifiers: null),
                 Is.Null);
             Assert.That(
-                typeof(ComponentRegistry).GetMethod("Visit", [typeof(ComponentId), typeof(IVisitor)]),
+                typeof(ComponentRegistry).GetMethod("Visit", [typeof(ComponentId), typeof(IComponentVisitor)]),
                 Is.Not.Null);
             Assert.That(typeof(ComponentRegistry).GetProperty("Visitors"), Is.Null);
         });

@@ -47,7 +47,7 @@ internal static class GeneratedComponentVisitorGrammarProof
         }
     }
 
-    private sealed class RecordingVisitor(ComponentId[] componentIds, Type[] expectedTypes) : IUnconstrainedVisitor
+    private sealed class RecordingVisitor(ComponentId[] componentIds, Type[] expectedTypes) : IUnconstrainedComponentVisitor
     {
         internal int VisitCount { get; private set; }
 

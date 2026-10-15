@@ -255,7 +255,7 @@ namespace Delta.ECS.Registration.CSharp9
             }
         }
 
-        private abstract class ProbeVisitor : IVisitor
+        private abstract class ProbeVisitor : IComponentVisitor
         {
             public Type ComponentType { get; private set; } = typeof(void);
             public ComponentId ComponentId { get; private set; }
@@ -297,57 +297,53 @@ namespace Delta.ECS.Registration.CSharp9
             }
         }
 
-        private sealed class UnconstrainedVisitor : ProbeVisitor, IUnconstrainedVisitor
+        private sealed class UnconstrainedVisitor : ProbeVisitor, IUnconstrainedComponentVisitor
         {
             public void Visit<T>(ComponentId componentId) => Mark<T>(componentId);
         }
 
-        private sealed class StructVisitor : ProbeVisitor, IStructVisitor
+        private sealed class StructVisitor : ProbeVisitor, IStructComponentVisitor
         {
             public void Visit<T>(ComponentId componentId) where T : struct => Mark<T>(componentId);
         }
 
-        private sealed class UnmanagedVisitor : ProbeVisitor, IUnmanagedVisitor
+        private sealed class UnmanagedVisitor : ProbeVisitor, IUnmanagedComponentVisitor
         {
             public void Visit<T>(ComponentId componentId) where T : unmanaged => Mark<T>(componentId);
         }
 
-        private sealed class NewVisitor : ProbeVisitor, INewVisitor
+        private sealed class NewVisitor : ProbeVisitor, INewComponentVisitor
         {
             public void Visit<T>(ComponentId componentId) where T : new() => Mark<T>(componentId);
         }
 
-        private sealed class ClassVisitor : ProbeVisitor, IClassVisitor
+        private sealed class ClassVisitor : ProbeVisitor, IClassComponentVisitor
         {
             public void Visit<T>(ComponentId componentId) where T : class => Mark<T>(componentId);
         }
 
-        private sealed class ClassNewVisitor : ProbeVisitor, IClassNewVisitor
+        private sealed class ClassNewVisitor : ProbeVisitor, IClassNewComponentVisitor
         {
             public void Visit<T>(ComponentId componentId) where T : class, new() => Mark<T>(componentId);
         }
 
         private sealed class InterfaceVisitor : ProbeVisitor, IComponentVisitor<IGameComponent>
         {
-            public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
             public void Visit<T>(ComponentId componentId) where T : IGameComponent => Mark<T>(componentId);
         }
 
-        private sealed class StructInterfaceVisitor : ProbeVisitor, IStructVisitor<IGameComponent>
+        private sealed class StructInterfaceVisitor : ProbeVisitor, IStructComponentVisitor<IGameComponent>
         {
-            public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
             public void Visit<T>(ComponentId componentId) where T : struct, IGameComponent => Mark<T>(componentId);
         }
 
-        private sealed class UnmanagedInterfaceVisitor : ProbeVisitor, IUnmanagedVisitor<IGameComponent>
+        private sealed class UnmanagedInterfaceVisitor : ProbeVisitor, IUnmanagedComponentVisitor<IGameComponent>
         {
-            public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
             public void Visit<T>(ComponentId componentId) where T : unmanaged, IGameComponent => Mark<T>(componentId);
         }
 
-        private sealed class NewInterfaceVisitor : ProbeVisitor, INewVisitor<IGameComponent>
+        private sealed class NewInterfaceVisitor : ProbeVisitor, INewComponentVisitor<IGameComponent>
         {
-            public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
             public void Visit<T>(ComponentId componentId) where T : IGameComponent, new() => Mark<T>(componentId);
         }
     }

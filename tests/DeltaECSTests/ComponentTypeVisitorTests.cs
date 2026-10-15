@@ -11,7 +11,7 @@ internal sealed class ComponentTypeVisitorTests
         var layouts = new ComponentRegistry();
         layouts.BindInterface<GameComponent, IGameComponent>();
         ComponentId componentId = layouts.Register<GameComponent>(new SchemaId(80_100));
-        IStructVisitor<IGameComponent> visitor = new DefaultConstraintStructVisitor();
+        IStructComponentVisitor<IGameComponent> visitor = new DefaultConstraintStructVisitor();
 
         Assert.That(visitor.ConstraintType, Is.EqualTo(typeof(IGameComponent).TypeHandle));
         Assert.That(layouts.TryVisit(componentId, visitor), Is.True);
@@ -600,7 +600,7 @@ internal sealed class ComponentTypeVisitorTests
     private static void AssertRoute(VisitorRoute expected, MultiRouteVisitor visitor)
         => Assert.That(visitor.SelectedRoute, Is.EqualTo(expected));
 
-    private static void AssertNotVisited(ComponentRegistry layouts, ComponentId componentId, IVisitor visitor)
+    private static void AssertNotVisited(ComponentRegistry layouts, ComponentId componentId, IComponentVisitor visitor)
     {
         Assert.That(layouts.TryVisit(componentId, visitor), Is.False);
         Assert.DoesNotThrow(() => layouts.Visit(componentId, visitor));
@@ -689,37 +689,37 @@ internal sealed class ComponentTypeVisitorTests
         }
     }
 
-    private sealed class UnconstrainedVisitor : VisitState, IUnconstrainedVisitor
+    private sealed class UnconstrainedVisitor : VisitState, IUnconstrainedComponentVisitor
     {
         public void Visit<T>(ComponentId componentId) => Record<T>(componentId);
     }
 
-    private sealed class StructVisitor : VisitState, IStructVisitor
+    private sealed class StructVisitor : VisitState, IStructComponentVisitor
     {
         public void Visit<T>(ComponentId componentId) where T : struct => Record<T>(componentId);
     }
 
-    private sealed class ClassVisitor : VisitState, IClassVisitor
+    private sealed class ClassVisitor : VisitState, IClassComponentVisitor
     {
         public void Visit<T>(ComponentId componentId) where T : class => Record<T>(componentId);
     }
 
-    private sealed class UnmanagedVisitor : VisitState, IUnmanagedVisitor
+    private sealed class UnmanagedVisitor : VisitState, IUnmanagedComponentVisitor
     {
         public void Visit<T>(ComponentId componentId) where T : unmanaged => Record<T>(componentId);
     }
 
-    private sealed class NewVisitor : VisitState, INewVisitor
+    private sealed class NewVisitor : VisitState, INewComponentVisitor
     {
         public void Visit<T>(ComponentId componentId) where T : new() => Record<T>(componentId);
     }
 
-    private sealed class ClassNewVisitor : VisitState, IClassNewVisitor
+    private sealed class ClassNewVisitor : VisitState, IClassNewComponentVisitor
     {
         public void Visit<T>(ComponentId componentId) where T : class, new() => Record<T>(componentId);
     }
 
-    private sealed class UnsupportedVisitor : IVisitor { }
+    private sealed class UnsupportedVisitor : IComponentVisitor { }
 
     private enum VisitorRoute
     {
@@ -739,66 +739,66 @@ internal sealed class ComponentTypeVisitorTests
     }
 
     private sealed class MultiRouteVisitor : VisitState,
-        IUnconstrainedVisitor,
-        IStructVisitor,
-        IClassVisitor,
-        IUnmanagedVisitor,
-        INewVisitor,
-        IClassNewVisitor,
+        IUnconstrainedComponentVisitor,
+        IStructComponentVisitor,
+        IClassComponentVisitor,
+        IUnmanagedComponentVisitor,
+        INewComponentVisitor,
+        IClassNewComponentVisitor,
         IComponentVisitor<IGameComponent>,
-        IStructVisitor<IGameComponent>,
-        IClassVisitor<IGameComponent>,
-        IUnmanagedVisitor<IGameComponent>,
-        INewVisitor<IGameComponent>,
-        IClassNewVisitor<IGameComponent>
+        IStructComponentVisitor<IGameComponent>,
+        IClassComponentVisitor<IGameComponent>,
+        IUnmanagedComponentVisitor<IGameComponent>,
+        INewComponentVisitor<IGameComponent>,
+        IClassNewComponentVisitor<IGameComponent>
     {
         internal VisitorRoute SelectedRoute { get; private set; }
 
-        void IUnconstrainedVisitor.Visit<T>(ComponentId componentId)
+        void IUnconstrainedComponentVisitor.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.Unconstrained;
 
-        void IStructVisitor.Visit<T>(ComponentId componentId)
+        void IStructComponentVisitor.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.Struct;
 
-        void IClassVisitor.Visit<T>(ComponentId componentId)
+        void IClassComponentVisitor.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.Class;
 
-        void IUnmanagedVisitor.Visit<T>(ComponentId componentId)
+        void IUnmanagedComponentVisitor.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.Unmanaged;
 
-        void INewVisitor.Visit<T>(ComponentId componentId)
+        void INewComponentVisitor.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.New;
 
-        void IClassNewVisitor.Visit<T>(ComponentId componentId)
+        void IClassNewComponentVisitor.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.ClassNew;
 
         void IComponentVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.Interface;
 
-        void IStructVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
+        void IStructComponentVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.StructInterface;
 
-        void IClassVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
+        void IClassComponentVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.ClassInterface;
 
-        void IUnmanagedVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
+        void IUnmanagedComponentVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.UnmanagedInterface;
 
-        void INewVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
+        void INewComponentVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.NewInterface;
 
-        void IClassNewVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
+        void IClassNewComponentVisitor<IGameComponent>.Visit<T>(ComponentId componentId)
             => SelectedRoute = VisitorRoute.ClassNewInterface;
     }
 
-    private struct DefaultConstraintStructVisitor : IStructVisitor<IGameComponent>
+    private struct DefaultConstraintStructVisitor : IStructComponentVisitor<IGameComponent>
     {
         internal int Count;
 
         public void Visit<T>(ComponentId componentId) where T : struct, IGameComponent => Count++;
     }
 
-    private sealed class StructGameVisitor : VisitState, IStructVisitor<IGameComponent>
+    private sealed class StructGameVisitor : VisitState, IStructComponentVisitor<IGameComponent>
     {
         public void Visit<T>(ComponentId componentId) where T : struct, IGameComponent => Record<T>(componentId);
     }
@@ -808,32 +808,32 @@ internal sealed class ComponentTypeVisitorTests
         public void Visit<T>(ComponentId componentId) where T : IGameComponent => Record<T>(componentId);
     }
 
-    private sealed class ClassGameVisitor : VisitState, IClassVisitor<IGameComponent>
+    private sealed class ClassGameVisitor : VisitState, IClassComponentVisitor<IGameComponent>
     {
         public void Visit<T>(ComponentId componentId) where T : class, IGameComponent => Record<T>(componentId);
     }
 
-    private sealed class UnmanagedGameVisitor : VisitState, IUnmanagedVisitor<IGameComponent>
+    private sealed class UnmanagedGameVisitor : VisitState, IUnmanagedComponentVisitor<IGameComponent>
     {
         public void Visit<T>(ComponentId componentId) where T : unmanaged, IGameComponent => Record<T>(componentId);
     }
 
-    private sealed class NewGameVisitor : VisitState, INewVisitor<IGameComponent>
+    private sealed class NewGameVisitor : VisitState, INewComponentVisitor<IGameComponent>
     {
         public void Visit<T>(ComponentId componentId) where T : IGameComponent, new() => Record<T>(componentId);
     }
 
-    private sealed class ClassNewGameVisitor : VisitState, IClassNewVisitor<IGameComponent>
+    private sealed class ClassNewGameVisitor : VisitState, IClassNewComponentVisitor<IGameComponent>
     {
         public void Visit<T>(ComponentId componentId) where T : class, IGameComponent, new() => Record<T>(componentId);
     }
 
-    private sealed class StructNamedVisitor : VisitState, IStructVisitor<INamedComponent>
+    private sealed class StructNamedVisitor : VisitState, IStructComponentVisitor<INamedComponent>
     {
         public void Visit<T>(ComponentId componentId) where T : struct, INamedComponent => Record<T>(componentId);
     }
 
-    private sealed class WrongConstraintVisitor : VisitState, IStructVisitor<INamedComponent>
+    private sealed class WrongConstraintVisitor : VisitState, IStructComponentVisitor<INamedComponent>
     {
         public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
 

@@ -134,11 +134,11 @@ public struct Position : IMovable { }
 
 public sealed class MovementVisitor : IComponentVisitor<IMovable>
 {
-    public RuntimeTypeHandle ConstraintType => typeof(IMovable).TypeHandle;
-
     public void Visit<T>(ComponentId componentId) where T : IMovable { }
 }
 ```
+
+`IComponentVisitor` is the common marker. Visitors with a user-defined constraint inherit `IConstrainedComponentVisitor<TConstraint>`, which supplies `ConstraintType` by default. Implementing this property explicitly is optional. Specialized forms use `IStructComponentVisitor`, `IClassComponentVisitor`, `IUnmanagedComponentVisitor`, `INewComponentVisitor`, and `IClassNewComponentVisitor`, with or without a user-defined constraint.
 
 The binding is explicit for each component type when using the interface-based visitor contracts. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call.
 
@@ -165,7 +165,7 @@ public sealed class RoutedMovementVisitor : GeneralComponentTypeVisitor<IMovable
 
 The hooks are `Visit<T>` for an unconstrained route, `VisitUnmanaged<T>`, `VisitStruct<T>`, `VisitClass<T>`, `VisitConstructible<T>`, and `VisitClassConstructible<T>`. They are ordinary virtual methods with their constraints declared by the base class; no marker argument is needed in an override. This path uses the closed generic component route and virtual dispatch. Interface binding remains explicit for each component CLR type.
 
-Every registration route also supports `IUnconstrainedVisitor`, which receives the registered CLR type and ID without requiring a marker or interface route. More constrained visitors still match only routes satisfying their constraints. Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported constrained route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
+Every registration route also supports `IUnconstrainedComponentVisitor`, which receives the registered CLR type and ID without requiring a marker or interface route. More constrained visitors still match only routes satisfying their constraints. Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported constrained route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
 
 ```csharp
 ReadOnlySpan<ComponentId> componentIds = stackalloc ComponentId[] { positionId, localPositionId };
