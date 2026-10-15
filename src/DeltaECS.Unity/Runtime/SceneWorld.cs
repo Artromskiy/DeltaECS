@@ -164,6 +164,24 @@ namespace Delta.ECS.Unity
             }
         }
 
+        /// <summary>Resolves the runtime view first, then the scene-authored stable-ID binding.</summary>
+        public bool TryGetView(Entity entity, [NotNullWhen(true)] out GameObject view)
+        {
+            if (_viewsByEntity.TryGetValue(entity, out view) && view != null)
+            {
+                return true;
+            }
+
+            if (_viewsByEntity.ContainsKey(entity))
+            {
+                _viewsByEntity.Remove(entity);
+            }
+
+            return _authoring != null
+                && TryGetStableId(entity, out string stableId)
+                && _authoring.TryGetView(stableId, out view);
+        }
+
         internal static bool TryFindLiveWorld(SceneData sceneData, out SceneWorld sceneWorld)
         {
             for (int i = LiveWorlds.Count - 1; i >= 0; i--)
@@ -343,24 +361,6 @@ namespace Delta.ECS.Unity
 
         internal bool TryGetStableId(Entity entity, out string stableId) =>
             _stableIdsByEntity.TryGetValue(entity, out stableId);
-
-        /// <summary>Resolves the runtime view first, then the scene-authored stable-ID binding.</summary>
-        public bool TryGetView(Entity entity, [NotNullWhen(true)] out GameObject view)
-        {
-            if (_viewsByEntity.TryGetValue(entity, out view) && view != null)
-            {
-                return true;
-            }
-
-            if (_viewsByEntity.ContainsKey(entity))
-            {
-                _viewsByEntity.Remove(entity);
-            }
-
-            return _authoring != null
-                && TryGetStableId(entity, out string stableId)
-                && _authoring.TryGetView(stableId, out view);
-        }
 
         /// <summary>Resolves a view through the runtime registry or the scene-authored stable-ID binding.</summary>
         internal bool TryGetEntity(GameObject view, out Entity entity)

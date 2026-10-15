@@ -140,6 +140,16 @@ public sealed class MovementVisitor : IComponentVisitor<IMovable>
 
 `IComponentVisitor` is the common marker. Visitors with a user-defined constraint inherit `IConstrainedComponentVisitor<TConstraint>`, which supplies `ConstraintType` by default. Implementing this property explicitly is optional. Specialized forms use `IStructComponentVisitor`, `IClassComponentVisitor`, `IUnmanagedComponentVisitor`, `INewComponentVisitor`, and `IClassNewComponentVisitor`, with or without a user-defined constraint.
 
+| Contract | Purpose |
+| --- | --- |
+| `IComponentVisitor` | Common marker accepted by `Visit` and `TryVisit`; does not receive callbacks by itself. |
+| `IUnconstrainedComponentVisitor` | Receives any registered CLR type through `Visit<TComponent>`. |
+| `IConstrainedComponentVisitor` | Exposes the runtime `ConstraintType` used to select an explicitly bound interface route. |
+| `IConstrainedComponentVisitor<TConstraint>` | Supplies `ConstraintType` by default for all typed constraint visitors. |
+| `IComponentVisitor<TConstraint>` | Receives types satisfying `TConstraint` through `Visit<TComponent>`. |
+
+The shape-specific generic contracts inherit `IConstrainedComponentVisitor<TConstraint>`. Visitor naming does not change `Register` or `BindInterface` calls, the selected registration route, or route priorities.
+
 The binding is explicit for each component type when using the interface-based visitor contracts. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call.
 
 For virtual dispatch, derive from `GeneralComponentTypeVisitor<TConstraint>`. Override the named hooks for the registration shapes the visitor handles. The registry calls the matching hook through the explicitly bound interface route:
