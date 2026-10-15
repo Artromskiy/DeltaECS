@@ -6,6 +6,19 @@ namespace Delta.ECS.Tests;
 internal sealed class ComponentTypeVisitorTests
 {
     [Test]
+    public void StructVisitorUsesDefaultConstraintType()
+    {
+        var layouts = new ComponentRegistry();
+        layouts.BindInterface<GameComponent, IGameComponent>();
+        ComponentId componentId = layouts.Register<GameComponent>(new SchemaId(80_100));
+        IStructVisitor<IGameComponent> visitor = new DefaultConstraintStructVisitor();
+
+        Assert.That(visitor.ConstraintType, Is.EqualTo(typeof(IGameComponent).TypeHandle));
+        Assert.That(layouts.TryVisit(componentId, visitor), Is.True);
+        Assert.That(((DefaultConstraintStructVisitor)visitor).Count, Is.EqualTo(1));
+    }
+
+    [Test]
     public void UnmanagedRegistrationAcceptsUnconstrainedAndNarrowVisitors()
     {
         var layouts = new ComponentRegistry();
@@ -739,8 +752,6 @@ internal sealed class ComponentTypeVisitorTests
         INewVisitor<IGameComponent>,
         IClassNewVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         internal VisitorRoute SelectedRoute { get; private set; }
 
         void IUnconstrainedVisitor.Visit<T>(ComponentId componentId)
@@ -780,52 +791,45 @@ internal sealed class ComponentTypeVisitorTests
             => SelectedRoute = VisitorRoute.ClassNewInterface;
     }
 
+    private struct DefaultConstraintStructVisitor : IStructVisitor<IGameComponent>
+    {
+        internal int Count;
+
+        public void Visit<T>(ComponentId componentId) where T : struct, IGameComponent => Count++;
+    }
+
     private sealed class StructGameVisitor : VisitState, IStructVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : struct, IGameComponent => Record<T>(componentId);
     }
 
     private sealed class GameComponentVisitor : VisitState, IComponentVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : IGameComponent => Record<T>(componentId);
     }
 
     private sealed class ClassGameVisitor : VisitState, IClassVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : class, IGameComponent => Record<T>(componentId);
     }
 
     private sealed class UnmanagedGameVisitor : VisitState, IUnmanagedVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : unmanaged, IGameComponent => Record<T>(componentId);
     }
 
     private sealed class NewGameVisitor : VisitState, INewVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : IGameComponent, new() => Record<T>(componentId);
     }
 
     private sealed class ClassNewGameVisitor : VisitState, IClassNewVisitor<IGameComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(IGameComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : class, IGameComponent, new() => Record<T>(componentId);
     }
 
     private sealed class StructNamedVisitor : VisitState, IStructVisitor<INamedComponent>
     {
-        public RuntimeTypeHandle ConstraintType => typeof(INamedComponent).TypeHandle;
-
         public void Visit<T>(ComponentId componentId) where T : struct, INamedComponent => Record<T>(componentId);
     }
 

@@ -22,8 +22,14 @@ public interface IComponentVisitor : IVisitor
     RuntimeTypeHandle ConstraintType { get; }
 }
 
+/// <summary>Provides the runtime constraint identity for a typed component visitor.</summary>
+public interface IConstrainedVisitor<in TConstraint> : IComponentVisitor
+{
+    RuntimeTypeHandle IComponentVisitor.ConstraintType => typeof(TConstraint).TypeHandle;
+}
+
 /// <summary>Visits a registered component that implements <typeparamref name="TConstraint"/>.</summary>
-public interface IComponentVisitor<in TConstraint> : IComponentVisitor
+public interface IComponentVisitor<in TConstraint> : IConstrainedVisitor<TConstraint>
 {
     /// <summary>Receives a component type satisfying the interface route.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : TConstraint;
@@ -75,7 +81,7 @@ public interface IClassNewVisitor : IVisitor
 }
 
 /// <summary>Visits a component type satisfying a value-type and interface constraint.</summary>
-public interface IStructVisitor<in TConstraint> : IComponentVisitor
+public interface IStructVisitor<in TConstraint> : IConstrainedVisitor<TConstraint>
 {
     /// <summary>Receives a constrained value type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : struct, TConstraint;
@@ -92,7 +98,7 @@ public interface IStructVisitor<in TConstraint> : IComponentVisitor
 }
 
 /// <summary>Visits a component type satisfying a reference-type and interface constraint.</summary>
-public interface IClassVisitor<in TConstraint> : IComponentVisitor
+public interface IClassVisitor<in TConstraint> : IConstrainedVisitor<TConstraint>
 {
     /// <summary>Receives a constrained reference type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint;
@@ -109,7 +115,7 @@ public interface IClassVisitor<in TConstraint> : IComponentVisitor
 }
 
 /// <summary>Visits an unmanaged component type satisfying an interface constraint.</summary>
-public interface IUnmanagedVisitor<in TConstraint> : IComponentVisitor
+public interface IUnmanagedVisitor<in TConstraint> : IConstrainedVisitor<TConstraint>
 {
     /// <summary>Receives a constrained unmanaged type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : unmanaged, TConstraint;
@@ -126,7 +132,7 @@ public interface IUnmanagedVisitor<in TConstraint> : IComponentVisitor
 }
 
 /// <summary>Visits a component type satisfying an interface and constructor constraint.</summary>
-public interface INewVisitor<in TConstraint> : IComponentVisitor
+public interface INewVisitor<in TConstraint> : IConstrainedVisitor<TConstraint>
 {
     /// <summary>Receives a constrained constructible type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : TConstraint, new();
@@ -143,7 +149,7 @@ public interface INewVisitor<in TConstraint> : IComponentVisitor
 }
 
 /// <summary>Visits a component type satisfying reference, interface, and constructor constraints.</summary>
-public interface IClassNewVisitor<in TConstraint> : IComponentVisitor
+public interface IClassNewVisitor<in TConstraint> : IConstrainedVisitor<TConstraint>
 {
     /// <summary>Receives a constrained constructible reference type.</summary>
     void Visit<TComponent>(ComponentId componentId) where TComponent : class, TConstraint, new();
