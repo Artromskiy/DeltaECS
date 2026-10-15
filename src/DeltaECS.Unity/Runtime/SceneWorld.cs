@@ -345,7 +345,7 @@ namespace Delta.ECS.Unity
             _stableIdsByEntity.TryGetValue(entity, out stableId);
 
         /// <summary>Resolves the runtime view first, then the scene-authored stable-ID binding.</summary>
-        internal bool TryGetView(Entity entity, out GameObject view)
+        public bool TryGetView(Entity entity, [NotNullWhen(true)] out GameObject view)
         {
             if (_viewsByEntity.TryGetValue(entity, out view) && view != null)
             {
