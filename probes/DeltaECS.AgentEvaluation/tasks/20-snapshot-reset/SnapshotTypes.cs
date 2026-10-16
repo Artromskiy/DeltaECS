@@ -13,10 +13,17 @@ public sealed class SnapshotScenario : IDisposable
     public SnapshotScenario()
     {
         var r = World.Components;
+#if GENERATED_REGISTRATIONS
+        PlateId = r.Register(GeneratedComponentCatalog.GetRegistration<ResetPlate>());
+        WardId = r.Register(GeneratedComponentCatalog.GetRegistration<ResetWard>());
+        MarkedId = r.Register(GeneratedComponentCatalog.GetRegistration<Marked>());
+        PlateAltId = r.Register<ResetPlate>(new SchemaId(202));
+#else
         PlateId = r.Register<ResetPlate>(new SchemaId(201));
         PlateAltId = r.Register<ResetPlate>(new SchemaId(202));
         WardId = r.Register<ResetWard>(new SchemaId(203));
         MarkedId = r.Register<Marked>(new SchemaId(204));
+#endif
         r.BindInterface<ResetPlate, IResettable>(); r.BindInterface<ResetWard, IResettable>();
         Selected = new[] { PlateId, PlateAltId, WardId };
         A = World.Create(Selected);
@@ -30,12 +37,12 @@ public sealed class SnapshotScenario : IDisposable
     public void Dispose() => World.Dispose();
 }
 
-public record struct ResetPlate(int Value) : IResettable
+public partial record struct ResetPlate(int Value) : IResettable
 {
     public void Reset() { ResetPhaseAudit.BeforeReset(); Value = 0; }
 }
 
-public record struct ResetWard(int Value) : IResettable
+public partial record struct ResetWard(int Value) : IResettable
 {
     public void Reset() { ResetPhaseAudit.BeforeReset(); Value = 0; }
 }

@@ -48,9 +48,25 @@ python3 probes/DeltaECS.AgentEvaluation/prepare.py \
 Use a new output directory for each run. The script creates six consumer workspaces: three with four tasks each, then three with three tasks each. Use `--session d --task 13-group-cleanup` to prepare only the group task. It copies only:
 
 - the library README, API-selection guide, grammar and cookbook;
-- the fixture, task statements, checkers and solution stubs;
+- the fixture, registration schema declarations, task statements, checkers and solution stubs;
 - runtime and generator binaries;
 - a standalone consumer project and an offline NuGet configuration.
+
+The default `--registrations generated` mode uses `[ComponentSchema]` partial
+component declarations and registers primary components through
+`GeneratedComponentCatalog.GetRegistration<T>()`. This applies to shared
+components and task-local debuff/effect/reset types. Alternative registrations
+of the same CLR type and the three configured `float` registrations remain
+explicit; interface binding remains explicit in both modes. The schema files
+are supplied consumer declarations, not generated implementation files.
+
+Use `--registrations manual` in a separate output directory for the original
+registration path. The selected mode is pinned in every prepared project and
+recorded as `registration_mode` in the manifest. Task contracts, solution stubs
+and checkers are otherwise shared; record separate agent runs before claiming
+that generated registration changes API-selection or compilation success.
+The [template validation report](evaluation/2026-10-16-generated-registrations.md)
+records the initial 42 consumer checks across both modes.
 
 No repository `AGENTS.md`, implementation sources, private rubric or reference solutions are copied. `manifest.json` records the source commit, document/binary hashes, task assignment and requested model settings. A dirty source tree or an older binary can differ from the commit: the hashes identify the actual inputs, while the commit alone does not prove binary provenance.
 

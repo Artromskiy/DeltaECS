@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--task", action="append", help="Prepare only these task IDs within the selected sessions")
     parser.add_argument("--model", default="gpt-6-luna")
     parser.add_argument("--reasoning-effort", choices=["low", "medium", "high"], default="medium")
+    parser.add_argument("--registrations", choices=["generated", "manual"], default="generated")
     args = parser.parse_args()
     suite = Path(__file__).resolve().parent
     repo = suite.parents[1]
@@ -44,6 +45,7 @@ def main():
     manifest = {
         "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
         "model": args.model,
+        "registration_mode": args.registrations,
         "reasoning_effort": args.reasoning_effort,
         "source_dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=repo, text=True).strip()),
         "assignments": assignments,
@@ -62,13 +64,16 @@ def main():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(repo / source, destination)
         shutil.copy2(suite / "common/Fixture.cs", target / "Fixture.cs")
+        shutil.copy2(suite / "common/RegistrationSchemas.cs", target / "RegistrationSchemas.cs")
         (target / "NuGet.Config").write_text(
             "<configuration><packageSources><clear /></packageSources></configuration>\n"
         )
         for name in tasks:
             destination = target / "tasks" / name
             shutil.copytree(suite / "tasks" / name, destination)
-            shutil.copy2(suite / "common/Consumer.csproj", destination / "Consumer.csproj")
+            project = (suite / "common/Consumer.csproj").read_text()
+            project = project.replace("<PropertyGroup>", f"<PropertyGroup>\n    <RegistrationMode>{args.registrations}</RegistrationMode>", 1)
+            (destination / "Consumer.csproj").write_text(project)
         (target / "SESSION.md").write_text(
             "# Consumer evaluation session\n\n"
             "Implement the tasks below using only this directory's public documentation and consumer templates.\n\n"

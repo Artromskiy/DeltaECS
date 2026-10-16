@@ -6,17 +6,17 @@ using Delta.ECS;
 
 namespace ApiChoiceProbe;
 
-public record struct Position(Vector2 Value);
-public record struct Velocity(Vector2 Value);
-public record struct Health(int Value);
-public record struct StableId(int Value);
-public record struct Noise(int Value);
-public record struct Enemy;
-public record struct Paused;
-public record struct Marked;
+public partial record struct Position(Vector2 Value);
+public partial record struct Velocity(Vector2 Value);
+public partial record struct Health(int Value);
+public partial record struct StableId(int Value);
+public partial record struct Noise(int Value);
+public partial record struct Enemy;
+public partial record struct Paused;
+public partial record struct Marked;
 public interface IResettable { void Reset(); }
-public record struct Armor(int Value) : IResettable { public void Reset() => Value = 0; }
-public record struct Energy(int Value) : IResettable { public void Reset() => Value = 0; }
+public partial record struct Armor(int Value) : IResettable { public void Reset() => Value = 0; }
+public partial record struct Energy(int Value) : IResettable { public void Reset() => Value = 0; }
 public readonly record struct ChangeNotice(Entity Entity, ChangeKind Kind, int? Value);
 public readonly record struct SnapshotRecord(Entity Entity, ComponentId Id, object? Value);
 public sealed class SnapshotSink
@@ -38,6 +38,18 @@ public sealed class Scenario : IDisposable
     public Scenario()
     {
         ComponentRegistry r = World.Components;
+#if GENERATED_REGISTRATIONS
+        PositionId = r.Register(GeneratedComponentCatalog.GetRegistration<Position>());
+        VelocityId = r.Register(GeneratedComponentCatalog.GetRegistration<Velocity>());
+        HealthId = r.Register(GeneratedComponentCatalog.GetRegistration<Health>());
+        StableIdId = r.Register(GeneratedComponentCatalog.GetRegistration<StableId>());
+        NoiseId = r.Register(GeneratedComponentCatalog.GetRegistration<Noise>());
+        EnemyId = r.Register(GeneratedComponentCatalog.GetRegistration<Enemy>());
+        PausedId = r.Register(GeneratedComponentCatalog.GetRegistration<Paused>());
+        MarkedId = r.Register(GeneratedComponentCatalog.GetRegistration<Marked>());
+        ArmorId = r.Register(GeneratedComponentCatalog.GetRegistration<Armor>());
+        EnergyId = r.Register(GeneratedComponentCatalog.GetRegistration<Energy>());
+#else
         PositionId = r.Register<Position>(new SchemaId(1));
         VelocityId = r.Register<Velocity>(new SchemaId(2));
         HealthId = r.Register<Health>(new SchemaId(3));
@@ -48,6 +60,7 @@ public sealed class Scenario : IDisposable
         MarkedId = r.Register<Marked>(new SchemaId(8));
         ArmorId = r.Register<Armor>(new SchemaId(9));
         EnergyId = r.Register<Energy>(new SchemaId(10));
+#endif
         AmbientId = r.Register<float>(new SchemaId(100));
         DamageId = r.Register<float>(new SchemaId(101));
         ConfiguredHealthId = r.Register<float>(new SchemaId(102));

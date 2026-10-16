@@ -4,11 +4,19 @@ using ApiChoiceProbe;
 using Delta.ECS;
 
 using var s = new Scenario();
+#if GENERATED_REGISTRATIONS
+ComponentId slowA = s.World.Components.Register(GeneratedComponentCatalog.GetRegistration<SlowDebuff>());
+ComponentId burn = s.World.Components.Register(GeneratedComponentCatalog.GetRegistration<BurnDebuff>());
+ComponentId chill = s.World.Components.Register(GeneratedComponentCatalog.GetRegistration<ChillDebuff>());
+ComponentId ignored = s.World.Components.Register(GeneratedComponentCatalog.GetRegistration<IgnoredDebuff>());
+ComponentId slowB = s.World.Components.Register<SlowDebuff>(new SchemaId(201));
+#else
 ComponentId slowA = s.World.Components.Register<SlowDebuff>(new SchemaId(200));
 ComponentId slowB = s.World.Components.Register<SlowDebuff>(new SchemaId(201));
 ComponentId burn = s.World.Components.Register<BurnDebuff>(new SchemaId(202));
 ComponentId chill = s.World.Components.Register<ChillDebuff>(new SchemaId(203));
 ComponentId ignored = s.World.Components.Register<IgnoredDebuff>(new SchemaId(204));
+#endif
 s.World.Components.BindInterface<SlowDebuff, IDebuff>();
 s.World.Components.BindInterface<BurnDebuff, IDebuff>();
 s.World.Components.BindInterface<ChillDebuff, IDebuff>();
