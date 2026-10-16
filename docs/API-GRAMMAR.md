@@ -4,6 +4,9 @@ This is the canonical public grammar for the DeltaECS API. Read it when using
 the public entry points or documenting a consumer example. The same argument
 order applies to generic, non-generic, delegate, functor, and parallel forms.
 
+For task-based recommendations, complexity and execution costs, start with
+[Choosing the DeltaECS API](api-selection/README.md).
+
 ## Grammar symbols
 
 ```text
