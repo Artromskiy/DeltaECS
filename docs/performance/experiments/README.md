@@ -14,6 +14,10 @@ or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored
 `artifacts/`; durable conclusions and reproduction details belong here or in a
 linked focused report.
 
+## Query, observer and tag-membership optimizations — 2026-10-16
+
+Applied the measured `OrderedQuery.First`, observer-write and structural row-lookup optimizations supplied in `DeltaECS_optimized_5files (1).zip`. Against baseline `a59913c`, streaming `OrderedQuery.First` measured `−8.6%`; most single-component and tag `ForEach` observer scenarios improved modestly; `ForEachChange` first and dense-change calls improved, with a preliminary `−24.4%` at 1% component changes. Stable-sort changes were inconclusive (`−1.3%`) and not retained. The tag-membership bit-mask scan regressed `+8.2–9.3%` and was not retained. Full means, uncertainty, allocation, JIT counts, and rejected candidates are in [the detailed report](query-observer-optimizations-2026-10-16.md).
+
 ## Typed binding loop traversal — 2026-09-16
 
 Baseline `7f561f8` versus cached chunk count, `Unsafe.Add` descriptor access,
