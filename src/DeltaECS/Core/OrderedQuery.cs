@@ -16,10 +16,7 @@ public readonly struct OrderedQuery
     [EditorBrowsable(EditorBrowsableState.Never)]
     public World World => GetState().World;
 
-    internal OrderedQuery(OrderedQueryState state)
-    {
-        _state = state;
-    }
+    internal OrderedQuery(OrderedQueryState state) => _state = state;
 
     /// <summary>Creates an ordered view using a generated component comparer.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -33,9 +30,7 @@ public readonly struct OrderedQuery
 
         World world = query.Owner;
         comparer.Validate(world, in query);
-        return new OrderedQuery(new OrderedQueryState(
-            query,
-            [comparer]));
+        return new OrderedQuery(new OrderedQueryState(query, [comparer]));
     }
 
     /// <summary>Returns the first entity in ordering order, or <see langword="default"/> if the query has no result.</summary>
@@ -130,39 +125,46 @@ internal sealed class OrderedQueryState
 
     internal int Compare(Entity left, Entity right)
     {
-        for (int index = 0; index < _keys.Length; index++)
+        World world = World;
+        IGeneratedComponentComparer[] keys = _keys;
+        for (int index = 0; index < keys.Length; index++)
         {
-            int comparison = _keys[index].Compare(World, left, right);
-            if (comparison != 0)
+            int result = keys[index].Compare(world, left, right);
+            if (result != 0)
             {
-                return comparison;
+                return result;
             }
         }
 
         return 0;
     }
 
+    // First only needs the minimum. Do not collect, resize or sort the world-owned entity buffer.
     internal Entity First(Func<Entity, bool>? predicate)
     {
-        World.BeginOrderedQueryOperation();
+        World world = World;
+        world.BeginOrderedQueryOperation();
         try
         {
             Query query = Query;
-            ReadOnlySpan<Entity> entities = World.CollectOrderedQueryEntities(in query);
+            using GeneratedDenseExecution execution = GeneratedForEachRuntime.OpenDense(world, in query);
             Entity first = default;
             bool found = false;
-            for (int index = 0; index < entities.Length; index++)
+            while (execution.MoveNextTrusted(out GeneratedQuerySlots slots))
             {
-                Entity candidate = entities[index];
-                if (predicate is not null && !predicate(candidate))
+                for (int index = 0; index < slots.Count; index++)
                 {
-                    continue;
-                }
+                    Entity candidate = slots.EntityAt(index);
+                    if (predicate is not null && !predicate(candidate))
+                    {
+                        continue;
+                    }
 
-                if (!found || Compare(candidate, first) < 0)
-                {
-                    first = candidate;
-                    found = true;
+                    if (!found || Compare(candidate, first) < 0)
+                    {
+                        first = candidate;
+                        found = true;
+                    }
                 }
             }
 
@@ -170,7 +172,7 @@ internal sealed class OrderedQueryState
         }
         finally
         {
-            World.EndOrderedQueryOperation();
+            world.EndOrderedQueryOperation();
         }
     }
 
