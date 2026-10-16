@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NuGetAudit>false</NuGetAudit>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <RuntimeAssembly Condition="'$(RuntimeAssembly)' == ''">$(MSBuildThisFileDirectory)../../../../src/DeltaECS/bin/Release/net10.0/DeltaECS.dll</RuntimeAssembly>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="DeltaECS"><HintPath>$(RuntimeAssembly)</HintPath></Reference>
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+  </ItemGroup>
+</Project>

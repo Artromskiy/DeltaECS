@@ -1,6 +1,6 @@
 # Choosing the DeltaECS API
 
-Choose an API by the work your system needs to do, then choose its callback and registration forms. This guide covers the public core runtime and generated consumer API; the [API grammar](../API-GRAMMAR.md) lists the supported signatures and argument order.
+Choose an API by the work your system needs to do, then choose its callback and registration forms. This guide covers the public core runtime and generated consumer API; the [API grammar](API-GRAMMAR.md) lists the supported signatures and argument order.
 
 **Start with variadic `ForEach` when the component types are known.** Add `EntityRef` only when the handler also needs the entity. Retain a `ForEachChange<T>` operation when the task is to react to changes between calls.
 
@@ -162,4 +162,24 @@ Use manual value comparison only when the task specifically needs equality-based
 - Write observation has a cost in the writer as well as the consumer. Dense writes can mark chunks or masks for observers; point writes record selected slots. Value predicates do not turn write tracking into an exact comparison of modified values.
 - Borrow an `EntityRef` only within its callback. Convert it to `Entity` when a handle must be retained. Do not perform immediate structural changes from an active traversal; use a structural terminal or apply those changes after traversal.
 
-For exact overloads use the [API grammar](../API-GRAMMAR.md); for more complete scenarios use the [API cookbook](../usage-examples.md).
+For repeated commands over a fixed set of registrations, retaining a visitor
+object is not the same as preparing typed handlers. A `TryVisit` inside every
+command still dispatches the registration on every call. Dispatch each ID in
+the constructor and keep the resulting handler instead:
+
+```csharp
+// Construction-time visitor callback; ResetHandler<T> is your typed handler.
+public void Visit<T>(ComponentId id) where T : IResettable =>
+    handlers.Add(id, new ResetHandler<T>(world, id));
+
+// Repeated command: lookup the already prepared handler and invoke it.
+return handlers.TryGetValue(id, out var handler) && handler.TryReset(target);
+```
+
+This is a preparation sketch, not a complete class. Each typed handler uses
+`Has` and `GetRef<T>` for its one target and performs the constrained call on
+the stored component. Those point accesses are appropriate here; scanning the
+world to update one known entity is not. A one-off visitor call remains useful
+when there is no repeated workload to amortize preparation.
+
+For exact overloads use the [API grammar](API-GRAMMAR.md); for more complete scenarios use the [API cookbook](usage-examples.md).

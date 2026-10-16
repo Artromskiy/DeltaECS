@@ -1,0 +1,128 @@
+{
+  "01-motion": {
+    "title": "Move active entities",
+    "criteria": [
+      "component-bearing ForEach",
+      "read Velocity with in/ref readonly",
+      "write Position with ref",
+      "no per-entity GetRef/GetReadRef for known rows",
+      "reuse prepared operation"
+    ]
+  },
+  "02-nearest": {
+    "title": "Select one nearby living enemy",
+    "criteria": [
+      "membership query + value/radius predicate",
+      "ordered First/min selection O(N), no full sort",
+      "read-only component access",
+      "stable tie-break",
+      "no list+LINQ sorting or manual universal getters"
+    ]
+  },
+  "03-budget": {
+    "title": "Spend a damage budget in distance order",
+    "criteria": [
+      "Where + OrderBy/ThenBy + component-bearing ForEach",
+      "direct ref Health, read-only ordering inputs",
+      "explicit mutable budget/context or reused closure",
+      "no copy/sort plus point-write loop",
+      "correct value predicate and membership filters"
+    ]
+  },
+  "04-entity-output": {
+    "title": "Update health and return affected entity handles",
+    "criteria": [
+      "component-bearing ForEachEntity(EntityRef, ref Health)",
+      "no EntityRef.GetRef for Health passed by callback",
+      "output lifetime handles are Entity, not EntityRef",
+      "query membership rather than extra per-entity Has"
+    ]
+  },
+  "05-configured-rows": {
+    "title": "Update registrations selected by configuration",
+    "criteria": [
+      "typed float callback with explicit IDs/span",
+      "component-bearing ForEach, not zero-arity dynamic getters",
+      "read damage/write configured health access modes",
+      "no primary registration confusion"
+    ]
+  },
+  "06-health-events": {
+    "title": "Report health changes between calls",
+    "criteria": [
+      "retained ForEachChange<Health>",
+      "no custom snapshots/full-world diff",
+      "check Removed before dereferencing ref",
+      "no subscription recreation each Execute",
+      "generations and coalescing correct"
+    ]
+  },
+  "07-tag-events": {
+    "title": "Report tag changes and writable tag access",
+    "criteria": [
+      "retained ForEachChange<Marked>",
+      "tag tracking same API as data",
+      "no tag payload reads or independent mask/cache",
+      "write-by-ref notifications retained"
+    ]
+  },
+  "08-runtime-dispatch": {
+    "title": "Reset one dynamically selected component",
+    "criteria": [
+      "cold constrained component visitor",
+      "cached generic handlers per registration",
+      "point GetRef<T> with membership guard is appropriate",
+      "no boxed component mutation",
+      "no runtime type branches/reflection/world scan"
+    ]
+  },
+  "09-world-snapshot": {
+    "title": "Save selected world state on every call",
+    "criteria": [
+      "cold IUnconstrainedComponentVisitor dispatch per registration",
+      "an equivalent retained runtime generic functor route is valid when it resolves the CLR type during preparation",
+      "retained one-component typed ForEachEntity(EntityRef, in T) operations",
+      "O(sum present instances), not O(group size * all entities) membership tests",
+      "no repeated Visit per save or entity",
+      "snapshot not replaced by change-only data",
+      "explicit IDs used for non-primary registrations"
+    ]
+  },
+  "10-structural": {
+    "title": "Remove defeated enemies from the world",
+    "criteria": [
+      "query membership + Where health predicate + Destroy terminal",
+      "no structural mutation inside active callback",
+      "no manual target snapshot loop",
+      "reuse predicate operation"
+    ]
+  },
+  "11-entity-only": {
+    "title": "Collect entities selected only by membership",
+    "criteria": [
+      "zero-arity ForEachEntity is correct default",
+      "query membership only, no unnecessary typed rows",
+      "convert EntityRef to retained Entity",
+      "reused output/operation"
+    ]
+  },
+  "12-target-list": {
+    "title": "Apply a command to an existing target list",
+    "criteria": [
+      "explicit entity-list component-bearing ForEach + optional query",
+      "O(L), not whole-world O(N) scan+Contains",
+      "ref Health direct",
+      "prepare input snapshot once"
+    ]
+  },
+  "13-group-cleanup": {
+    "title": "Remove components belonging to configured groups",
+    "criteria": [
+      "GetGroup for Temp/Transient union, deduplicated",
+      "type-erased batch Remove, no CLR type discovery needed",
+      "query targets current entities, not initial fixture handles",
+      "prepare fixed group selection once",
+      "preserve primary float and unrelated registrations"
+    ]
+  }
+}

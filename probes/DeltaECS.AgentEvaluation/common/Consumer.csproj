@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InterceptorsNamespaces>Delta.ECS.Generated</InterceptorsNamespaces>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="InterceptorsNamespaces" />
+    <Compile Include="../../Fixture.cs" Link="Fixture.cs" />
+    <Reference Include="DeltaECS"><HintPath>../../lib/DeltaECS.dll</HintPath></Reference>
+    <Analyzer Include="../../analyzers/DeltaECS.Generators.dll" />
+  </ItemGroup>
+</Project>
