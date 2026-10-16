@@ -7,6 +7,9 @@ namespace Ecs.CSharp.Benchmark;
 
 public partial class SystemWithOneComponent
 {
+    [Context]
+    internal readonly StaticEcsSystemOneContext _staticEcs;
+
     [BenchmarkCategory(Categories.StaticEcs, Categories.SingleThread)]
     [Benchmark]
     public int StaticEcsBlock()

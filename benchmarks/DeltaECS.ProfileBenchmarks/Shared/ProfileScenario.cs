@@ -19,6 +19,7 @@ public sealed class ProfileScenario : IDisposable
     private readonly Query _denseQuery;
     private readonly Query _sortQuery;
     private readonly OrderedQuery _orderedQuery;
+    private readonly EcsResultOperation<Entity> _orderedFirst;
     private int _toggle;
     private int _structuralToggle;
     private bool _structuralPresent;
@@ -57,6 +58,7 @@ public sealed class ProfileScenario : IDisposable
                     int primary = leftPrimary.Value.CompareTo(rightPrimary.Value);
                     return primary != 0 ? primary : leftSecondary.Value.CompareTo(rightSecondary.Value);
                 });
+        _orderedFirst = _orderedQuery.First();
         for (int index = 0; index < amount; index++)
         {
             var value = new ProfileValue { Value = index + 1 };
@@ -157,6 +159,8 @@ public sealed class ProfileScenario : IDisposable
         finally { _orderedQuery.EndForEach(); }
         return checksum;
     }
+
+    public int OrderedFirst() => _orderedFirst.Invoke().Index;
 
     public long DenseEntityWalk()
     {

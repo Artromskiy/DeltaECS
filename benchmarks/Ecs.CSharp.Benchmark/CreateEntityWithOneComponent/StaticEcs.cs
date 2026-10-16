@@ -7,6 +7,9 @@ namespace Ecs.CSharp.Benchmark;
 
 public partial class CreateEntityWithOneComponent
 {
+    [Context]
+    private readonly StaticEcsCreateContext _staticEcs;
+
     [BenchmarkCategory(Categories.StaticEcs)]
     [Benchmark]
     public int StaticEcs()

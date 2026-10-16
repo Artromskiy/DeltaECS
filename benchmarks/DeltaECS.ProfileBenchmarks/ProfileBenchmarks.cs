@@ -42,6 +42,7 @@ public abstract class ProfileBenchmarkBase
         RequireEqual(_baseline.GetRefSequential(), _candidate.GetRefSequential(), "sequential GetRef setup");
         RequireEqual(_baseline.GetRefShuffled(), _candidate.GetRefShuffled(), "shuffled GetRef setup");
         RequireEqual(_baseline.StableSortTwoKeys(), _candidate.StableSortTwoKeys(), "sort setup");
+        RequireEqual(_baseline.OrderedFirst(), _candidate.OrderedFirst(), "ordered First setup");
         RequireEqual(_baseline.DenseEntityWalk(), _candidate.DenseEntityWalk(), "dense setup");
         RequireEqual(_baseline.StructuralToggle(), _candidate.StructuralToggle(), "add setup");
         RequireEqual(_baseline.StructuralToggle(), _candidate.StructuralToggle(), "remove setup");
@@ -79,6 +80,8 @@ public abstract class ProfileBenchmarkBase
     protected long CandidateGetRefShuffled() => _candidate.GetRefShuffled();
     protected long PreviousSort() => _baseline.StableSortTwoKeys();
     protected long CandidateSort() => _candidate.StableSortTwoKeys();
+    protected int PreviousOrderedFirst() => _baseline.OrderedFirst();
+    protected int CandidateOrderedFirst() => _candidate.OrderedFirst();
     protected int PreviousStructural() => _baseline.StructuralToggle();
     protected int CandidateStructural() => _candidate.StructuralToggle();
     protected int PreviousCreateDestroy() => _baseline.CreateDestroy();
@@ -102,6 +105,12 @@ public class StableSortBenchmarks : ProfileBenchmarkBase
 {
     [Benchmark(Baseline = true)] public long Previous_StableTwoKeySort() => PreviousSort();
     [Benchmark] public long Candidate_StableTwoKeySort() => CandidateSort();
+}
+
+public class OrderedFirstBenchmarks : ProfileBenchmarkBase
+{
+    [Benchmark(Baseline = true)] public int Previous_OrderedFirst() => PreviousOrderedFirst();
+    [Benchmark] public int Candidate_OrderedFirst() => CandidateOrderedFirst();
 }
 
 public class StructuralBenchmarks : ProfileBenchmarkBase

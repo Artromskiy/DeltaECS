@@ -378,7 +378,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class StructVisitor : IStructVisitor
+    private sealed class StructVisitor : IStructComponentVisitor
     {
         public Type? ComponentType { get; private set; }
 
@@ -389,7 +389,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class ClassVisitor : IClassVisitor
+    private sealed class ClassVisitor : IClassComponentVisitor
     {
         public Type? ComponentType { get; private set; }
 
@@ -400,7 +400,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class ClassNewVisitor : IClassNewVisitor
+    private sealed class ClassNewVisitor : IClassNewComponentVisitor
     {
         public Type? ComponentType { get; private set; }
 
@@ -411,7 +411,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class UnmanagedVisitor : IUnmanagedVisitor
+    private sealed class UnmanagedVisitor : IUnmanagedComponentVisitor
     {
         public Type? ComponentType { get; private set; }
 
@@ -422,7 +422,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class NewVisitor : INewVisitor
+    private sealed class NewVisitor : INewComponentVisitor
     {
         public Type? ComponentType { get; private set; }
 
@@ -433,7 +433,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class UnconstrainedVisitor : IUnconstrainedVisitor
+    private sealed class UnconstrainedVisitor : IUnconstrainedComponentVisitor
     {
         public int VisitCount { get; private set; }
 
@@ -449,7 +449,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class NewMovableVisitor : INewVisitor<IMovable>
+    private sealed class NewMovableVisitor : INewComponentVisitor<IMovable>
     {
         public RuntimeTypeHandle ConstraintType => typeof(IMovable).TypeHandle;
 
@@ -462,7 +462,7 @@ public static partial class RuntimeApiGrammarProof
         }
     }
 
-    private sealed class ClassNewMovableVisitor : IClassNewVisitor<IMovable>
+    private sealed class ClassNewMovableVisitor : IClassNewComponentVisitor<IMovable>
     {
         public RuntimeTypeHandle ConstraintType => typeof(IMovable).TypeHandle;
 

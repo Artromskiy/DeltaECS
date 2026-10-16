@@ -26,17 +26,17 @@ public sealed partial class ComponentRegistry
     internal int TagCount { get; private set; }
 
     /// <summary>Visits a compatible registered component type and does nothing for an invalid ID or unsupported visitor.</summary>
-    public void Visit(ComponentId componentId, IVisitor? visitor) => _ = TryVisit(componentId, visitor);
+    public void Visit(ComponentId componentId, IComponentVisitor? visitor) => _ = TryVisit(componentId, visitor);
 
     /// <summary>Visits a compatible component type; returns false for an invalid ID, null visitor, or unsupported route.</summary>
-    public bool TryVisit(ComponentId componentId, IVisitor? visitor)
+    public bool TryVisit(ComponentId componentId, IComponentVisitor? visitor)
     {
         if (visitor is null || !TryGet(componentId, out _))
         {
             return false;
         }
 
-        if (visitor is not IComponentVisitor constrainedVisitor)
+        if (visitor is not IConstrainedComponentVisitor constrainedVisitor)
         {
             return _componentVisitorTokens[componentId.Value].TryVisit(componentId, visitor);
         }

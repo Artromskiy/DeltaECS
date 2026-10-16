@@ -3,10 +3,10 @@ using System.Composition;
 using System.Globalization;
 
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Text;
 
@@ -21,7 +21,7 @@ public sealed class ComponentSchemaIdCodeFixProvider : CodeFixProvider
 
     public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(DiagnosticId);
 
-    public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
+    public override FixAllProvider GetFixAllProvider() => FixAllProvider.Create(PinDocumentAsync);
 
     public override async Task RegisterCodeFixesAsync(CodeFixContext context)
     {
@@ -46,14 +46,28 @@ public sealed class ComponentSchemaIdCodeFixProvider : CodeFixProvider
                 continue;
             }
 
-            string title = $"{Title} to 0x{schemaId:X16}";
             context.RegisterCodeFix(
                 CodeAction.Create(
-                    title,
+                    Title,
                     cancellationToken => AddSchemaIdAsync(context.Document, diagnostic.Location.SourceSpan, schemaId, cancellationToken),
                     equivalenceKey: Title),
                 diagnostic);
         }
+    }
+
+    private static async Task<Document?> PinDocumentAsync(FixAllContext context, Document document, ImmutableArray<Diagnostic> diagnostics)
+    {
+        // Apply from the end so earlier diagnostic spans remain valid.
+        foreach (Diagnostic diagnostic in diagnostics.OrderByDescending(static diagnostic => diagnostic.Location.SourceSpan.Start))
+        {
+            if (diagnostic.Properties.TryGetValue(SchemaIdProperty, out string? schemaIdText)
+                && ulong.TryParse(schemaIdText, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out ulong schemaId))
+            {
+                document = await AddSchemaIdAsync(document, diagnostic.Location.SourceSpan, schemaId, context.CancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return document;
     }
 
     private static async Task<Document> AddSchemaIdAsync(

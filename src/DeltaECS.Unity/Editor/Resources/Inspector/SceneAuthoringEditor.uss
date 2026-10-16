@@ -189,6 +189,11 @@
     padding-bottom: 4px;
 }
 
+.ecs-property-foldout > .unity-foldout__toggle {
+    margin-left: 0;
+    padding-left: 5px;
+}
+
 .ecs-value-field > .unity-base-field__label {
     min-width: 96px;
     flex-basis: 36%;

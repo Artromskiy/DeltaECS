@@ -47,6 +47,11 @@ public class ForEachChangeMicroBenchmarks : ForEachChangeMicroBenchmarkImplement
 {
 }
 
+[MemoryDiagnoser]
+public class TagMembershipWriteMicroBenchmarks : TagMembershipWriteMicroBenchmarkImplementation
+{
+}
+
 /// <summary>Short BDN surface; fixture and kernel code lives in the implementation file.</summary>
 internal static class MicroBenchmarkCatalog
 {

@@ -36,6 +36,7 @@ internal static class MicroBenchmarkConfiguration
         nameof(QueryBatchStructuralOperationsMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
         nameof(ForEachWriteObserverMicroBenchmarks) => [1 << 17],
         nameof(ForEachChangeMicroBenchmarks) => [1 << 17],
+        nameof(TagMembershipWriteMicroBenchmarks) => [1 << 17],
         _ => throw new ArgumentOutOfRangeException(nameof(benchmarkType), benchmarkType, "Unknown microbenchmark type.")
     };
 

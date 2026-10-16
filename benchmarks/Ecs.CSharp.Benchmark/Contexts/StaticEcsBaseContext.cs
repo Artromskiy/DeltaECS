@@ -59,7 +59,9 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class StaticEcsCreateContext : StaticEcsBaseContext
     {
-        public StaticEcsCreateContext() { }
+        public StaticEcsCreateContext()
+            : base(global::Ecs.CSharp.Benchmark.BenchmarkConfiguration.EntityCount, 0)
+        { }
     }
 
     internal sealed class StaticEcsSystemOneContext : StaticEcsBaseContext
@@ -120,6 +122,10 @@ namespace Ecs.CSharp.Benchmark.Contexts
 
     internal sealed class StaticEcsSystemMultipleCompositionContext : StaticEcsBaseContext
     {
+        public StaticEcsSystemMultipleCompositionContext(int entityCount, int _)
+            : this(entityCount)
+        { }
+
         public StaticEcsSystemMultipleCompositionContext(int entityCount)
             : base(entityCount, (uint)ParallelContext.ParallelWorkerCount)
         {

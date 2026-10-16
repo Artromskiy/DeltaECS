@@ -4,6 +4,9 @@ This is the canonical public grammar for the DeltaECS API. Read it when using
 the public entry points or documenting a consumer example. The same argument
 order applies to generic, non-generic, delegate, functor, and parallel forms.
 
+For task-based recommendations, complexity and execution costs, start with
+[Choosing the DeltaECS API](API-SELECTION.md).
+
 ## Grammar symbols
 
 ```text
@@ -134,11 +137,21 @@ public struct Position : IMovable { }
 
 public sealed class MovementVisitor : IComponentVisitor<IMovable>
 {
-    public RuntimeTypeHandle ConstraintType => typeof(IMovable).TypeHandle;
-
     public void Visit<T>(ComponentId componentId) where T : IMovable { }
 }
 ```
+
+`IComponentVisitor` is the common marker. Visitors with a user-defined constraint inherit `IConstrainedComponentVisitor<TConstraint>`, which supplies `ConstraintType` by default. Implementing this property explicitly is optional. Specialized forms use `IStructComponentVisitor`, `IClassComponentVisitor`, `IUnmanagedComponentVisitor`, `INewComponentVisitor`, and `IClassNewComponentVisitor`, with or without a user-defined constraint.
+
+| Contract | Purpose |
+| --- | --- |
+| `IComponentVisitor` | Common marker accepted by `Visit` and `TryVisit`; does not receive callbacks by itself. |
+| `IUnconstrainedComponentVisitor` | Receives any registered CLR type through `Visit<TComponent>`. |
+| `IConstrainedComponentVisitor` | Exposes the runtime `ConstraintType` used to select an explicitly bound interface route. |
+| `IConstrainedComponentVisitor<TConstraint>` | Supplies `ConstraintType` by default for all typed constraint visitors. |
+| `IComponentVisitor<TConstraint>` | Receives types satisfying `TConstraint` through `Visit<TComponent>`. |
+
+The shape-specific generic contracts inherit `IConstrainedComponentVisitor<TConstraint>`. Visitor naming does not change `Register` or `BindInterface` calls, the selected registration route, or route priorities.
 
 The binding is explicit for each component type when using the interface-based visitor contracts. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call.
 
@@ -165,7 +178,7 @@ public sealed class RoutedMovementVisitor : GeneralComponentTypeVisitor<IMovable
 
 The hooks are `Visit<T>` for an unconstrained route, `VisitUnmanaged<T>`, `VisitStruct<T>`, `VisitClass<T>`, `VisitConstructible<T>`, and `VisitClassConstructible<T>`. They are ordinary virtual methods with their constraints declared by the base class; no marker argument is needed in an override. This path uses the closed generic component route and virtual dispatch. Interface binding remains explicit for each component CLR type.
 
-Every registration route also supports `IUnconstrainedVisitor`, which receives the registered CLR type and ID without requiring a marker or interface route. More constrained visitors still match only routes satisfying their constraints. Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported constrained route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
+Every registration route also supports `IUnconstrainedComponentVisitor`, which receives the registered CLR type and ID without requiring a marker or interface route. More constrained visitors still match only routes satisfying their constraints. Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported constrained route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
 
 ```csharp
 ReadOnlySpan<ComponentId> componentIds = stackalloc ComponentId[] { positionId, localPositionId };
@@ -651,7 +664,7 @@ listed above.
 
 For context forms, the functor implements `IForEachContext<C>` or
 `IForEachContextEntity<C>`. Pass `ref C` after `Q` and before `G...`; its type
-must match the marker contract. `Invoke` takes context first, then `Entity` for
+must match the marker contract. `Invoke` takes context first, then `EntityRef` for
 the entity-aware form, followed by its component rows. The context can itself
 be used to carry state such as counters or services:
 
@@ -682,6 +695,23 @@ reflection occurs per entity. Its `Invoke` parameter mode controls access:
 `ref` changes the caller's context, while `in`/`ref readonly` and by-value
 forms provide read-only or local-copy behavior. Parallel forms reject mutable
 `ref` context.
+
+The entity-aware context form uses the borrowed `EntityRef`, including in an
+open generic functor. With `HistoryContext` and `valueId` from above:
+
+```csharp
+var countEntities = world.ForEachEntity(in query, ref context, valueId, typeof(CountEntities<>));
+countEntities.Invoke(ref context);
+
+public struct CountEntities<T> : IForEachContextEntity<HistoryContext>
+{
+    public void Invoke(ref HistoryContext context, EntityRef entity, in T value) => context.Saved++;
+}
+```
+
+Declare functor and context types where generated code can access them; the
+examples use public top-level types. This identity parameter differs from the
+`Entity` parameter of a `WhereEntity` predicate.
 
 Query-wide forms require `Q`:
 
@@ -953,6 +983,13 @@ OrderedWhereView.First(P?) -> EcsResultOperation<Entity>; Invoke() -> Entity
 OrderedWhereView.ForEach(...) -> EcsOperation<TInvoker>; Invoke() executes
 OrderedWhereView.ForEachEntity(...) -> EcsOperation<TInvoker>; Invoke() executes
 ```
+
+`WhereView` and `OrderedWhereView` in this grammar name generated API families;
+they are not literal consumer type names for field declarations. Use `var`
+for a local chain. To retain the result in a field, build its terminal once
+and store that operation as `IOperation` or `EcsResultOperation<TResult>`.
+There is no `AsOperation()` conversion; assignment to the operation interface
+performs the one-time boxing described below.
 
 Void-returning deferred operations are mutable value types. Their concrete
 executor type is inferred by the compiler:

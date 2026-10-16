@@ -4,9 +4,9 @@ using System.Runtime.Loader;
 using System.Text;
 
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
@@ -149,16 +149,20 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0002"));
     }
 
-    [Test]
-    public async Task SchemaIdCodeFixPinsTheNameDerivedId()
+    [TestCase(null)]
+    [TestCase(FixAllScope.Document)]
+    [TestCase(FixAllScope.Project)]
+    [TestCase(FixAllScope.Solution)]
+    public async Task SchemaIdCodeFixPinsTheNameDerivedId(FixAllScope? scope)
     {
-        const string source = "using Delta.ECS;\n[ComponentSchema]\npublic struct Position { }";
+        const string source = "using Delta.ECS;\n[ComponentSchema]\npublic struct Position { }\n[ComponentSchema]\npublic struct Velocity { }";
         CSharpCompilation compilation = CreateCompilation(source);
         Diagnostic diagnostic = (await compilation
                 .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComponentSchemaIdAnalyzer()))
                 .GetAnalyzerDiagnosticsAsync()
                 .ConfigureAwait(false))
-            .Single(static item => item.Id == ComponentSchemaIdAnalyzer.PinSchemaIdDiagnosticId);
+            .OrderBy(static item => item.Location.SourceSpan.Start)
+            .First(static item => item.Id == ComponentSchemaIdAnalyzer.PinSchemaIdDiagnosticId);
 
         using var workspace = new AdhocWorkspace();
         ProjectId projectId = ProjectId.CreateNewId();
@@ -178,6 +182,15 @@ public sealed class ComponentRegistryGeneratorTests
                 compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
                 metadataReferences: references))
             .AddDocument(documentId, "Components.cs", SourceText.From(source));
+        DocumentId otherDocumentId = DocumentId.CreateNewId(projectId);
+        ProjectId otherProjectId = ProjectId.CreateNewId();
+        DocumentId otherProjectDocumentId = DocumentId.CreateNewId(otherProjectId);
+        solution = solution
+            .AddDocument(otherDocumentId, "Other.cs", SourceText.From("using Delta.ECS; [ComponentSchema] public struct Health { }"))
+            .AddProject(ProjectInfo.Create(otherProjectId, VersionStamp.Create(), "OtherProject", "OtherProject", LanguageNames.CSharp,
+                parseOptions: new CSharpParseOptions(LanguageVersion.CSharp9),
+                compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary), metadataReferences: references))
+            .AddDocument(otherProjectDocumentId, "OtherProject.cs", SourceText.From("using Delta.ECS; [ComponentSchema] public struct Damage { }"));
         Document document = solution.GetDocument(documentId)!;
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(document, diagnostic, (action, _) => actions.Add(action), CancellationToken.None);
@@ -185,7 +198,16 @@ public sealed class ComponentRegistryGeneratorTests
         await new ComponentSchemaIdCodeFixProvider().RegisterCodeFixesAsync(context).ConfigureAwait(false);
 
         Assert.That(actions, Has.Count.EqualTo(1));
-        ImmutableArray<CodeActionOperation> operations = await actions[0]
+        CodeAction action = actions[0];
+        if (scope.HasValue)
+        {
+            var provider = new ComponentSchemaIdCodeFixProvider();
+            var fixAllContext = new FixAllContext(document, provider, scope.Value, action.EquivalenceKey,
+                provider.FixableDiagnosticIds, new SchemaDiagnosticProvider(), CancellationToken.None);
+            action = (await provider.GetFixAllProvider().GetFixAsync(fixAllContext).ConfigureAwait(false))!;
+        }
+
+        ImmutableArray<CodeActionOperation> operations = await action
             .GetOperationsAsync(CancellationToken.None)
             .ConfigureAwait(false);
         Solution fixedSolution = operations.OfType<ApplyChangesOperation>().Single().ChangedSolution;
@@ -193,6 +215,13 @@ public sealed class ComponentRegistryGeneratorTests
         ulong expectedSchemaId = ComputeFNV1A("Position");
 
         Assert.That(fixedSource, Does.Contain($"[ComponentSchema(0x{expectedSchemaId:X16}UL)]"));
+        Assert.That(fixedSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Velocity"):X16}UL)]"), Is.EqualTo(scope.HasValue));
+        string otherSource = (await fixedSolution.GetDocument(otherDocumentId)!.GetTextAsync().ConfigureAwait(false)).ToString();
+        string otherProjectSource = (await fixedSolution.GetDocument(otherProjectDocumentId)!.GetTextAsync().ConfigureAwait(false)).ToString();
+        Assert.That(otherSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Health"):X16}UL)]"),
+            Is.EqualTo(scope is FixAllScope.Project or FixAllScope.Solution));
+        Assert.That(otherProjectSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Damage"):X16}UL)]"),
+            Is.EqualTo(scope == FixAllScope.Solution));
     }
 
     [Test]
@@ -248,4 +277,24 @@ public sealed class ComponentRegistryGeneratorTests
 
         return hash;
     }
+    private sealed class SchemaDiagnosticProvider : FixAllContext.DiagnosticProvider
+    {
+        public override async Task<IEnumerable<Diagnostic>> GetDocumentDiagnosticsAsync(Document document, CancellationToken cancellationToken)
+        {
+            SyntaxTree? tree = await document.GetSyntaxTreeAsync(cancellationToken).ConfigureAwait(false);
+            IEnumerable<Diagnostic> diagnostics = await GetAllDiagnosticsAsync(document.Project, cancellationToken).ConfigureAwait(false);
+            return diagnostics.Where(diagnostic => diagnostic.Location.SourceTree == tree);
+        }
+
+        public override Task<IEnumerable<Diagnostic>> GetProjectDiagnosticsAsync(Project project, CancellationToken cancellationToken)
+            => Task.FromResult(Enumerable.Empty<Diagnostic>());
+
+        public override async Task<IEnumerable<Diagnostic>> GetAllDiagnosticsAsync(Project project, CancellationToken cancellationToken)
+        {
+            Compilation compilation = (await project.GetCompilationAsync(cancellationToken).ConfigureAwait(false))!;
+            return await compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComponentSchemaIdAnalyzer()))
+                .GetAnalyzerDiagnosticsAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
 }

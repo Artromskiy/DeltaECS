@@ -6,7 +6,7 @@ on:
       entity_counts:
         description: Entity counts, comma-separated
         required: true
-        default: "32,1024,131072,1048576,16777216"
+        default: "32,1024,131072,1048576"
         type: string
       min_iteration_count:
         description: Minimum BenchmarkDotNet measurement iterations

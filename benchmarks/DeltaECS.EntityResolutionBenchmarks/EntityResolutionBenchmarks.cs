@@ -1,9 +1,9 @@
 extern alias baselineAdapter;
 extern alias candidateAdapter;
 
+using BaselineScenario = baselineAdapter::DeltaECS.VersionAdapter.EntityResolutionScenario;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using BaselineScenario = baselineAdapter::DeltaECS.VersionAdapter.EntityResolutionScenario;
 using CandidateScenario = candidateAdapter::DeltaECS.VersionAdapter.EntityResolutionScenario;
 
 namespace DeltaECS.EntityResolutionBenchmarks;

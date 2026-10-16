@@ -12,7 +12,11 @@ public partial class CreateEntityWithOneComponent
     public int EntityCount { get; set; } = BenchmarkConfiguration.EntityCount;
 
     [IterationSetup]
-    public void Setup() => BenchmarkOperations.SetupContexts(this);
+    public void Setup()
+    {
+        BenchmarkOperations.SetupContexts(this);
+        _ = _staticEcs;
+    }
 
     [IterationCleanup]
     public void Cleanup() => BenchmarkOperations.CleanupContexts(this);

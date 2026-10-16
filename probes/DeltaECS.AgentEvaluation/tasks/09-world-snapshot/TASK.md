@@ -1,0 +1,9 @@
+# Save selected world state on every call
+
+The supplied `Scenario` has a created world, registrations and entities. Read `Fixture.cs` for the data model. Implement only `Solution.cs`; preserve the fixture, verification code and project settings.
+
+Save the current world state for every registration in `Scenario.HistoryIds` on every `Execute()`. Treat this as a configuration-provided set of registrations with arbitrary CLR types, including multiple registrations sharing a type. The list is fixed after construction, but values, entities and component membership remain live. Expose `SnapshotSink Sink`; clear `Sink.Records` before each save. For each currently present component instance call the supplied generic `Sink.Put<T>(entity, id, in value)` exactly once. The sink owns any output boxing/copies; do not replace its contract. Avoid reflection, dynamic, branches for the known fixture types, per-frame discovery, or fetching each component separately through entity handles. This is a complete snapshot each time, not a change-only snapshot.
+
+Construct `Solution` once and reuse it. Entities and component values can change after construction. Prefer the most appropriate public API, avoid repeated preparation in `Execute`, and do not hardcode fixture indices or enumerate `Scenario.Units` as a substitute for querying current world state. The checker may use that array to assert results; your solution must work for new matching entities too. Preserve unrelated components, including `Noise`.
+
+Use only the supplied public documentation and consumer files. Explain your API choice, complexity, preparation cost and possible overhead in `CHOICE.md`. Record the first implementation before any compiler-driven corrections in `FIRST-Solution.cs.txt`. Run `dotnet run --project Consumer.csproj -c Release` and report its result. Do not edit the checks to make a solution pass.

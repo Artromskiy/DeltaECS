@@ -33,7 +33,7 @@ public sealed partial class World
         ComponentId componentId = GetPrimaryComponentId<T>();
         return _layouts.IsTag(componentId)
             ? Add(entity, componentId)
-            : AddComponentBatch(stackalloc Entity[1] { entity }, componentId, in value) == 1;
+            : AddComponentBatch([entity], componentId, in value) == 1;
     }
 
     /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
@@ -41,14 +41,14 @@ public sealed partial class World
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
         return _layouts.IsTag(componentId)
-            ? Add(entities, stackalloc ComponentId[1] { componentId })
+            ? Add(entities, [componentId])
             : AddComponentBatch(entities, componentId, in value);
     }
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
     public bool Remove<T>(Entity entity)
         => RemoveComponentBatch(
-            stackalloc Entity[1] { entity },
+            [entity],
             GetPrimaryComponentId<T>()) == 1;
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
@@ -478,7 +478,7 @@ public sealed partial class World
             ThrowHelper.ThrowStructuralCreateFailed();
         }
 
-        Archetype archetype = Archetypes[chunk.ArchetypeId];
+        Archetype archetype = chunk.Archetype;
         var writer = new GeneratedComponentValueWriter(_layouts, chunk, archetype, slotIndex);
         initializer.Initialize(ref writer);
         return entity;
@@ -540,21 +540,21 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetRegisteredCore<T>(Chunk chunk, int slotIndex, ComponentId componentId, out T value)
     {
+        Archetype archetype = chunk.Archetype;
+        if (archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
+            return true;
+        }
+
         if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
         {
             value = default!;
             return chunk.HasTag(tagIndex, slotIndex);
         }
 
-        Archetype archetype = Archetypes[chunk.ArchetypeId];
-        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
-        {
-            value = default!;
-            return false;
-        }
-
-        value = chunk.GetComponentRef<T>(componentIndex, slotIndex);
-        return true;
+        value = default!;
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -705,7 +705,7 @@ public sealed partial class World
         }
 
         EnsureNoActiveLease("add components");
-        ComponentSet changeSet = GetOrCreateComponentSet(stackalloc ComponentId[1] { componentId });
+        ComponentSet changeSet = GetOrCreateComponentSet([componentId]);
         int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         Chunk? pendingChunk = null;
@@ -731,7 +731,7 @@ public sealed partial class World
 
             MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
             var targetArchetype = Archetypes[targetChunk.ArchetypeId];
-            int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
+            targetArchetype.TryGetComponentIndex(componentId, out int targetComponentIndex);
             if (pendingChunk is null
                 || !ReferenceEquals(pendingChunk, targetChunk)
                 || pendingComponentIndex != targetComponentIndex
@@ -753,7 +753,7 @@ public sealed partial class World
     }
 
     private int RemoveComponentBatch(ReadOnlySpan<Entity> entities, ComponentId componentId)
-        => ApplyComponents(false, stackalloc ComponentId[1] { componentId }, entities);
+        => ApplyComponents(false, [componentId], entities);
 
     private void EnsureRegisteredType<T>(ComponentId componentId)
     {

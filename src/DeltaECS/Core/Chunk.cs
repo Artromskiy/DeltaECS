@@ -19,6 +19,8 @@ internal sealed class Chunk
 
     internal int GlobalId { get; }
 
+    internal Archetype Archetype => _archetype;
+
     internal int ArchetypeId { get; private set; }
 
     internal int ArchetypeIndex { get; private set; }

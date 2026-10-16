@@ -11,6 +11,8 @@ bounded request. Preserve active branches and unrelated dirty changes.
 - ../CONTRACTS.md — integration boundaries; open only for a cross-project task.
 - IDEAS.md — ECS research/options only when explicitly requested.
 - WORKFLOW.md — correctness, format/metrics and benchmark routing.
+- docs/API-SELECTION.md — task-to-API choices, complexity and execution
+  costs; read before choosing a public iteration form.
 - docs/API-GRAMMAR.md — canonical generated API grammar and argument order.
 - docs/src/DeltaECS.Generators/ARCHITECTURE.md — generator pipeline and
   extension-point contract.
