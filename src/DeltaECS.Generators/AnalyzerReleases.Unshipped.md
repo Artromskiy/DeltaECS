@@ -15,3 +15,4 @@ DECSGEN007 | Where | Error | Requires `WhereEntity` for entity parameters in que
 DECSGEN008 | Generic bindings | Error | Rejects open generic definitions with constraints unsupported by runtime type-token dispatch
 DECSGEN009 | Component comparer | Error | Rejects comparer functors that do not expose one accessible supported Invoke signature
 DECSGEN010 | Component comparer | Error | Rejects unsupported comparer selector and invocation forms
+DECSGEN012 | ForEach | Info | Recommends `in` or `ref readonly` for read-only `ref` callback parameters
