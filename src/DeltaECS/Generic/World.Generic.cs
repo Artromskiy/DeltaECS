@@ -731,7 +731,7 @@ public sealed partial class World
 
             MoveEntity(recordIndex, edge, out Chunk targetChunk, out int targetSlotIndex);
             var targetArchetype = Archetypes[targetChunk.ArchetypeId];
-            int targetComponentIndex = targetArchetype.Mask.Rank(componentId);
+            targetArchetype.TryGetComponentIndex(componentId, out int targetComponentIndex);
             if (pendingChunk is null
                 || !ReferenceEquals(pendingChunk, targetChunk)
                 || pendingComponentIndex != targetComponentIndex

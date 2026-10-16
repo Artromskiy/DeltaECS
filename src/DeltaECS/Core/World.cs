@@ -2364,7 +2364,8 @@ public sealed partial class World : IDisposable
         bool[] copiedTargetRows = new bool[target.ComponentCount];
         for (int i = 0; i < mapping.Length; i++)
         {
-            mapping.RefAt(i) = target.Mask.Rank(source.ComponentIds.RefAt(i));
+            target.TryGetComponentIndex(source.ComponentIds.RefAt(i), out int targetRow);
+            mapping.RefAt(i) = targetRow;
             if (mapping.RefAt(i) >= 0)
             {
                 copiedTargetRows.RefAt(mapping.RefAt(i)) = true;

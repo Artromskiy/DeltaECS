@@ -265,7 +265,7 @@ public readonly ref struct GeneratedComponentValueWriter
             return;
         }
 
-        int componentIndex = _targetArchetype.Mask.Rank(componentId);
+        _targetArchetype.TryGetComponentIndex(componentId, out int componentIndex);
         for (int index = 0; index < _addedTargetRows.Length; index++)
         {
             if (_addedTargetRows[index] != componentIndex)
@@ -290,7 +290,7 @@ public readonly ref struct GeneratedComponentValueWriter
             return;
         }
 
-        int componentIndex = _targetArchetype.Mask.Rank(componentId);
+        _targetArchetype.TryGetComponentIndex(componentId, out int componentIndex);
         _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
     }
 
