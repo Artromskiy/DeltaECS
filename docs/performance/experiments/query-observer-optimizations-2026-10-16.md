@@ -71,6 +71,34 @@ The first invocation and dense 100% cases improved for both component and tag ob
 
 `First` has a clear improvement in this profile workload and avoids collecting/sorting the whole result. Stable sorting's uncertainty intervals overlap, so its small mean reduction is inconclusive. The add/remove change is small and should be treated as neutral without a repeat.
 
+### Re-test: swap the merge result buffer without sorted-input early exit
+
+Baseline is `9ffa766`. The candidate changed only the final merge handling in
+`World.SortOrderedQueryEntities`: it kept the normal merge passes and removed
+the final `Array.Copy` by swapping the world's two buffer fields when the
+sorted result was in the merge buffer. It did not add an already-sorted input
+check. `StableSortBenchmarks` setup compared the baseline and candidate
+checksums before timing at each size.
+
+| Entities | Baseline Mean ± Error (StdDev) | Candidate Mean ± Error (StdDev) | Candidate change | Allocated |
+| ---: | ---: | ---: | ---: | ---: |
+| 131,072 | 34.819 ± 0.383 ms (0.651 ms) | 35.115 ± 0.243 ms (0.406 ms) | +0.9% | 0 B / 0 B |
+| 1,048,576 | 575.015 ± 28.718 ms (49.537 ms) | 638.935 ± 41.552 ms (72.776 ms) | +11.1% | 0 B / 0 B |
+
+Both 99.9% confidence intervals overlap. The 1M candidate distribution was
+multimodal, and macOS Storage Management and WindowServer processes were using
+substantial CPU during the run, so the apparent slowdown is not conclusive.
+There is no measured improvement to retain. The 131K JIT smoke measured
+`SortOrderedQueryEntities` at 772 B / 192 instructions / 4 calls / 33 branches
+for baseline and 756 B / 189 instructions / 5 calls / 33 branches for the
+candidate. The candidate shrinks code slightly but adds a reference-store call;
+throughput does not improve in these measurements.
+
+Protocol: Apple M4 Pro, macOS Tahoe 26.5.2, .NET 10.0.12 Arm64 RyuJIT,
+BenchmarkDotNet 0.15.8, 8 warmups, 20 measured iterations, 200 ms target per
+iteration, 2 launches. Raw reports: `artifacts/ordered-sort-swap-131k` and
+`artifacts/ordered-sort-swap-1048k`.
+
 ## Rejected tag-mask scan
 
 The proposed optimization scanned selected tag slots by extracting set bits from a chunk mask. It was slower than checking tag membership while walking slots, so it was not retained. The stable-sort candidate was also removed after its BDN interval overlapped the baseline and the JIT method grew.
