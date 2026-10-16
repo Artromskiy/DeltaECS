@@ -156,6 +156,53 @@ public class ForEachChangeMicroBenchmarkImplementation : IDisposable
     }
 }
 
+public class TagMembershipWriteMicroBenchmarkImplementation : IDisposable
+{
+    private readonly World _world;
+    private readonly ComponentId _tagId;
+    private readonly Query _untaggedQuery;
+    private readonly Query _taggedQuery;
+    private readonly IOperation _observer;
+
+    internal TagMembershipWriteMicroBenchmarkImplementation()
+    {
+        int amount = MicroBenchmarkConfiguration.CurrentAmount;
+        var layouts = new ComponentRegistry();
+        ComponentId dataId = layouts.Register<ChangeWriteUnused>(new SchemaId(93_021));
+        _tagId = layouts.Register<ChangeWriteTagA>(new SchemaId(93_022));
+        _world = new World(layouts, initialEntityCapacity: amount);
+        _world.Create([dataId], amount);
+        _untaggedQuery = _world.WhereAll(dataId);
+        _taggedQuery = _world.WhereAll([dataId, _tagId]);
+        _observer = _world.ForEachChange<ChangeWriteTagA>(
+            _tagId,
+            static (Entity entity, ChangeKind change, ref ChangeWriteTagA tag) => { });
+        _observer.Invoke();
+    }
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    [Benchmark]
+    public int AddRemoveTagMembership()
+    {
+        int added = _world.Add(in _untaggedQuery, _tagId);
+        int removed = _world.Remove(in _taggedQuery, _tagId);
+        return added + removed;
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _world.Dispose();
+        }
+    }
+}
+
 internal struct ChangeWriteA { public int Value; }
 internal struct ChangeWriteB { public int Value; }
 internal struct ChangeWriteC { public int Value; }

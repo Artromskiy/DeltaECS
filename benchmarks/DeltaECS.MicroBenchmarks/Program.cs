@@ -9,7 +9,7 @@ internal static class Program
         bool changeTrackingOnly = args.Length > 0
             && string.Equals(args[0], "change-tracking", StringComparison.OrdinalIgnoreCase);
         Type[] benchmarkTypes = changeTrackingOnly
-            ? [typeof(ForEachWriteObserverMicroBenchmarks), typeof(ForEachChangeMicroBenchmarks)]
+            ? [typeof(ForEachWriteObserverMicroBenchmarks), typeof(ForEachChangeMicroBenchmarks), typeof(TagMembershipWriteMicroBenchmarks)]
             : MicroBenchmarkCatalog.Types;
         string[] workloadArgs = changeTrackingOnly ? args[1..] : args;
 
