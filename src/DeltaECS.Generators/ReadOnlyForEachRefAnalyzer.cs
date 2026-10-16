@@ -11,18 +11,11 @@ namespace Delta.ECS.Generators;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
 {
-    public const string DiagnosticId = "DECSGEN012";
-    internal const string ModifierProperty = "Modifier";
+    public const string DiagnosticId = ReadOnlyAccessDiagnostic.DiagnosticId;
+    internal const string ModifierProperty = ReadOnlyAccessDiagnostic.ModifierProperty;
     private const int FirstRefReadonlyLanguageVersion = 1200;
 
-    private static readonly DiagnosticDescriptor Rule = GeneratorDiagnostics.Info(
-        DiagnosticId,
-        "Use read-only access for a read-only ForEach parameter",
-        "Parameter '{0}' is only read; use '{1}' instead of 'ref'",
-        "ForEach",
-        "Use a read-only reference for callback parameters that are not modified.");
-
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(ReadOnlyAccessDiagnostic.Rule);
 
     public override void Initialize(AnalysisContext context)
     {
@@ -34,6 +27,54 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
     internal static bool SupportsRefReadonly(ParseOptions options)
         => options is CSharpParseOptions csharpOptions
             && (int)csharpOptions.LanguageVersion >= FirstRefReadonlyLanguageVersion;
+
+    internal static bool IsReadOnly(
+        SyntaxNode executable,
+        IParameterSymbol parameter,
+        SemanticModel semanticModel,
+        CancellationToken cancellationToken)
+    {
+        if (semanticModel.GetOperation(executable, cancellationToken) is not { } operation)
+        {
+            return false;
+        }
+
+        var walker = new WritableUseWalker(parameter);
+        walker.Visit(operation is IAnonymousFunctionOperation anonymousFunction ? anonymousFunction.Body : operation);
+        if (walker.HasWritableUse)
+        {
+            return false;
+        }
+
+        foreach (ArgumentSyntax argument in executable.DescendantNodes().OfType<ArgumentSyntax>())
+        {
+            if (argument.RefOrOutKeyword.IsKind(SyntaxKind.RefKeyword)
+                || argument.RefOrOutKeyword.IsKind(SyntaxKind.OutKeyword))
+            {
+                if (ContainsParameterReference(argument.Expression, parameter, semanticModel, cancellationToken))
+                {
+                    return false;
+                }
+            }
+        }
+
+        foreach (IdentifierNameSyntax identifier in executable.DescendantNodes().OfType<IdentifierNameSyntax>())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(identifier, cancellationToken).Symbol, parameter))
+            {
+                continue;
+            }
+
+            if (identifier.Ancestors()
+                .TakeWhile(node => !ReferenceEquals(node, executable))
+                .Any(static node => node is RefExpressionSyntax))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static void AnalyzeParameter(SyntaxNodeAnalysisContext context)
     {
@@ -54,7 +95,7 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
         ImmutableDictionary<string, string?> properties = ImmutableDictionary<string, string?>.Empty
             .Add(ModifierProperty, modifier);
         context.ReportDiagnostic(Diagnostic.Create(
-            Rule,
+            ReadOnlyAccessDiagnostic.Rule,
             parameter.Modifiers.First(static modifier => modifier.IsKind(SyntaxKind.RefKeyword)).GetLocation(),
             properties,
             parameter.Identifier.ValueText,
@@ -97,7 +138,7 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
         IMethodSymbol? method = semanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
         if (method is not null)
         {
-            if (!method.Name.StartsWith("ForEach", StringComparison.Ordinal))
+            if (!method.Name.StartsWith("ForEach", StringComparison.Ordinal) || method.Name == "ForEachChange")
             {
                 return false;
             }
@@ -109,7 +150,8 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
         }
 
         if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess
-            || !memberAccess.Name.Identifier.ValueText.StartsWith("ForEach", StringComparison.Ordinal))
+            || !memberAccess.Name.Identifier.ValueText.StartsWith("ForEach", StringComparison.Ordinal)
+            || memberAccess.Name.Identifier.ValueText == "ForEachChange")
         {
             return false;
         }
@@ -149,7 +191,8 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
                 return false;
             }
 
-            if (argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+            if ((argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword)
+                    || argument.RefKindKeyword.IsKind(SyntaxKind.InKeyword))
                 && SymbolEqualityComparer.Default.Equals(
                     semanticModel.GetTypeInfo(argument.Expression).Type,
                     parameter.Type))
@@ -166,48 +209,7 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
         IParameterSymbol parameter,
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
-    {
-        if (semanticModel.GetOperation(lambda, cancellationToken) is not IAnonymousFunctionOperation anonymousFunction)
-        {
-            return false;
-        }
-
-        var walker = new WritableUseWalker(parameter);
-        walker.Visit(anonymousFunction.Body);
-        if (walker.HasWritableUse)
-        {
-            return false;
-        }
-
-        foreach (ArgumentSyntax argument in lambda.DescendantNodes().OfType<ArgumentSyntax>())
-        {
-            if (argument.RefOrOutKeyword.IsKind(SyntaxKind.RefKeyword)
-                || argument.RefOrOutKeyword.IsKind(SyntaxKind.OutKeyword))
-            {
-                if (ContainsParameterReference(argument.Expression, parameter, semanticModel, cancellationToken))
-                {
-                    return false;
-                }
-            }
-        }
-
-        foreach (IdentifierNameSyntax identifier in lambda.DescendantNodes().OfType<IdentifierNameSyntax>())
-        {
-            if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(identifier, cancellationToken).Symbol, parameter))
-            {
-                continue;
-            }
-
-            if (identifier.Ancestors()
-                .TakeWhile(node => !ReferenceEquals(node, lambda))
-                .Any(static node => node is RefExpressionSyntax))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+        => IsReadOnly((SyntaxNode)lambda, parameter, semanticModel, cancellationToken);
 
     private static bool ContainsParameterReference(
         SyntaxNode node,

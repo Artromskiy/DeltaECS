@@ -48,7 +48,7 @@ public sealed class ReadOnlyForEachRefAnalyzerTests
         var actions = new List<CodeAction>();
         var context = new CodeFixContext(document, diagnostic, (action, _) => actions.Add(action), CancellationToken.None);
 
-        await new ReadOnlyForEachRefCodeFixProvider().RegisterCodeFixesAsync(context).ConfigureAwait(false);
+        await new ReadOnlyAccessCodeFixProvider().RegisterCodeFixesAsync(context).ConfigureAwait(false);
 
         CodeAction action = actions.Single();
         ImmutableArray<CodeActionOperation> operations = await action
@@ -130,6 +130,86 @@ public sealed class ReadOnlyForEachRefAnalyzerTests
 
         Assert.That(diagnostics, Has.Length.EqualTo(1));
         Assert.That(diagnostics[0].GetMessage(CultureInfo.InvariantCulture), Does.Contain("position"));
+    }
+
+    [Test]
+    public async Task ReportsReadOnlyComponentAcrossEntityContextAndParallelLambdaForms()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+                public struct Position { public int Value; }
+                public struct Context { }
+                public struct EntityRef { }
+                public delegate void ComponentAction(ref Position position);
+                public delegate void EntityAction(EntityRef entity, ref Position position);
+                public delegate void ContextAction(ref Context context, ref Position position);
+                public delegate void ReadOnlyContextAction(in Context context, ref Position position);
+                public delegate void ContextEntityAction(ref Context context, EntityRef entity, ref Position position);
+                public delegate void ReadOnlyContextEntityAction(in Context context, EntityRef entity, ref Position position);
+
+                public sealed class World
+                {
+                    public void ForEach(ComponentAction action) { }
+                    public void ForEachEntity(EntityAction action) { }
+                    public void ForEach(ref Context context, ContextAction action) { }
+                    public void ForEachEntity(ref Context context, ContextEntityAction action) { }
+                    public void ForEachParallel(ComponentAction action, int workerCount) { }
+                    public void ForEachEntityParallel(EntityAction action, int workerCount) { }
+                    public void ForEachParallel(in Context context, ReadOnlyContextAction action, int workerCount) { }
+                    public void ForEachEntityParallel(in Context context, ReadOnlyContextEntityAction action, int workerCount) { }
+                }
+            }
+
+            public static class Consumer
+            {
+                public static void Run(Delta.ECS.World world, ref Delta.ECS.Context context)
+                {
+                    world.ForEach(static (ref Delta.ECS.Position position) => _ = position.Value);
+                    world.ForEachEntity(static (Delta.ECS.EntityRef entity, ref Delta.ECS.Position position) => _ = position.Value);
+                    world.ForEach(ref context, static (ref Delta.ECS.Context state, ref Delta.ECS.Position position) => _ = position.Value);
+                    world.ForEachEntity(ref context, static (ref Delta.ECS.Context state, Delta.ECS.EntityRef entity, ref Delta.ECS.Position position) => _ = position.Value);
+                    world.ForEachParallel(static (ref Delta.ECS.Position position) => _ = position.Value, 2);
+                    world.ForEachEntityParallel(static (Delta.ECS.EntityRef entity, ref Delta.ECS.Position position) => _ = position.Value, 2);
+                    world.ForEachParallel(in context, static (in Delta.ECS.Context state, ref Delta.ECS.Position position) => _ = position.Value, 2);
+                    world.ForEachEntityParallel(in context, static (in Delta.ECS.Context state, Delta.ECS.EntityRef entity, ref Delta.ECS.Position position) => _ = position.Value, 2);
+                }
+            }
+            """;
+        CSharpCompilation compilation = CreateCompilation(source, LanguageVersion.CSharp11);
+        ImmutableArray<Diagnostic> diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ReadOnlyForEachRefAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync()
+            .ConfigureAwait(false);
+
+        Assert.That(compilation.GetDiagnostics().Where(static item => item.Severity == DiagnosticSeverity.Error), Is.Empty);
+        Assert.That(diagnostics, Has.Length.EqualTo(8));
+    }
+
+    [Test]
+    public async Task DoesNotRecommendReadOnlyForForEachChange()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+                public struct Position { public int Value; }
+                public delegate void ChangeAction(ref Position position);
+                public sealed class World { public void ForEachChange(ChangeAction action) { } }
+            }
+
+            public static class Consumer
+            {
+                public static void Run(Delta.ECS.World world)
+                    => world.ForEachChange(static (ref Delta.ECS.Position position) => _ = position.Value);
+            }
+            """;
+        CSharpCompilation compilation = CreateCompilation(source, LanguageVersion.CSharp11);
+        ImmutableArray<Diagnostic> diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ReadOnlyForEachRefAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync()
+            .ConfigureAwait(false);
+
+        Assert.That(diagnostics, Is.Empty);
     }
 
     private static string SourceFor(LanguageVersion languageVersion, string body)

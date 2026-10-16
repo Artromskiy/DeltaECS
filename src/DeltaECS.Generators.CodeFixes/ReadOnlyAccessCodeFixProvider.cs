@@ -11,42 +11,46 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Delta.ECS.Generators;
 
-[ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(ReadOnlyForEachRefCodeFixProvider)), Shared]
-public sealed class ReadOnlyForEachRefCodeFixProvider : CodeFixProvider
+[ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(ReadOnlyAccessCodeFixProvider)), Shared]
+public sealed class ReadOnlyAccessCodeFixProvider : CodeFixProvider
 {
-    private const string DiagnosticId = "DECSGEN012";
+    private const string DiagnosticId = "DECSGEN013";
     private const string ModifierProperty = "Modifier";
+    private const string RefLocalProperty = "RefLocal";
 
     public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(DiagnosticId);
 
     public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
 
-    public override async Task RegisterCodeFixesAsync(CodeFixContext context)
+    public override Task RegisterCodeFixesAsync(CodeFixContext context)
     {
-        SyntaxNode? root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
-        if (root is null)
-        {
-            return;
-        }
-
         foreach (Diagnostic diagnostic in context.Diagnostics)
         {
-            if (!diagnostic.Properties.TryGetValue(ModifierProperty, out string? modifier)
-                || modifier is not ("in" or "ref readonly"))
+            string? title = diagnostic.Properties.TryGetValue(ModifierProperty, out string? modifier)
+                ? $"Use {modifier}"
+                : diagnostic.Properties.ContainsKey(RefLocalProperty)
+                    ? "Use GetReadRef"
+                    : null;
+            if (title is null)
             {
                 continue;
             }
 
-            string title = $"Use {modifier}";
             context.RegisterCodeFix(
                 CodeAction.Create(
                     title,
-                    cancellationToken => ReplaceModifierAsync(context.Document, diagnostic.Location.SourceSpan, modifier, cancellationToken),
+                    cancellationToken => FixAsync(context.Document, diagnostic, cancellationToken),
                     equivalenceKey: title),
                 diagnostic);
         }
 
+        return Task.CompletedTask;
     }
+
+    private static Task<Document> FixAsync(Document document, Diagnostic diagnostic, CancellationToken cancellationToken)
+        => diagnostic.Properties.TryGetValue(ModifierProperty, out string? modifier)
+            ? ReplaceModifierAsync(document, diagnostic.Location.SourceSpan, modifier!, cancellationToken)
+            : ReplaceGetRefAsync(document, diagnostic, cancellationToken);
 
     private static async Task<Document> ReplaceModifierAsync(
         Document document,
@@ -68,6 +72,37 @@ public sealed class ReadOnlyForEachRefCodeFixProvider : CodeFixProvider
             .WithModifiers(modifiers)
             .WithAdditionalAnnotations(Formatter.Annotation);
         return document.WithSyntaxRoot(root.ReplaceNode(parameter, updatedParameter));
+    }
+
+    private static async Task<Document> ReplaceGetRefAsync(
+        Document document,
+        Diagnostic diagnostic,
+        CancellationToken cancellationToken)
+    {
+        TextSpan diagnosticSpan = diagnostic.Location.SourceSpan;
+        SyntaxNode? root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+        if (root?.FindNode(diagnosticSpan).FirstAncestorOrSelf<SimpleNameSyntax>() is not { } name)
+        {
+            return document;
+        }
+
+        SyntaxNode updatedRoot = root.ReplaceNode(name, name.WithIdentifier(
+            SyntaxFactory.Identifier(name.Identifier.LeadingTrivia, "GetReadRef", name.Identifier.TrailingTrivia)));
+        if (diagnostic.Properties.TryGetValue(RefLocalProperty, out string? isRefLocal)
+            && bool.TryParse(isRefLocal, out bool updateRefLocal)
+            && updateRefLocal)
+        {
+            VariableDeclaratorSyntax? variable = updatedRoot.FindNode(diagnosticSpan).FirstAncestorOrSelf<VariableDeclaratorSyntax>();
+            if (variable?.Parent is VariableDeclarationSyntax { Type: RefTypeSyntax refType }
+                && !refType.ReadOnlyKeyword.IsKind(SyntaxKind.ReadOnlyKeyword))
+            {
+                RefTypeSyntax updatedType = refType.WithReadOnlyKeyword(
+                    SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword).WithTrailingTrivia(SyntaxFactory.Space));
+                updatedRoot = updatedRoot.ReplaceNode(refType, updatedType);
+            }
+        }
+
+        return document.WithSyntaxRoot(updatedRoot.WithAdditionalAnnotations(Formatter.Annotation));
     }
 
     private static SyntaxTokenList ReplaceWithIn(SyntaxTokenList modifiers)
