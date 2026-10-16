@@ -50,6 +50,62 @@ Zero-arity `ForEach` without an entity or component parameter is a generator anc
 
 `OrderBy` and `ThenBy` describe ordering; the terminal determines its cost. Do not pay for sorting all results just to select one. Ordered iteration is sequential.
 
+## Choose the pipeline in execution order
+
+Choose these independently before selecting callback syntax:
+
+1. **Input set:** a supplied target list needs list iteration; a live world selection needs a query. Scanning the world and testing list membership changes work from `O(L)` to at least `O(N)`.
+2. **Registration knowledge:** runtime IDs with a known CLR type still use typed component parameters and explicit IDs. Unknown CLR types need preparation through visitors or a supported runtime generic functor. Membership-only cleanup consumes IDs directly and needs neither.
+3. **Eligibility:** apply membership filters, then read-only value predicates. Choose a minimum only among eligible entities. Include every component needed by a comparison, including tie-break keys.
+4. **Terminal:** one result needs a minimum reduction (`First` on an ordering); all results in priority order need ordered iteration. For an external list, a typed entity-list callback can perform a linear minimum reduction without sorting.
+5. **Mutation phases:** finish value updates before selecting targets whose eligibility depends on those updates. Complete callbacks before structural changes. If the contract says snapshot **all** registrations before reset, invoke every snapshot operation before invoking any reset operation, rather than snapshot/reset pairs per registration.
+
+Examples of distinct compositions are `Where → OrderBy → First`,
+`Where → OrderBy → ForEach`, and `ForEach(write) → Where(updated value) → Destroy`.
+An event-fed cleanup instead uses `ForEachChange → retain Entity handles → batch Remove`;
+it must not replace incremental observation with a full-world rescan.
+
+For a filtered ordered traversal, the generated comparer-functor form is the
+checked composition: `world.Where(in query, predicate).OrderBy(ref comparer)`
+followed by `.ThenBy(ref tieComparer).ForEach((ref Health value) => ...)`.
+Define the comparers as `IComponentComparer` structs with typed `Invoke(in T
+left, in T right)` methods; put the fixed reference point in the comparer
+before constructing the operation. If a callback-based ordering chain fails
+generation, use this form before replacing ordered traversal with repeated
+`First()` calls. Repeated minima cost `O(N*K)` for `K` processed targets,
+where a single ordered traversal costs `O(N + P log P)` after filtering.
+
+Value predicates currently select primary registrations; do not invent an
+explicit-ID `Where` overload for two registrations sharing a CLR type. When
+that composition is unavailable, retain a membership query, order with
+explicit component IDs, and check eligibility in the typed ordered terminal
+before consuming budget. This sorts all candidates (`O(N log N)`), but preserves
+the order of eligible rows. Declare the intermediate receiver as
+`OrderedQuery ordered = query.OrderBy(sourceId, stableId, ref comparer);`
+before building `ordered.ForEach<float, float>(sourceId, destinationId, callback)`.
+This explicit receiver form is supported by the current generator. Prefer a
+supported filter-before-sort composition when its predicate selects the intended
+registrations; a predicate silently reading the primary registration is incorrect.
+
+The cleanup target list does not exist until observation completes. Do not
+construct a deferred entity-list operation over an empty list and expect it
+to see later additions: list inputs are copied during operation construction.
+Use an immediate batch call after collection. With a reusable `List<Entity>`
+on a runtime providing `CollectionsMarshal.AsSpan`, pass its span to the batch
+call; otherwise use a reusable array and its populated prefix. A repeated
+`ToArray()` introduces an allocation on each nonempty update. Do not retain
+the borrowed span or an `EntityRef` beyond the call that uses it.
+
+Keep the predicate and comparer on the same reference point. Distance to an
+origin is not distance to a player unless that player is actually at the
+origin. A fixed origin may be read during construction; a moving origin must
+be refreshed before every invocation. Comparer/context values are copied
+when the ordering is built: changing the original struct afterwards does not
+update a retained operation. A comparer and predicate can share a reference
+state object whose origin is refreshed once before `Invoke()`. Reset
+per-call reduction/budget state before invocation, while retaining the query
+and operation themselves.
+
 ## Access, create or reconfigure data
 
 | Task | API | Example | What it does | Complexity | Potential overhead |
@@ -157,6 +213,7 @@ Use manual value comparison only when the task specifically needs equality-based
 ## Preparation, reuse and lifetime
 
 - Build and retain queries and operations used repeatedly. A `ForEach` call creates an operation; `Invoke()` executes it against current matches. Binding preparation and topology changes can cost more than an ordinary warm invocation.
+- Use `var` for a local generated operation. For retained ordinary traversal fields, `IOperation` is a supported type; for a result terminal use its `EcsResultOperation<T>` type. Grammar family names and invented `ForEachInvoker` types are not field declarations. Storing a generated operation struct as `IOperation` boxes it once during preparation, not once per entity.
 - Creating an operation is not universally allocation-free: closures, captured input lists, ordering descriptions, change subscriptions and cold caches have their own storage costs. Concrete generated operation structs avoid boxing on direct invocation; storing one as `IOperation` boxes it once. A constrained generic call can preserve its concrete type.
 - Keep change operations for as long as their baseline is needed. Constructing a new one for every update creates a new subscription and restarts initial reporting.
 - Write observation has a cost in the writer as well as the consumer. Dense writes can mark chunks or masks for observers; point writes record selected slots. Value predicates do not turn write tracking into an exact comparison of modified values.
@@ -183,3 +240,59 @@ world to update one known entity is not. A one-off visitor call remains useful
 when there is no repeated workload to amortize preparation.
 
 For exact overloads use the [API grammar](API-GRAMMAR.md); for more complete scenarios use the [API cookbook](usage-examples.md).
+
+## Several unknown component types implementing one interface
+
+An entity can carry several selected debuffs at once. A fixed list of their
+registration IDs describes **separate component-instance traversals**, not a
+query requiring every debuff simultaneously. Prepare each registration once;
+then execute every prepared traversal against its current matches. Keep
+explicit IDs when multiple registrations share one CLR type.
+
+Mutate struct implementations through their actual stored reference using a
+constrained generic call. Casting a struct value to its interface boxes a
+copy; changing that copy does not update the stored component.
+
+The current generator has two relevant limits. Runtime-selected open generic
+functors do not accept user interface/base-class constraints (`DECSGEN008`).
+An inline typed lambda mentioning a visitor method's open `T` can also emit
+`T` outside its scope (`CS0246`). Do not repeatedly retry those signatures or
+erase values to `object` to make them compile. An unconstrained generic
+read-only snapshot functor is supported; interface mutation can use a cold
+constrained visitor to construct a closed generic handler, with a retained
+entity-only operation calling an ordinary constrained helper:
+
+```csharp
+public interface ITickable { void Tick(int duration); }
+
+public sealed class TickHandler<T> where T : ITickable
+{
+    private readonly IOperation operation;
+
+    public TickHandler(World world, ComponentId id, int duration)
+    {
+        Query query = world.WhereAll(id);
+        operation = world.ForEachEntity(in query,
+            (EntityRef entity) => TickOne(entity, id, duration));
+    }
+
+    private static void TickOne(EntityRef entity, ComponentId id, int duration)
+        => entity.GetRef<T>(id).Tick(duration);
+
+    public void Invoke() => operation.Invoke();
+}
+```
+
+Construct `TickHandler<T>` in the visitor's constrained `Visit<T>` and retain
+it through a caller-owned non-generic handler contract. This supported
+fallback pays a component lookup for every instance; it is not the direct
+typed-row path recommended for statically known components. Keep that cost
+visible in API reviews. For expiring effects, retain only expired entity
+handles during the callback and remove their registration after traversal.
+
+For snapshot-then-reset workloads, use the supported unconstrained typed
+read-only functor for the snapshot phase, so the callback receives both the
+entity and the typed value without a second component lookup. Reserve the
+constrained entity-handler fallback for the reset phase. For expiration,
+batch the collected handles per registration rather than removing each entity's
+component with a separate structural call.

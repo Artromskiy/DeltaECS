@@ -1,0 +1,9 @@
+# Tick configured debuff registrations
+
+The supplied `Scenario` has a created world, registrations and entities. The constructor also receives a fixed array of component IDs and a positive tick duration. Each ID selects a registration whose concrete CLR type is unknown to the solution, while every selected type implements the supplied `IDebuff` contract. Read `Types.cs` and the common `Fixture.cs` for the consumer types.
+
+On every `Execute()`, apply `Tick(dt)` to every current instance in each configured registration. A single entity may have several selected registrations at once. Multiple selected IDs can refer to registrations with the same CLR type. The selected list contains two registrations of one type, one of a second type, and one of a third type. A fourth registration also implements `IDebuff` but is intentionally absent from the selected list. Later checks attach third-type data to a new entity. Every selected registration is included in the constructor's ID list.
+
+The interface routes are bound before `Solution` is constructed. Registrations and the configured ID list remain fixed, while entities and component membership can change. Do not hardcode registration IDs, type names, schema IDs or the current group of registrations. Preserve unselected components and do not process any entity list supplied only for assertions.
+
+Construct the solution once and reuse it. Prefer an API suited to an unknown CLR type and fixed registrations, with any registration dispatch or handler preparation done outside repeated execution. Use only the supplied public documentation and consumer files. Explain your API choice, complexity, preparation and overhead in `CHOICE.md`; preserve the first implementation in `FIRST-Solution.cs.txt`; record attempts in `ATTEMPTS.md`; and run `dotnet run --project Consumer.csproj -c Release`. Do not edit the checker to make a solution pass.

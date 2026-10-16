@@ -1,0 +1,7 @@
+# Apply damage, then remove defeated enemies
+
+The solution receives a world and a nonnegative damage amount. On every `Execute()`, apply that amount to the health of every currently unpaused enemy. After all those writes finish, destroy every currently unpaused enemy whose health is at or below zero, including enemies that were already defeated before this call. Return the number destroyed during this call.
+
+The destruction selection must observe the health values after the damage phase. Enemies with positive health remain. Paused enemies are neither damaged nor destroyed, and non-enemies are untouched. New entities and changed tags or values between calls must be handled. The constructor is called once and the solution is reused.
+
+Use a safe two-phase pipeline: do not perform immediate structural changes from inside an active component traversal, and do not build a custom entity list just to issue one destroy operation per target. Prefer reusable prepared operations. Do not hardcode fixture indices or enumerate `Scenario.Units` as a substitute for selecting the current world. Use only the supplied public documentation and consumer files. Explain your API choice, complexity, preparation and overhead in `CHOICE.md`; preserve the first implementation in `FIRST-Solution.cs.txt`; record attempts in `ATTEMPTS.md`; and run `dotnet run --project Consumer.csproj -c Release`. Do not edit the checker to make a solution pass.

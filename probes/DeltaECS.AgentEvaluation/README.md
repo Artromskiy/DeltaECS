@@ -21,6 +21,14 @@ The tasks supply a created world, registered components, entities and determinis
 | [11 — Entity-only selection](tasks/11-entity-only/TASK.md) | Collect handles using membership filters alone |
 | [12 — Existing target list](tasks/12-target-list/TASK.md) | Update only an externally selected list of entities |
 | [13 — Group cleanup](tasks/13-group-cleanup/TASK.md) | Obtain two configured groups and remove their registrations through type-erased batch operations |
+| [14 — Debuff ticks](tasks/14-debuff-ticks/TASK.md) | Tick all configured interface implementations, including several struct debuffs per entity and alternate registrations |
+| [15 — List minimum](tasks/15-filtered-nearest/TASK.md) | Filter an external candidate list before reducing to a minimum relative to a moving player |
+| [16 — Damage and cleanup](tasks/16-damage-cleanup/TASK.md) | Complete health writes before selecting and destroying defeated enemies |
+| [17 — Observed cleanup](tasks/17-observed-pipeline/TASK.md) | Consume retained health notifications, then apply event-fed membership cleanup outside callbacks |
+| [18 — Configured transfer](tasks/18-configured-transfer/TASK.md) | Select configured float rows, order eligible targets and spend a fresh capped transfer budget |
+| [19 — Expiring effects](tasks/19-expiring-effects/TASK.md) | Tick unknown struct effects and remove expired registrations safely after traversal |
+| [20 — Snapshot then reset](tasks/20-snapshot-reset/TASK.md) | Complete a full multi-registration snapshot before any constrained reset of marked instances |
+| [21 — Membership transition](tasks/21-membership-transition/TASK.md) | Update health, then change memberships selected from the updated values |
 
 `common/Fixture.cs` defines the shared data model. Every task has a pristine `Solution.cs` stub and a `Verify.cs` executable checker. `evaluation/rubric.json` contains evaluator-only criteria; it must not be supplied to the solving agents.
 
@@ -37,7 +45,7 @@ python3 probes/DeltaECS.AgentEvaluation/prepare.py \
     --output /tmp/deltaecs-agent-evaluation/sessions
 ```
 
-Use a new output directory for each run. The script creates three consumer workspaces with four tasks each and a fourth with the group task. Use `--session d` to prepare only the group session. It copies only:
+Use a new output directory for each run. The script creates six consumer workspaces: three with four tasks each, then three with three tasks each. Use `--session d --task 13-group-cleanup` to prepare only the group task. It copies only:
 
 - the library README, API-selection guide, grammar and cookbook;
 - the fixture, task statements, checkers and solution stubs;
@@ -54,11 +62,40 @@ python3 probes/DeltaECS.AgentEvaluation/prepare.py \
     --output /tmp/deltaecs-agent-evaluation/snapshot-retest
 ```
 
-Launch each session with `gpt-6-luna`, reasoning effort `high`, and no inherited conversation. Give the agent only its session path and this instruction:
+Launch each session with `gpt-6-luna`, reasoning effort `medium`, and no inherited conversation. These are also the preparer's manifest defaults; override `--model`/`--reasoning-effort` explicitly for a different experiment. Give the agent only its assigned sandbox command and this instruction:
 
-> Work only in this consumer workspace. Read SESSION.md and solve every assigned task. Use only the supplied public documentation and consumer files. Do not read repository sources, general AGENTS.md, memory, other sessions, evaluator criteria, decompiled assemblies or generated implementation files. Preserve the first solution before compiler-driven corrections, record attempts, explain your API choices and run the provided checks. Do not ask other agents for guidance or commit changes.
+> Execute every read, write and build through the supplied sandbox launcher. Do not use direct file tools or host shell commands. Inside the sandbox, read SESSION.md and solve every assigned task using only its public documentation and consumer files. Do not read repository sources, general AGENTS.md, memory, other sessions, evaluator criteria, decompiled assemblies or generated implementation files. Preserve the first solution before compiler-driven corrections, record attempts, explain your API choices and run the provided checks. Write and compile in separate commands. Do not ask other agents for guidance or commit changes.
 
-The independent context and file whitelist are procedural isolation. The collaboration tool does not enforce a separate operating-system filesystem sandbox. Do not report a stronger isolation guarantee without an actual sandbox.
+`prepare.py` alone provides a source-free copy, not access isolation. On Linux,
+use the mandatory command launcher (requires Bubblewrap):
+
+```sh
+python3 probes/DeltaECS.AgentEvaluation/sandbox.py \
+    --workspace /tmp/deltaecs-agent-evaluation/sessions --session a \
+    --audit artifacts/docs-evaluation/my-run-command-audit \
+    --dotnet-root /absolute/path/to/dotnet-sdk -- \
+    bash --noprofile --norc -c 'cat SESSION.md; dotnet --version'
+```
+
+Give solving agents a copy of the launcher outside the repository, not the
+repository path. Inside it the session appears at `/work`; only that session,
+system tools and the .NET SDK are mounted. Supplied documents, DLLs, fixtures,
+projects and checkers are read-only. Network, PID and filesystem namespaces
+hide host source trees, `.git`, other sessions, host processes and Docker
+sockets. Environment credentials are not inherited. There is no unsandboxed
+fallback. Commands and first non-stub solution snapshots are retained outside
+the mounted session, where consumer commands cannot overwrite them.
+
+The collaboration tool itself still exposes a shared host: the launcher
+enforces isolation for commands executed through it, not for hypothetical
+direct tool calls outside it. Restrict agents to the launcher, retain its
+audit, and state this boundary in reports. Do not claim a separate sandbox for
+the model's complete tool surface. The negative isolation and evidence checks
+can be repeated without running any model:
+
+```sh
+python3 -m unittest discover -s probes/DeltaECS.AgentEvaluation -p test_harness.py -v
+```
 
 ## Preserve and evaluate the answers
 
@@ -69,10 +106,21 @@ After all sessions finish:
 ```sh
 python3 probes/DeltaECS.AgentEvaluation/evaluate.py \
     --workspace /tmp/deltaecs-agent-evaluation/sessions \
+    --audit artifacts/docs-evaluation/my-run-command-audit \
+    --sandbox --dotnet-root /absolute/path/to/dotnet-sdk \
     --results artifacts/docs-evaluation/my-run
 ```
 
-The evaluator verifies immutable input hashes, archives solution evidence, reruns every consumer check and saves complete output and `correctness.json`. It flags a missing first-answer snapshot or one that is still the starter stub; these do not establish first-attempt correctness. The agents restore/build their projects first; the evaluator uses `--no-restore`. Build output and generated code stay in the scratch workspaces.
+The evaluator verifies immutable input hashes, rejects unexpected compiler
+inputs, archives supplied inputs and answer evidence, reruns every consumer
+check and saves complete output and `correctness.json`. A failing consumer
+makes the evaluator return a failing exit status. First answers are rebuilt
+in separate scratch copies; they never replace final solutions. External
+first snapshots take precedence over agent-written evidence. Their precise
+meaning is the first non-stub source observed at a command boundary, not an
+unobserved edit history or proof of a single compiler attempt. Missing or
+starter-stub snapshots do not establish first-attempt correctness. Build
+output and generated code stay in scratch workspaces.
 
 Review each answer against the private rubric separately from its pass/fail result:
 
@@ -88,11 +136,24 @@ Record first-attempt compilation separately from final correctness. Passing a ti
 
 When the cost difference is clear from the public execution model, explain it without fabricating a timing. When two valid solutions have comparable work and their real cost is uncertain, compare them on the same larger fixture with BenchmarkDotNet. Validate equivalent results before timing; create worlds and reusable operations outside measurement, pass workload sizes as application arguments, and retain the environment and complete results.
 
-Freeze the first-run evidence before improving documentation. Re-run changed tasks in fresh sessions; do not give a previously coached agent the same task and call that an independent result. A single batch of thirteen tasks tests coverage, not statistical reliability or causation. A documentation A/B claim requires separate uncoached sessions for both document sets.
+Freeze the first-run evidence before improving documentation. Re-run changed tasks in fresh sessions; do not give a previously coached agent the same task and call that an independent result. A single batch of tasks tests coverage, not statistical reliability or causation. A documentation A/B claim requires separate uncoached sessions for both document sets.
+
+Check API selection independently of executable correctness. A small fixture
+can pass despite a full sort instead of a minimum, repeated point getters,
+per-call visitor dispatch, temporary arrays or fixture-specific branches.
+Conversely, do not demand an API composition the current generator cannot
+compile. Record those capability limits, validate a supported alternative,
+and distinguish correctness, API family, avoidable overhead, and compilation
+friction. Ordering checks must make order observable: exhaust a budget inside
+a tied target, move the reference point, or assert a global phase barrier at
+the first reset. Passing checks whose outputs are order-independent proves
+no ordering property.
 
 Run reports belong in `evaluation/`; raw answers, hashes and compiler/benchmark output belong in `artifacts/docs-evaluation/`. Keep the task templates free of solved answers so the suite can be repeated.
 
 The [first evaluation report](evaluation/2026-10-16.md) records the thirteen-task baseline, two fresh retests, documentation corrections and the limits of the evidence.
+
+The [expanded Luna-medium evaluation](evaluation/2026-10-16-medium-expansion.md) records the 21-task run, stronger order-sensitive checks, fresh retests and remaining API-selection failures.
 
 Private holdout checkers in `evaluation/holdouts/` test a player away from the origin. After freezing the original answers and results, copy a consumer workspace to a separate scratch directory, replace only its matching `Verify.cs` with the holdout checker and run `dotnet run --project Consumer.csproj -c Release`. Keep that output separately; the normal evaluator must continue rejecting modifications to its original checker inputs.
 

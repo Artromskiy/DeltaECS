@@ -1,0 +1,28 @@
+using System;
+using System.Linq;
+using System.Numerics;
+using ApiChoiceProbe;
+using Delta.ECS;
+
+using var s = new Scenario();
+Entity missingStableId = s.World.Create(new ComponentId[] { s.PositionId, s.HealthId, s.EnemyId });
+s.World.GetRef<Position>(missingStableId) = new(new Vector2(0.2f, 0));
+s.World.GetRef<Health>(missingStableId) = new(100);
+Entity[] candidates = { s.Units[0], s.Units[1], s.Units[2], s.Units[3], s.Units[4], s.Units[7], missingStableId };
+Entity stale = s.SpawnUnit(new Vector2(1, 0), 100, 1);
+s.World.Destroy(stale);
+Entity[] supplied = candidates.Append(stale).ToArray();
+Entity outside = s.SpawnUnit(new Vector2(0.1f, 0), 100, 0);
+var solution = new Solution(s, supplied, 8f);
+Check.That(solution.Execute() == s.Units[1], "Distance tie did not use StableId or list boundaries were ignored");
+s.World.GetRef<Position>(s.Player).Value = new Vector2(4, 0);
+Check.That(solution.Execute() == s.Units[2], "Player's moved position was not used");
+s.World.GetRef<Health>(s.Units[2]).Value = 0;
+Check.That(solution.Execute() == s.Units[1], "Health filtering did not happen before minimum selection");
+s.World.Add(s.Units[0], s.PausedId);
+s.World.Add(s.Units[1], s.PausedId);
+Check.That(solution.Execute() == s.Units[7], "Paused or strict radius filtering failed");
+s.World.Add(s.Units[7], s.PausedId);
+Check.That(!solution.Execute().IsValid, "No-match result was not default Entity");
+Check.That(s.World.IsAlive(outside), "Out-of-list probe unexpectedly changed");
+Console.WriteLine("PASS 15-filtered-nearest");

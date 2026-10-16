@@ -1,0 +1,7 @@
+# Find the nearest valid entity from a supplied list
+
+The constructor receives the world fixture, a fixed candidate array, and a positive radius. Each `Execute()` returns the closest candidate that is currently alive in the world, has `Position`, `Health`, `StableId`, and `Enemy`, has positive health, is not `Paused`, and lies strictly inside the radius from the player's current position. Return `default(Entity)` when there is no qualifying candidate.
+
+Apply every eligibility test before choosing the minimum. Equal distances are resolved by the smaller `StableId.Value`. The player's position can change between calls, so use its current position each time. The candidate array can contain stale handles. A closer matching entity can exist in the world outside the array; it must not be considered. Candidate membership is fixed but positions, health, tags, and world liveness can change.
+
+Construct the solution once and reuse it. Use an API that operates on the supplied list and current component data. Do not replace the list with a whole-world query, cache an initial answer, hardcode fixture indices, or enumerate `Scenario.Units` as a substitute for the supplied candidates. Use only the supplied public documentation and consumer files. Explain the API choice, complexity, preparation and overhead in `CHOICE.md`; preserve the first implementation in `FIRST-Solution.cs.txt`; record attempts in `ATTEMPTS.md`; and run `dotnet run --project Consumer.csproj -c Release`. Do not edit the checker to make a solution pass.

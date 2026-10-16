@@ -1,0 +1,22 @@
+using System;
+using System.Numerics;
+using ApiChoiceProbe;
+using Delta.ECS;
+
+using var s = new Scenario();
+var solution = new Solution(s, 3);
+Check.That(solution.Execute() == 1, "First post-damage destruction count");
+Check.That(!s.World.IsAlive(s.Units[3]), "Initially defeated enemy survived");
+Check.That(s.World.Get<Health>(s.Units[0]).Value == 3, "Damage phase did not run");
+Check.That(solution.Execute() == 2, "Second phase did not destroy the newly defeated enemy");
+Check.That(!s.World.IsAlive(s.Units[0]) && !s.World.IsAlive(s.Units[1]), "Enemies defeated by the prior damage pass survived");
+Entity newlyDefeated = s.SpawnUnit(Vector2.One, 2, 900);
+Entity pausedDead = s.SpawnUnit(new Vector2(3, 1), -1, 901, paused: true);
+Entity nonEnemyDead = s.SpawnUnit(new Vector2(5, 1), -1, 902, enemy: false);
+Check.That(solution.Execute() == 3, "Damage and post-mutation cleanup missed defeated enemies");
+Check.That(!s.World.IsAlive(newlyDefeated) && !s.World.IsAlive(s.Units[5]) && !s.World.IsAlive(s.Units[7]), "Post-damage defeated enemies remained");
+Check.That(s.World.Get<Health>(pausedDead).Value == -1 && s.World.IsAlive(pausedDead), "Paused enemy was changed");
+Check.That(s.World.Get<Health>(nonEnemyDead).Value == -1 && s.World.IsAlive(nonEnemyDead), "Non-enemy was changed");
+Entity newAlive = s.SpawnUnit(new Vector2(2, 0), 8, 903);
+Check.That(solution.Execute() == 0 && s.World.Get<Health>(newAlive).Value == 5, "New living enemy was not processed correctly");
+Console.WriteLine("PASS 16-damage-cleanup");

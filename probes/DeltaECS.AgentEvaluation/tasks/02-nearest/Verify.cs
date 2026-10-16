@@ -19,4 +19,9 @@ Check.That(solution.Execute() == extra, "New target not considered");
 foreach (Entity e in s.Units.Append(extra)) s.World.GetRef<Health>(e).Value = 0;
 Check.That(!solution.Execute().IsValid, "Expected default when no target qualifies");
 
+using var shifted = new Scenario();
+shifted.World.GetRef<Position>(shifted.Player).Value = new Vector2(4, 0);
+var shiftedSolution = new Solution(shifted);
+Check.That(shiftedSolution.Execute() == shifted.Units[2], "Distance must be relative to the nonzero player position");
+
 Console.WriteLine("PASS 02-nearest");

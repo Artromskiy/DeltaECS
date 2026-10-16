@@ -124,5 +124,84 @@
       "prepare fixed group selection once",
       "preserve primary float and unrelated registrations"
     ]
+  },
+  "14-debuff-ticks": {
+    "title": "Tick every configured interface debuff",
+    "criteria": [
+      "construction-time constrained dispatch or equivalent prepared closed generic handlers",
+      "each configured registration visited independently including same-CLR alternatives",
+      "struct mutation by constrained call on actual stored ref; no boxed-copy mutation",
+      "live query rather than initial fixture entities",
+      "no unsupported interface-constrained runtime functor; documented generic-generator fallback accepted with its per-entity lookup cost"
+    ]
+  },
+  "15-filtered-nearest": {
+    "title": "Find a minimum inside an external list",
+    "criteria": [
+      "explicit-list typed ForEachEntity/read-only rows or equivalent linear list reduction",
+      "membership and value/radius eligibility before minimum",
+      "current player state refreshed before execution; same reference point for eligibility and distance",
+      "stable-ID tie break, stale generations excluded, no whole-world scan/full sort",
+      "retain live processing without caching an answer"
+    ]
+  },
+  "16-damage-cleanup": {
+    "title": "Write health then destroy post-write matches",
+    "criteria": [
+      "typed ForEach ref Health update completes first",
+      "value-filtered structural Destroy terminal reselects current post-write health",
+      "no immediate structural mutation inside callback",
+      "queries/operations retained; returned destroy count comes from terminal"
+    ]
+  },
+  "17-observed-pipeline": {
+    "title": "Observe then apply event-fed membership cleanup",
+    "criteria": [
+      "one retained ForEachChange subscription and per-call output clear",
+      "Removed handled without reading null ref; generation-safe Entity handles retained",
+      "cleanup limited to current Added/Modified nonpositive events",
+      "structural removal after observer callback completes, preferably batched by ID",
+      "no full-world health snapshot or per-call observer recreation"
+    ]
+  },
+  "18-configured-transfer": {
+    "title": "Filter then order then consume fresh budget on configured rows",
+    "criteria": [
+      "typed float access with explicit source/destination IDs in comparer/terminal",
+      "descending source then stable-ID tie break; supported sort-all/filter-terminal fallback with O(N log N) cost disclosed when explicit-ID predicates unavailable",
+      "ordered typed ForEach with direct ref source/destination; no world scan+point-getter rewrite",
+      "per-call budget reset before Invoke, capacity cap and partial final target",
+      "primary same-CLR registration untouched; live values/membership"
+    ]
+  },
+  "19-expiring-effects": {
+    "title": "Tick unknown struct effects then remove expired instances",
+    "criteria": [
+      "prepare constrained dispatch per configured registration outside Execute",
+      "mutate actual struct instance without boxing; include same-CLR alternative IDs",
+      "derive expiration from post-tick values and apply structural removal after traversal",
+      "batch per-registration cleanup or supported structural terminal; do not destroy entities",
+      "handle live entities and unconfigured interface implementations; document fallback access cost"
+    ]
+  },
+  "20-snapshot-reset": {
+    "title": "Complete full snapshot before any reset",
+    "criteria": [
+      "prepared per-registration typed read-only entity traversal, explicit IDs",
+      "snapshot every current instance on every call, including unchanged/unmarked values",
+      "global snapshot phase completes across all registrations before first reset",
+      "only then reset configured marked instances by constrained mutation on stored struct",
+      "no boxed mutation or repeated per-call type discovery; current membership/new entities"
+    ]
+  },
+  "21-membership-transition": {
+    "title": "Choose structural matches from updated values",
+    "criteria": [
+      "typed Health write phase over live Enemy/Health query",
+      "membership selectors inspect updated Health after write phase",
+      "post-traversal Add/Remove batch or structural terminals, no callback structural mutation",
+      "retain Paused for low-health entities and preserve non-enemies",
+      "reused preparation remains valid after topology and membership changes"
+    ]
   }
 }

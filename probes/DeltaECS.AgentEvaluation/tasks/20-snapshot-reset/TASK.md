@@ -1,0 +1,7 @@
+# Snapshot current configured values, then reset
+
+The scenario has two registered component types implementing `IResettable`, including two registrations backed by the same CLR type, and `SnapshotSink` accepts typed values. For every current entity, record the current value of every present registration in the supplied configured list, exactly once per instance. Only after the full snapshot has been recorded, reset those selected components on entities with `Marked`. Clear the sink on each call. Snapshot every current value on every call, including unchanged components.
+
+The configured list contains unknown concrete CLR types and can include multiple registrations of one type. It is fixed after construction, while entities, membership, and values can change. Use the supplied sink contract; its `Put<T>` handles output copies. Do not use reflection or fixture indices. Avoid repeated component resolution when a supported typed traversal can supply references; typed access through an entity view may be needed when a registration's type is selected at runtime. Preserve all unselected registrations.
+
+The task-local reset hook checks that the complete expected record count is present before every reset call. The checker configures this hook; the solution must not configure or call audit instrumentation; resetting one registration before snapshotting the remaining registrations fails the check.

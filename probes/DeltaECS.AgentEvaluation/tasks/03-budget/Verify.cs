@@ -17,4 +17,11 @@ Check.That(s.World.Get<Health>(s.Units[2]).Value == 11, "Second budget not fresh
 Check.That(s.World.Get<Health>(s.Units[4]).Value == 9, "Paused target damaged");
 Check.That(s.World.Get<Health>(s.Units[6]).Value == 8, "Non-enemy damaged");
 
+using var shifted = new Scenario();
+shifted.World.GetRef<Position>(shifted.Player).Value = new Vector2(4, 0);
+var shiftedSolution = new Solution(shifted);
+shiftedSolution.Execute(5);
+Check.That(shifted.World.Get<Health>(shifted.Units[2]).Value == 15, "Damage order must be relative to the nonzero player position");
+Check.That(shifted.World.Get<Health>(shifted.Units[1]).Value == 4, "Origin-nearest target was incorrectly selected");
+
 Console.WriteLine("PASS 03-budget");

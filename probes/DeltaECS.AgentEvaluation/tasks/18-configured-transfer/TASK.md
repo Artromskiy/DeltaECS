@@ -1,0 +1,5 @@
+# Transfer from configured float registrations
+
+The supplied scenario has source and destination registrations of `float`, plus a separate primary `float` registration. Implement `Solution` to transfer value from source to destination for entities carrying both configured registrations. An entity is eligible when source is positive and destination is below its limit of 20. Process eligible entities in descending source-value order, breaking ties by ascending `StableId`. Transfer at most the supplied per-call budget, and never transfer more than the source or the destination's remaining capacity. A transfer changes only the selected source and destination rows.
+
+The IDs are runtime configuration, while the value type is known. Construct once and reuse. Calls provide different budgets, and values, matching entities and entity population can change after construction. Do not use fixture indices or enumerate the fixture array as the processing source. Preserve unrelated components, including `Noise` and primary `float`.
