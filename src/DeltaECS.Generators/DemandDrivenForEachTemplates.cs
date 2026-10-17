@@ -460,13 +460,13 @@ internal static partial class DemandDrivenForEachTemplates
 
     /// <summary>
     /// Emits the dense unroll loop into <paramref name="loopLines"/> and private static
-    /// Visit1/2/4 helpers into <paramref name="visitMethods"/> (constant offsets 0..3).
+    /// VisitStep/Visit4 helpers into <paramref name="visitMethods"/> (constant offsets).
     /// Fast path peels on <c>(count &amp; ~3) != 0</c> (tst-friendly). Cursor refs are
     /// pinned into locals <c>b0..bn</c> for the Visit4 do-while so the JIT keeps stable
     /// base registers; locals advance by 4 at the end of each iteration and write back
-    /// into the original cursors for the remainder tail. Remainder uses an if/else
-    /// cascade (not <c>switch</c>) to avoid a jump table. Visit2/Visit4 call the action
-    /// with direct <c>Unsafe.Add</c> offsets — no temporary slot refs inside Visit*.
+    /// into the original cursors for the remainder. Remaining elements use a scalar
+    /// <c>while</c> loop. Visit4 calls the action with direct <c>Unsafe.Add</c> offsets —
+    /// no temporary slot refs inside Visit*.
     /// </summary>
     private static void AppendUnrolledDenseSlotLoop(
         List<string> loopLines,
@@ -544,8 +544,7 @@ internal static partial class DemandDrivenForEachTemplates
             visitMethods.Add(string.Empty);
         }
 
-        EmitVisitMethod(1, "Visit1");
-        EmitVisitMethod(2, "Visit2");
+        EmitVisitMethod(1, "VisitStep");
         EmitVisitMethod(4, "Visit4");
 
         loopLines.Add($"{loopIndent}#pragma warning disable CS8619 // Unsafe.Add returns a maybe-null ref for unconstrained T; this loop only advances the reference.");
@@ -590,21 +589,11 @@ internal static partial class DemandDrivenForEachTemplates
         loopLines.Add($"{loopIndent}}}");
         loopLines.Add($"{loopIndent}#pragma warning restore CS8619");
         loopLines.Add($"{loopIndent}int remaining = {countName} & 3;");
-        loopLines.Add($"{loopIndent}if (remaining != 0)");
+        loopLines.Add($"{loopIndent}while (remaining != 0)");
         loopLines.Add($"{loopIndent}{{");
-        loopLines.Add($"{loopIndent}    if (remaining == 1)");
-        loopLines.Add($"{loopIndent}    {{");
-        loopLines.Add($"{loopIndent}        {Call("Visit1", cursorNames)};");
-        loopLines.Add($"{loopIndent}    }}");
-        loopLines.Add($"{loopIndent}    else if (remaining == 2)");
-        loopLines.Add($"{loopIndent}    {{");
-        loopLines.Add($"{loopIndent}        {Call("Visit2", cursorNames)};");
-        loopLines.Add($"{loopIndent}    }}");
-        loopLines.Add($"{loopIndent}    else");
-        loopLines.Add($"{loopIndent}    {{");
-        loopLines.Add($"{loopIndent}        {Call("Visit2", cursorNames)};");
-        loopLines.Add($"{loopIndent}        {Call("Visit1", cursorNames, cursorShift: 2)};");
-        loopLines.Add($"{loopIndent}    }}");
+        loopLines.Add($"{loopIndent}    {Call("VisitStep", cursorNames)};");
+        emitAdvance(loopLines, loopIndent + "    ", 1);
+        loopLines.Add($"{loopIndent}    remaining--;");
         loopLines.Add($"{loopIndent}}}");
     }
 
