@@ -51,6 +51,10 @@ internal static class GeneratedWherePipelineGrammarProof
             .Remove(deadId).Invoke();
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
             .Remove<Dead>().Invoke();
+        InvokeResult(world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
+            .Remove<Dead>());
+        InvokeWithoutResult(world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
+            .Remove<Dead>());
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .Remove(tagIds).Invoke();
 
@@ -75,4 +79,10 @@ internal static class GeneratedWherePipelineGrammarProof
         world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
             .ForEachEntity(ref entityActionWithoutContext).Invoke(ref entityActionWithoutContext);
     }
+
+    private static void InvokeResult<TOperation>(TOperation operation)
+        where TOperation : IResultOperation<int>
+        => operation.Invoke();
+
+    private static void InvokeWithoutResult(IOperation operation) => operation.Invoke();
 }

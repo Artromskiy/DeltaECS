@@ -998,14 +998,16 @@ executor type is inferred by the compiler:
 EcsOperation<TInvoker> : IOperation
 EcsOperation<TState, TInvoker> : IOperation<TState>
 EcsOperation<TContext, TFunctor, TInvoker> : IOperation<TContext, TFunctor>
-EcsResultOperation<TResult>.Invoke() -> TResult
+EcsResultOperation<TResult> : IResultOperation<TResult>; Invoke() -> TResult
 ```
 
-Stateful operations expose `Invoke` overloads for operation-owned state,
-caller-owned state, or both. Invoke the concrete value directly to avoid
-boxing. Store heterogeneous operations as `IOperation` (or a state-specific
-interface) to box once, or pass the concrete operation to a generic method
-constrained by the matching operation interface.
+`IOperation<TState>` uses caller-owned mutable state; `IResultOperation<TResult>`
+represents a deferred operation that returns a typed result. Stateful operations
+expose `Invoke` overloads for operation-owned state, caller-owned state, or both.
+Invoke the concrete value directly to avoid boxing. Store heterogeneous
+operations as `IOperation` (or a state-specific interface) to box once, store
+result operations as `IResultOperation<TResult>`, or pass the concrete operation
+to a generic method constrained by the matching operation interface.
 
 The ordering selectors and comparer can be omitted when the generated primary
 registration and callback inference are sufficient. `P` is an optional

@@ -78,6 +78,27 @@ internal sealed class EcsOperationTests
         Assert.That(operation.Invoke(), Is.EqualTo(2));
     }
 
+    [Test]
+    public void ResultOperationCanBeStoredThroughResultInterface()
+    {
+        int count = 0;
+        IResultOperation<int> operation = new EcsResultOperation<int>(() => ++count);
+
+        Assert.That(operation.Invoke(), Is.EqualTo(1));
+        Assert.That(operation.Invoke(), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void ResultOperationCanBeStoredAsVoidOperationAndDiscardItsResult()
+    {
+        int count = 0;
+        IOperation operation = new EcsResultOperation<int>(() => ++count);
+
+        operation.Invoke();
+
+        Assert.That(count, Is.EqualTo(1));
+    }
+
     private static void InvokeTwice<TOperation>(ref TOperation operation)
         where TOperation : IOperation
     {

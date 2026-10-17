@@ -77,6 +77,13 @@ public interface IOperation<TState> : IOperation
     void Invoke(ref TState state);
 }
 
+/// <summary>A deferred operation that produces a typed result when invoked.</summary>
+public interface IResultOperation<TResult> : IOperation
+{
+    /// <summary>Executes this operation and returns its result.</summary>
+    new TResult Invoke();
+}
+
 /// <summary>A deferred operation that can use caller-owned context and functor state.</summary>
 public interface IOperation<TContext, TFunctor> : IOperation
 {
@@ -115,7 +122,7 @@ public interface IEcsOperationInvoker<TContext, TFunctor>
 }
 
 /// <summary>A reusable, deferred ECS operation that produces a result when invoked.</summary>
-public sealed class EcsResultOperation<TResult>
+public sealed class EcsResultOperation<TResult> : IResultOperation<TResult>
 {
     private readonly Func<TResult> _invoke;
 
@@ -130,4 +137,6 @@ public sealed class EcsResultOperation<TResult>
     /// <summary>Executes this operation and returns its result.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TResult Invoke() => _invoke();
+
+    void IOperation.Invoke() => _ = Invoke();
 }
