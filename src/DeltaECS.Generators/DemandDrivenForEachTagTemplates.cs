@@ -57,43 +57,6 @@ internal static partial class DemandDrivenForEachTemplates
         return string.Join("\n", lines);
     }
 
-    private static string AppendParallelStampTagSelectionLoop(
-        IterationModel shape,
-        string denseLoopBody,
-        string contextName,
-        string actionName,
-        string functorName)
-    {
-        if (!shape.HasEntity)
-        {
-            return denseLoopBody;
-        }
-
-        string entityAssignment = "slots.SetEntityRefSlot(ref entityRefView, slotIndex);";
-        string stampLocals = GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
-            $"Stamp component{index} = slots.GetGeneratedStamp(_access{index}, tagIndex);"));
-        string invocation = AppendClosedInvocation(shape, actionName, functorName, contextName, "component", "entity");
-        return $$"""
-            if (slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots))
-            {
-                int tagCount = tagSlots.Length;
-                ref int tagSlot = ref GeneratedForEachRuntime.GetGeneratedTagSlotReference(tagSlots);
-                for (int tagIndex = 0; tagIndex < tagCount; tagIndex++)
-                {
-                    int slotIndex = tagSlot;
-                    {{entityAssignment}}
-            {{GeneratorTemplates.Indent(stampLocals, "        ")}}
-                    {{invocation}};
-                    tagSlot = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref tagSlot, 1);
-                }
-            }
-            else
-            {
-            {{GeneratorTemplates.Indent(denseLoopBody, "    ")}}
-            }
-            """;
-    }
-
     private static void AppendBoundTagSelectionLoop(
         List<string> lines,
         IterationModel shape,
@@ -248,42 +211,4 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("        }");
     }
 
-    private static void AppendInterceptedParallelStampTagSelectionLoop(
-        List<string> lines,
-        IterationModel shape,
-        InterceptionSite site,
-        string callbackName,
-        string[] parameters,
-        bool inlineLambda,
-        IReadOnlyList<string> denseLoopLines)
-    {
-        var selectedBody = new List<string>();
-        int parameterIndex = shape.HasContext ? 1 : 0;
-        if (shape.HasEntity)
-        {
-            selectedBody.Add("                slots.SetEntityRefSlot(ref entityRefView, slotIndex);");
-            parameterIndex++;
-        }
-
-        for (int index = 0; index < shape.ComponentModels.Length; index++)
-        {
-            selectedBody.Add($"                Stamp {parameters[parameterIndex + index]} = slots.GetGeneratedStamp(_access{index}, tagIndex);");
-        }
-
-        if (inlineLambda)
-        {
-            selectedBody.Add(AppendInterceptedLambdaBody(site, "                "));
-        }
-        else
-        {
-            selectedBody.Add("                " + AppendCallbackInvocation(shape, callbackName, parameters, string.Empty));
-        }
-
-        AppendTagSelectionBranch(
-            lines,
-            "slots.HasTagFilters && slots.TryGetTagSlots(out var tagSlots)",
-            selectedBody,
-            denseLoopLines,
-            shape.HasEntity ? parameters[shape.HasContext ? 1 : 0] : string.Empty);
-    }
 }

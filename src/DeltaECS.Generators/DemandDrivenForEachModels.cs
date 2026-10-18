@@ -69,7 +69,6 @@ internal sealed class IterationModel(
     public ContextModeKind FunctorPassMode => Api.Callback?.PassMode ?? ContextModeKind.None;
     public bool HasEntityTarget => Api.Target == TargetKind.EntityList;
     public bool HasQuery => Api.Query != QueryMode.None;
-    public bool IsStamp => false;
     public string MethodName => Api.Name ?? "ForEach";
     public string Namespace { get; } = namespaceName;
     public bool OrderedQueryReceiver { get; } = orderedQueryReceiver;
