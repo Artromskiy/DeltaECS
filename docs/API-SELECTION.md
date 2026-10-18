@@ -240,7 +240,7 @@ the stored component. Those point accesses are appropriate here; scanning the
 world to update one known entity is not. A one-off visitor call remains useful
 when there is no repeated workload to amortize preparation.
 
-For exact overloads use the [API grammar](API-GRAMMAR.md); for more complete scenarios use the [API cookbook](usage-examples.md).
+For exact overloads use the [API grammar](API-GRAMMAR.md); for more complete scenarios use the [API examples](API-EXAMPLES.md).
 
 ## Several unknown component types implementing one interface
 

@@ -37,7 +37,12 @@ def main():
         assignments = {name: tasks for name, tasks in assignments.items() if tasks}
         if not assignments:
             raise SystemExit("No tasks matched the selection")
-    documents = ["README.md", "docs/API-SELECTION.md", "docs/API-GRAMMAR.md", "docs/usage-examples.md"]
+    documents = [
+        "README.md",
+        "docs/API-SELECTION.md",
+        "docs/API-GRAMMAR.md",
+        "docs/API-EXAMPLES.md",
+    ]
     binaries = {
         "src/DeltaECS/bin/Release/net10.0/DeltaECS.dll": "lib/DeltaECS.dll",
         "src/DeltaECS.Generators/bin/Release/netstandard2.0/DeltaECS.Generators.dll": "analyzers/DeltaECS.Generators.dll",

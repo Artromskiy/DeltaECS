@@ -111,7 +111,7 @@ See DeltaECS used in the Sky Pirates Unity project, including its entity-view sy
 ## Learn more
 
 - [Choose an API for your task](docs/API-SELECTION.md)
-- [API cookbook](docs/usage-examples.md)
+- [API examples](docs/API-EXAMPLES.md)
 - [API grammar](docs/API-GRAMMAR.md)
 - [GitHub Wiki](https://github.com/Artromskiy/DeltaECS/wiki)
 - [Runtime package](docs/packages/DeltaECS.README.md)

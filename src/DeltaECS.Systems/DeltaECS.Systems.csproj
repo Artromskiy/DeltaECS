@@ -10,7 +10,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsPackable>true</IsPackable>
     <PackageId>DeltaECS.Systems</PackageId>
-    <Version>0.0.60</Version>
+    <Version>0.0.61</Version>
     <Authors>Artromskiy</Authors>
     <Description>Deterministic and parallel scheduler for DeltaECS systems.</Description>
     <PackageTags>ecs;entity-component-system;scheduler;parallel;dotnet</PackageTags>
@@ -30,6 +30,18 @@
     <None Include="$(MSBuildThisFileDirectory)..\..\docs\packages\DeltaECS.Systems.README.md"
           Pack="true"
           PackagePath="README.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-SELECTION.md"
+          Pack="true"
+          PackagePath="docs/API-SELECTION.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-GRAMMAR.md"
+          Pack="true"
+          PackagePath="docs/API-GRAMMAR.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-EXAMPLES.md"
+          Pack="true"
+          PackagePath="docs/API-EXAMPLES.md"
           Visible="false" />
   </ItemGroup>
 

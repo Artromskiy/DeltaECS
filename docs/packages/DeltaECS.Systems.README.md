@@ -17,6 +17,13 @@ treats explicit `ComponentId` selectors and calls outside the generated API as
 unknown access; declare their actual component ids and query scopes explicitly
 if you want the scheduler to distinguish those accesses.
 
+The package includes offline guides for choosing APIs and reading the full
+generated grammar:
+
+- [Choose an API](docs/API-SELECTION.md)
+- [API grammar](docs/API-GRAMMAR.md)
+- [API examples](docs/API-EXAMPLES.md)
+
 Iteration calls return reusable deferred operations. Create one once and call
 `Invoke()` from each system tick so the query plan and generated route stay
 prepared between ticks.

@@ -18,7 +18,46 @@ projects whose selected compatibility profile is .NET Standard 2.1. The
 `netstandard2.1` asset uses the equivalent compatibility implementation while
 preserving the same public API.
 
-Repository documentation: <https://github.com/Artromskiy/DeltaECS/tree/main/docs>.
+## Quick start
+
+Register component types, create an entity, and run a typed query:
+
+```csharp
+using System;
+using System.Numerics;
+using Delta.ECS;
+
+var layouts = new ComponentRegistry();
+using var world = new World(layouts);
+
+layouts.Register<Position>(new SchemaId(1));
+layouts.Register<Velocity>(new SchemaId(2));
+layouts.Register<Paused>(new SchemaId(3));
+
+Entity player = world.Create<Position>();
+world.GetRef<Position>(player) = new Position(Vector2.Zero);
+world.Add(player, new Velocity(new Vector2(2, 1)));
+
+Query moving = world.WhereAll<Position, Velocity>().WhereNone<Paused>();
+world.ForEach(in moving,
+    static (ref Position position, in Velocity velocity) =>
+        position.Value += velocity.Value).Invoke();
+
+Console.WriteLine(world.Get<Position>(player).Value.X); // 2
+
+public record struct Position(Vector2 Value);
+public record struct Velocity(Vector2 Value);
+public record struct Paused;
+```
+
+The package also includes offline API guides under `docs/`:
+
+- [Choose an API](docs/API-SELECTION.md)
+- [API grammar](docs/API-GRAMMAR.md)
+- [API examples](docs/API-EXAMPLES.md)
+
+Start with the [API examples](docs/API-EXAMPLES.md) for query chains,
+iteration, and structural operations.
 
 Zero-component callbacks
 

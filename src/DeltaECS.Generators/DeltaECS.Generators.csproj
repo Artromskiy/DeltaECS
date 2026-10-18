@@ -8,7 +8,7 @@
     <IsRoslynComponent>true</IsRoslynComponent>
     <AssemblyName>DeltaECS.Generators</AssemblyName>
     <PackageId>DeltaECS.Generators</PackageId>
-    <Version>0.0.60</Version>
+    <Version>0.0.61</Version>
     <Authors>Artromskiy</Authors>
     <Description>Build-time Roslyn analyzer and source generator for DeltaECS consumer callbacks.</Description>
     <PackageTags>ecs;source-generator;analyzer;roslyn;dotnet</PackageTags>
@@ -45,6 +45,18 @@
     <None Include="$(MSBuildThisFileDirectory)..\..\docs\packages\DeltaECS.Generators.README.md"
           Pack="true"
           PackagePath="README.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-SELECTION.md"
+          Pack="true"
+          PackagePath="docs/API-SELECTION.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-GRAMMAR.md"
+          Pack="true"
+          PackagePath="docs/API-GRAMMAR.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-EXAMPLES.md"
+          Pack="true"
+          PackagePath="docs/API-EXAMPLES.md"
           Visible="false" />
   </ItemGroup>
 

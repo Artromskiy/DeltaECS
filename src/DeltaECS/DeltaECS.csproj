@@ -10,7 +10,7 @@
     <AssemblyName>DeltaECS</AssemblyName>
     <ArtifactsProjectName>$(AssemblyName)</ArtifactsProjectName>
     <PackageId>DeltaECS</PackageId>
-    <Version>0.0.60</Version>
+    <Version>0.0.61</Version>
     <Authors>Artromskiy</Authors>
     <Description>High-performance archetype-based entity component system for .NET.</Description>
     <PackageTags>ecs;entity-component-system;game-development;archetype;dotnet</PackageTags>
@@ -38,6 +38,18 @@
     <None Include="$(MSBuildThisFileDirectory)..\..\docs\packages\DeltaECS.README.md"
           Pack="true"
           PackagePath="README.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-SELECTION.md"
+          Pack="true"
+          PackagePath="docs/API-SELECTION.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-GRAMMAR.md"
+          Pack="true"
+          PackagePath="docs/API-GRAMMAR.md"
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\docs\API-EXAMPLES.md"
+          Pack="true"
+          PackagePath="docs/API-EXAMPLES.md"
           Visible="false" />
   </ItemGroup>
 

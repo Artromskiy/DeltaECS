@@ -1,14 +1,21 @@
 # DeltaECS API and code-generation cookbook
 
-Start with the complete project and `Program.cs` in the [README](../README.md).
-These are independent snippets based on the world after the README quickstart
-has printed `2`; do not run every mutating example sequentially against the same
-world. The snippets reuse its `world`, `layouts`, `player`, and `moving` values,
-as well as its `Position(Vector2 Value)` and `Velocity(Vector2 Value)` types.
-Register the additional example components and declare these aliases once
-before the snippets:
+Start with this initialized world. Each later code block is an independent
+example; do not run every mutating example sequentially against the same world.
+The examples reuse the `world`, `layouts`, `player`, and `moving` values and
+the component registrations declared here:
 
 ```csharp
+using System;
+using System.Numerics;
+using Delta.ECS;
+
+var layouts = new ComponentRegistry();
+using var world = new World(layouts);
+
+layouts.Register<Position>(new SchemaId(1));
+layouts.Register<Velocity>(new SchemaId(2));
+layouts.Register<Paused>(new SchemaId(3));
 layouts.Register<Health>(new SchemaId(4));
 layouts.Register<Human>(new SchemaId(5));
 layouts.Register<Dead>(new SchemaId(6));
@@ -17,6 +24,18 @@ layouts.Register<Armed>(new SchemaId(8));
 layouts.Register<Berserk>(new SchemaId(9));
 layouts.Register<Alive>(new SchemaId(10));
 layouts.Register<Team>(new SchemaId(11));
+
+Entity player = world.Create<Position>();
+world.GetRef<Position>(player) = new Position(Vector2.Zero);
+world.Add(player, new Velocity(new Vector2(2, 1)));
+
+Query moving = world
+    .WhereAll<Position, Velocity>()
+    .WhereNone<Paused>();
+world.ForEach(in moving,
+    static (ref Position position, in Velocity velocity) =>
+        position.Value += velocity.Value).Invoke();
+Console.WriteLine(world.Get<Position>(player).Value.X); // 2
 
 ComponentId positionId = layouts.GetPrimary<Position>();
 ComponentId velocityId = layouts.GetPrimary<Velocity>();
@@ -138,8 +157,8 @@ Context comes before components and is passed by `ref`. For a callback that
 also receives identity, use `ForEachEntity` and put `EntityRef` after context.
 Functor equivalents implement `IForEachContext<TContext>` or
 `IForEachContextEntity<TContext>`; component parameters still come from
-`Invoke`. The [README](../README.md#generate-a-stateful-system) demonstrates a
-functor carrying its own state instead.
+`Invoke`. The [API grammar](API-GRAMMAR.md) lists the available context and
+entity-aware callback shapes.
 
 The same functor contracts work after a query-wide `Where`. A predicate uses
 `IWherePredicate` and remains read-only; a terminal functor can mutate
@@ -339,11 +358,9 @@ To inspect generated C# in a consumer project, optionally enable:
 ```
 
 Generated files belong under the intermediate output directory; do not copy
-them into application source. See the [generator reference](src/DeltaECS.Generators/README.md)
-for supported callback shapes and diagnostics, and the
-[generated API grammar proof](../tests/DeltaECS.Generators.Consumer/GeneratedApiGrammarProof.cs).
-The separate [runtime-only API grammar proof](../tests/DeltaECS.Runtime.Consumer/RuntimeApiGrammarProof.cs)
-checks public forms that do not require a generator reference.
+them into application source. See the [API grammar](API-GRAMMAR.md) for
+supported callback shapes and the [API selection guide](API-SELECTION.md) for
+choosing between runtime and generated forms.
 
 The additional example types are:
 
@@ -354,6 +371,9 @@ public struct Step
     public int Updated;
 }
 
+public record struct Position(Vector2 Value);
+public record struct Velocity(Vector2 Value);
+public record struct Paused;
 public struct Health { public int Value; }
 public struct Team { public int Id; public int DefaultHealth; }
 public struct Dead { }

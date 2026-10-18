@@ -89,9 +89,8 @@ values and works with the language versions supported by the consumer.
 Where functors implement `IWherePredicate`. Use `Where` for component-only
 predicates and `WhereEntity` when the predicate also needs the current entity.
 Terminal functors reuse the regular `IForEach*` contracts, including their
-`ref` context forms. See the
-[generator API guide](../src/DeltaECS.Generators/README.md) for complete syntax
-and interceptor configuration.
+`ref` context forms. See the [API grammar](docs/API-GRAMMAR.md) for generated
+signatures and [API examples](docs/API-EXAMPLES.md) for usage patterns.
 
 The generator is compiled against `Microsoft.CodeAnalysis.CSharp 4.3.0`, which
 is the Roslyn version required by Unity 6 source-generator projects. On newer
@@ -103,5 +102,12 @@ Consumers using C# 9 or C# 10, including Unity projects with a
 overloads. Interceptor source is emitted only when the consumer language
 version can parse the required interceptor declarations.
 
-For the optional interceptor path, configure the consumer project as described
-in the [generator documentation](https://github.com/Artromskiy/DeltaECS/blob/main/docs/src/DeltaECS.Generators/README.md).
+For the optional interceptor path, configure the consumer project as shown in
+the [API examples](docs/API-EXAMPLES.md#opt-into-interceptors).
+
+This package includes the core API guides under `docs/` so generated callback
+and query forms can be reviewed offline:
+
+- [Choose an API](docs/API-SELECTION.md)
+- [API grammar](docs/API-GRAMMAR.md)
+- [API examples](docs/API-EXAMPLES.md)
