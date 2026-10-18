@@ -1,15 +1,42 @@
 # DeltaECS API and code-generation cookbook
 
 Start with the complete project and `Program.cs` in the [README](../README.md).
-Each example below independently continues immediately after its `12` output,
-using the same world, registrations, entity and query. Place additional types
-at the end of `Program.cs`, after all top-level statements.
+These are independent snippets based on the world after the README quickstart
+has printed `2`; do not run every mutating example sequentially against the same
+world. The snippets reuse its `world`, `layouts`, `player`, and `moving` values,
+as well as its `Position(Vector2 Value)` and `Velocity(Vector2 Value)` types.
+Register the additional example components and declare these aliases once
+before the snippets:
+
+```csharp
+layouts.Register<Health>(new SchemaId(4));
+layouts.Register<Human>(new SchemaId(5));
+layouts.Register<Dead>(new SchemaId(6));
+layouts.Register<Escaped>(new SchemaId(7));
+layouts.Register<Armed>(new SchemaId(8));
+layouts.Register<Berserk>(new SchemaId(9));
+layouts.Register<Alive>(new SchemaId(10));
+layouts.Register<Team>(new SchemaId(11));
+
+ComponentId positionId = layouts.GetPrimary<Position>();
+ComponentId velocityId = layouts.GetPrimary<Velocity>();
+ComponentId healthId = layouts.GetPrimary<Health>();
+ComponentId deadId = layouts.GetPrimary<Dead>();
+ComponentId armedId = layouts.GetPrimary<Armed>();
+ComponentId berserkId = layouts.GetPrimary<Berserk>();
+Entity entity = player;
+Query query = moving;
+Query healthQuery = world.WhereAll<Health, Team>();
+```
+
+Place any additional component or functor types at the end of `Program.cs`,
+after all top-level statements.
 
 ## What needs the generator?
 
 | Operation | Provided by |
 |---|---|
-| Register layouts, create entities, `Get` / `GetRef` / `TryGet` | Runtime |
+| Register components, create entities, `Get` / `GetRef` / `TryGet` | Runtime |
 | Single-component `Add<T>(entity, value)` / `Remove<T>(entity)` | Runtime |
 | `QuerySpec`, `CreateQuery` | Runtime |
 | Typed `WhereAll<T...>` / `WhereAny<T...>` / `WhereNone<T...>` | Generator |
@@ -77,7 +104,7 @@ registrations:
 ```csharp
 world.ForEach(in query, positionId, velocityId,
     static (ref Position position, in Velocity velocity) =>
-        position.X += velocity.X).Invoke();
+        position.Value += velocity.Value).Invoke();
 ```
 
 For combined conditions, continue the query chain with explicit IDs:
@@ -88,8 +115,8 @@ var stationary = world
     .WhereNone(velocityId);
 world.Remove<Velocity>(entity);
 world.ForEach(in stationary,
-    static (ref Position position) => position.X = 0).Invoke();
-Console.WriteLine(world.Get<Position>(entity).X); // 0
+    static (ref Position position) => position.Value = Vector2.Zero).Invoke();
+Console.WriteLine(world.Get<Position>(entity).Value.X); // 0
 ```
 
 ## Pass time and accumulate results without a closure
@@ -99,22 +126,12 @@ var step = new Step { DeltaTime = 0.5f };
 var operation = world.ForEach<Step, Position, Velocity>(in query, ref step,
     static (ref Step state, ref Position position, in Velocity velocity) =>
     {
-        position.X += velocity.X * state.DeltaTime;
+        position.Value += velocity.Value * state.DeltaTime;
         state.Updated++;
     });
 operation.Invoke(ref step);
 Console.WriteLine(step.Updated); // 1
-Console.WriteLine(world.Get<Position>(entity).X); // 13
-```
-
-Additional type:
-
-```csharp
-public struct Step
-{
-    public float DeltaTime;
-    public int Updated;
-}
+Console.WriteLine(world.Get<Position>(entity).Value.X); // 3
 ```
 
 Context comes before components and is passed by `ref`. For a callback that
@@ -126,24 +143,25 @@ functor carrying its own state instead.
 
 The same functor contracts work after a query-wide `Where`. A predicate uses
 `IWherePredicate` and remains read-only; a terminal functor can mutate
-components and receive its own context:
+components. Prepare a matching entity for this example:
 
 ```csharp
-var predicateState = new PredicateState();
+Entity injured = world.Create<Health, Team>();
+world.GetRef<Health>(injured).Value = 0;
+world.GetRef<Team>(injured) = new Team { Id = 1, DefaultHealth = 100 };
+
 var predicate = new IsDeadPredicate();
-var actionState = new ActionState();
 var action = new ResetHealthAction();
-world.WhereEntity(in query, ref predicateState, ref predicate)
-    .ForEachEntity(ref actionState, ref action)
-    .Invoke(ref actionState, ref action);
+world.Where(in healthQuery, ref predicate)
+    .ForEach(ref action)
+    .Invoke(ref action);
 ```
 
-`Invoke` receives `ref TContext` when a context is supplied, then `Entity` for
-the `WhereEntity` predicate, then predicate components. `Where` omits `Entity`.
-Terminal `ForEach` uses the usual component-only form; `ForEachEntity` includes
-an `EntityRef` after its context. Static-lambda terminals can be lowered by the
-optional interceptor path to the same chunk execution as ordinary generated
-`ForEach`.
+The predicate and terminal functors receive only their declared component
+parameters. Use `WhereEntity` when the predicate also needs the current `Entity`,
+and `ForEachEntity` when the terminal needs an `EntityRef`. Static-lambda
+terminals can be lowered by the optional interceptor path to the same chunk
+execution as ordinary generated `ForEach`.
 
 ## Use explicit component IDs
 
@@ -152,8 +170,8 @@ This is the runtime query equivalent of `world.WhereAll<Position, Velocity>()`:
 ```csharp
 var explicitQuery = world.WhereAll(positionId, velocityId);
 ref Position position = ref world.GetRef<Position>(entity, positionId);
-position.X = 30;
-Console.WriteLine(world.Get<Position>(entity, positionId).X); // 30
+position.Value = new Vector2(30, position.Value.Y);
+Console.WriteLine(world.Get<Position>(entity, positionId).Value.X); // 30
 ```
 
 Typed convenience calls use the primary registration of each CLR type. If a
@@ -174,13 +192,13 @@ Console.WriteLine(removed); // 1
 Console.WriteLine(world.TryGet<Velocity>(entity, out _)); // False
 int added = world.Add<Velocity>(candidates);
 Console.WriteLine(added); // 1
-Console.WriteLine(world.Get<Velocity>(entity).X); // 0
+Console.WriteLine(world.Get<Velocity>(entity).Value.X); // 0
 ```
 
 The batch overload uses only the supplied candidates. Removing a component leaves
 the entity alive; destroying it invalidates its handle. Adding a component
 without an initialization value gives it the default value. To initialize
-while adding, use `world.Add(entity, velocityId, new Velocity { X = 2 })`
+while adding, use `world.Add(entity, velocityId, new Velocity(new Vector2(2, 1)))`
 when that component is absent.
 
 For a runtime-selected component set with a batch count, keep the IDs before
@@ -193,34 +211,42 @@ int created = world.Create(positionId, velocityId, 2, output);
 
 ## Filter the whole query before a mutation
 
-`world.Where(in query, predicate)` creates a reusable view over entities
-matched by `query`. Its predicate receives only read-only typed component
+`world.Where(in healthQuery, predicate)` creates a reusable view over entities
+matched by `healthQuery`. Its predicate receives only read-only typed component
 references. `WhereEntity` is the form that receives `Entity` first. Terminals
 return deferred operations and execute only after `Invoke()`:
 
-These examples use the following component markers:
+Each structural terminal below is an independent example. Its entity fixture
+must match the `healthQuery`; the removal example also adds `Alive`.
 
 ```csharp
-public struct Health { public int Value; }
-public struct Team { public int Id; public int DefaultHealth; }
-public struct Dead { }
-public struct Alive { }
+Entity target = world.Create<Health, Team>();
+world.GetRef<Health>(target).Value = 0;
+world.GetRef<Team>(target).Id = 1;
+int destroyed = world.WhereEntity(
+        in healthQuery,
+        static (Entity current, in Health health) => health.Value <= 0)
+    .Destroy().Invoke();
 ```
 
 ```csharp
-int destroyed = world.WhereEntity(
-        in query,
-        static (Entity current, in Health health) => health.Value <= 0)
-    .Destroy().Invoke();
-
+Entity target = world.Create<Health, Team>();
+world.GetRef<Health>(target).Value = 0;
+world.GetRef<Team>(target).Id = 1;
 int tagged = world.WhereEntity(
-        in query,
+        in healthQuery,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .Add<Dead>().Invoke();
+```
 
+```csharp
+Entity target = world.Create<Health, Team>();
+world.GetRef<Health>(target).Value = 0;
+world.GetRef<Team>(target).Id = 1;
+world.Add(target, new Alive());
 world.WhereEntity(
-        in query,
+        in healthQuery,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .Remove<Alive>().Invoke();
@@ -229,8 +255,11 @@ world.WhereEntity(
 Use either `in` or `ref readonly` for a zero-copy read-only component reference:
 
 ```csharp
+Entity target = world.Create<Health, Team>();
+world.GetRef<Health>(target).Value = 0;
+world.GetRef<Team>(target).Id = 1;
 world.WhereEntity(
-        in query,
+        in healthQuery,
         static (Entity current, ref readonly Health health) => health.Value <= 0)
     .Destroy().Invoke();
 ```
@@ -238,8 +267,10 @@ world.WhereEntity(
 When identity is not needed, omit the entity parameter:
 
 ```csharp
+Entity target = world.Create<Health, Team>();
+world.GetRef<Health>(target).Value = 0;
 int destroyed = world.Where(
-        in query,
+        in healthQuery,
         static (in Health health) => health.Value <= 0)
     .Destroy().Invoke();
 ```
@@ -257,14 +288,14 @@ or `ForEach` when it needs only components:
 
 ```csharp
 world.WhereEntity(
-        in query,
+        in healthQuery,
         static (Entity current, in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEachEntity(static (EntityRef current, in Health health, in Team team) =>
-        LogDeath(current, team)).Invoke();
+        Console.WriteLine($"{current.Index}: {team.Id}")).Invoke();
 
 world.Where(
-        in query,
+        in healthQuery,
         static (in Health health, in Team team) =>
             health.Value <= 0 && team.Id == 1)
     .ForEach(static (ref Health health, in Team team) =>
@@ -273,7 +304,10 @@ world.Where(
 
 The view stores the query and predicate for reuse. Each terminal returns an
 operation object; keeping that object lets the caller reuse its prepared route
-with `Invoke`. `Where` scans all query matches;
+with `Invoke`. Each invocation reevaluates the predicate against the query's
+current matches. A structural terminal collects the matching entity handles,
+closes the query scope, then applies the structural change; do not issue an
+immediate structural operation inside an active traversal callback.
 
 ## Opt into interceptors
 
@@ -310,3 +344,32 @@ for supported callback shapes and diagnostics, and the
 [generated API grammar proof](../tests/DeltaECS.Generators.Consumer/GeneratedApiGrammarProof.cs).
 The separate [runtime-only API grammar proof](../tests/DeltaECS.Runtime.Consumer/RuntimeApiGrammarProof.cs)
 checks public forms that do not require a generator reference.
+
+The additional example types are:
+
+```csharp
+public struct Step
+{
+    public float DeltaTime;
+    public int Updated;
+}
+
+public struct Health { public int Value; }
+public struct Team { public int Id; public int DefaultHealth; }
+public struct Dead { }
+public struct Alive { }
+public struct Human { }
+public struct Escaped { }
+public struct Armed { }
+public struct Berserk { }
+
+public struct IsDeadPredicate : IWherePredicate
+{
+    public readonly bool Invoke(in Health health) => health.Value <= 0;
+}
+
+public struct ResetHealthAction : IForEach
+{
+    public readonly void Invoke(ref Health health) => health.Value = 100;
+}
+```

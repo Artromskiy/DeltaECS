@@ -27,7 +27,7 @@ Generated arity is a compile-time shape: `ForEach<Position, Velocity>` does not 
 | Run independent entity-aware work with known components in parallel | Variadic `ForEachEntityParallel` | `world.ForEachEntityParallel(in q, entityUpdate, workerCount: 4).Invoke()` | Combines typed rows, an entity view and parallel execution | Total work `O(C + N)` | Parallel costs plus entity-view maintenance |
 | Run entity-only or genuinely dynamic work in parallel | Zero-arity `ForEachEntityParallel` | `world.ForEachEntityParallel(in q, entityCallback, workerCount: 4).Invoke()` | Parallel entity callbacks without typed component parameters | Total work `O(C + N)` plus accesses | Parallel costs and component access resolution inside the callback |
 | Process a list that another system already selected | Entity-list `ForEach` / `ForEachEntity` | `world.ForEach(entities, in q, update).Invoke()` | Visits the supplied handles, optionally checking a query | `O(L)` for a fixed signature | Handle resolution and scattered memory access. Construction saves the input list; it is not a borrowed span held until invocation |
-| React to additions, writes and removals since the last call | **Retained `ForEachChange<T>`** | `var changes = world.ForEachChange<Health>(healthId, onChange);` then `changes.Invoke()` | Establishes a baseline and consumes incremental changes for one registration across the world | First: `O(H + A + C + B + N)`; later: `O(M + D + B + E)`; no pending changes: `O(1)` | Observer state and notification costs, including costs in the component's write path. No manual before/after value snapshots are needed |
+| React to additions, writes and removals since the last call | **Retained runtime `ForEachChange<T>`** | `var changes = world.ForEachChange<Health>(healthId, onChange);` then `changes.Invoke()` | Establishes a baseline and consumes coalesced changes for one registration across the world; it needs no query or source generator | First: `O(H + A + C + B + N)`; later: `O(M + D + B + E)`; no pending changes: `O(1)` | Observer state and notification costs, including costs in the component's write path. A writable access counts even if the value is unchanged; no manual before/after value snapshots are needed |
 | Select a generic processor from a registration whose CLR type is unknown | Runtime-selected generic functor | `world.ForEach(in q, id, typeof(SaveHistory<>)).Invoke()` | Closes and caches a typed executor for the selected registration | After preparation: the corresponding typed traversal | First-use type dispatch and executor preparation; not reflection dispatch on each entity |
 
 Zero-arity `ForEach` without an entity or component parameter is a generator anchor, not an executable substitute for these forms: invoking that anchor throws.
@@ -111,14 +111,14 @@ and operation themselves.
 | Task | API | Example | What it does | Complexity | Potential overhead |
 | --- | --- | --- | --- | --- | --- |
 | Read one known entity's component | `Get<T>` / `TryGet<T>` / `GetReadRef<T>` | `ref readonly Health h = ref world.GetReadRef<Health>(entity);` | Reads a copy or a read-only reference; `TryGet` handles absence | `O(1)` lookup; copies also depend on value size | Entity validation and component resolution. For a whole row of entities, use typed iteration |
-| Write one known entity's component | `GetRef<T>` | `world.GetRef<Health>(entity).Value -= damage;` | Opens a mutable reference | `O(1)` lookup plus observer notification | Declares a write even if the value remains unchanged. Do not use it for read-only work |
+| Write one known entity's component | `GetRef<T>` | `world.GetRef<Health>(entity).Value -= damage;` | Opens a mutable reference | `O(1)` lookup plus observer notification | Declares a write even if the value remains unchanged. A tag's reference is a placeholder, but writable access still notifies change observers. Do not use `GetRef` for read-only work |
 | Check liveness, membership or population | `IsAlive`, `Has`, `AliveEntityCount` | `world.IsAlive(entity)`; `world.Has(entity, id)` | Inspects world state | `O(1)` | Repeated checks inside an already filtered typed loop add avoidable work. `Entity.IsValid` alone does not prove liveness |
 | Create with default values or known values | `Create` | `world.Create<Health>()`; `world.Create(healthId, new Health(100))` | Creates an entity and initializes its component storage | Amortized storage work proportional to `S`; batches also scale with entity count | Capacity growth, registration validation and structural bookkeeping; batch forms avoid repeated call preparation |
 | Add or remove registrations without typed values | Type-erased `Add` / `Remove` | `world.Add(entity, id)`; `world.Remove(in q, ids)` | Changes membership using IDs directly | Selection work plus structural work proportional to affected data | Data-component changes may move/copy rows. Tags update membership masks. A CLR type is unnecessary when only IDs are consumed |
 | Add values or select a primary registration by type | Typed `Add` / primary `Remove` | `world.Add(entity, new Health(100))`; `world.Remove<Health>(entity)` | Supplies a value or selects a type's primary registration | Selection plus structural work | Use combined multi-component forms for one combined transition when changing several data components |
 | Destroy one entity, a list or query matches | `Destroy` | `world.Destroy(entity)`; `world.Destroy(in q)` | Removes entities and their components | Depends on selection and data removed/moved; an explicit list may also require `O(L log L)` grouping/sorting | Dense query deletion can use chunk work; arbitrary lists and tag-filtered deletion require more selection work |
 | Map a stable schema or config name to a runtime ID | Registration, schema lookup and aliases | `world.Components.TryGetComponentId(schemaId, out var id)` | Resolves the registration once for later use | Expected `O(1)` indexed lookup | Resolve configuration names/IDs during loading, then keep `ComponentId` rather than repeating string lookups in hot loops |
-| Get a configured category of registrations | Component groups | `world.GetGroup(Groups.History)` | Returns IDs assigned to a group | Cached lookup: expected `O(1)`; rebuilding the member view: `O(group size)` | Subsequent processing scales with the group's size. Group membership does not itself select entities |
+| Get a configured category of registrations | Component groups | `world.GetGroup(Groups.History)` | Returns IDs assigned to exactly one enum group value | Cached lookup: expected `O(1)`; rebuilding the member array after group mutation: `O(group size)` | Enumerating the returned IDs costs `O(group size)`. A flags value does not union several groups in `GetGroup`; group membership does not itself select entities |
 | Build typed behavior from a CLR type known only through an ID | Component visitors | `world.Components.TryVisit(id, visitor)` | Dispatches once to a generic `Visit<TComponent>` | Dispatch per registration, plus visitor work | Build and retain typed handlers/operations here rather than dispatching a visitor for every entity |
 | Declare component metadata at build time | Schema, alias and group attributes; generated catalog | `[ComponentSchema(10)]`; `[ComponentGroup(Groups.History)]` | Describes registrations and categories for generated metadata | Registration/catalog preparation, outside the entity loop | Optional metadata; ordinary components need no ECS attributes. See the grammar for catalog and interface-binding routes |
 | Inspect/edit completely dynamic values in tooling | `IEcsWorld` integration API | `integration.TryRead(entity, id, out var snapshot, out var error)` | Bridges entity/component data to tools through object-based contracts | Lookup plus conversion/copying | Struct values can be boxed. Prefer typed APIs for hot simulation work |
@@ -145,26 +145,27 @@ Task: move every entity with `Position` and `Velocity`, excluding paused entitie
 
 ```csharp
 using System;
+using System.Numerics;
 using Delta.ECS;
 
 using var world = new World();
 world.Components.Register<Position>(new SchemaId(1));
 world.Components.Register<Velocity>(new SchemaId(2));
 world.Components.Register<Paused>(new SchemaId(3));
-
 Entity entity = world.Create<Position>();
-world.Add(entity, new Velocity(2));
+world.GetRef<Position>(entity) = new Position(Vector2.Zero);
+world.Add(entity, new Velocity(new Vector2(2, 1)));
 Query moving = world.WhereAll<Position, Velocity>().WhereNone<Paused>();
 
 var move = world.ForEach(in moving,
-    static (ref Position position, in Velocity velocity) => position.X += velocity.X);
+    static (ref Position position, in Velocity velocity) => position.Value += velocity.Value);
 
 move.Invoke();
 move.Invoke();
-Console.WriteLine(world.Get<Position>(entity).X); // 4
+Console.WriteLine(world.Get<Position>(entity).Value.X); // 4
 
-public record struct Position(float X);
-public record struct Velocity(float X);
+public record struct Position(Vector2 Value);
+public record struct Velocity(Vector2 Value);
 public record struct Paused;
 ```
 

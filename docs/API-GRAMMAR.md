@@ -219,6 +219,7 @@ CLR type is known only at runtime:
 
 ```text
 layouts.GetComponentType(I) -> Type
+layouts.TryGetComponentId(SchemaId, out ComponentId) -> bool
 layouts.GetPrimary<T>() -> ComponentId
 layouts.TryGetPrimary<T>(out ComponentId) -> bool
 layouts.GetPrimary(Type) -> ComponentId
@@ -243,11 +244,15 @@ layouts.Register(positionRegistration);
 require generated registrations in the consumer assembly; ordinary
 `Register<T>(schemaId)` and runtime visitor calls do not.
 
-`ComponentAlias` assigns one or more ordinal string aliases to a generated
-component. Aliases and group membership are catalog metadata stored in the
-`ComponentRegistry`. Register generated entries and manual metadata
-through the layout registry; `World` exposes read APIs for its catalog. Catalogs
-can be shared by worlds, so aliases and groups are shared as well:
+`ComponentSchema` takes no argument to derive a stable schema ID from the
+component's qualified CLR name, or one non-zero `ulong` to assign it explicitly.
+`ComponentAlias` can be repeated to assign ordinal string aliases to a generated
+component. `ComponentGroupAttribute` accepts enum values and enum arrays;
+repeated attributes are supported. For a `[Flags]` enum, generated registration
+expands each set bit into its own group membership. Other enums use the exact
+enum value. Register generated entries and manual metadata through the registry;
+`World` exposes read APIs for its catalog. Registries can be shared by worlds,
+so aliases and groups are shared as well:
 
 ```csharp
 using System;
@@ -264,6 +269,7 @@ ComponentId healthId = world.GetAlias("health");
 layouts.AddAlias("configured-health", healthId);
 layouts.AddGroup(WorldComponentGroup.Rollback, healthId);
 ReadOnlySpan<ComponentId> rollbackComponents = world.GetGroup(WorldComponentGroup.Rollback);
+bool foundHealth = layouts.TryGetComponentId(new SchemaId(10), out ComponentId bySchemaId);
 
 [Flags]
 public enum WorldComponentGroup
@@ -278,9 +284,63 @@ public enum WorldComponentGroup
 public struct Health { public int Value; }
 ```
 
-`AddAlias` accepts repeated registration of the same alias/ID pair and rejects
-an alias mapped to another component. `TryGetAlias` returns `false` for an
-unknown alias, while `GetAlias` throws. Group membership is deduplicated.
+`TryGetComponentId` returns `false` and `ComponentId.Invalid` when a schema is
+unknown. `AddAlias` accepts repeated registration of the same alias/ID pair and
+rejects an alias mapped to another component. `TryGetAlias` returns `false` for
+an unknown alias, while `GetAlias` throws. Group membership is deduplicated.
+`GetGroup` accepts exactly one enum value as its lookup key; it does not combine
+multiple group values. Runtime `AddGroup` also adds one exact enum value at a
+time, so call it once per desired flag when adding a flags-based component
+manually.
+
+```text
+layouts.Register<T>(SchemaId) -> ComponentId
+layouts.Register(IGeneratedComponentRegistration) -> ComponentId
+layouts.TryGetComponentId(SchemaId, out ComponentId) -> bool
+layouts.GetPrimary<T>() -> ComponentId
+layouts.TryGetPrimary<T>(out ComponentId) -> bool
+layouts.GetPrimary(Type) -> ComponentId
+layouts.TryGetPrimary(Type, out ComponentId) -> bool
+layouts.GetComponentType(ComponentId) -> Type
+layouts.AddAlias(string, ComponentId)
+layouts.TryGetAlias(string, out ComponentId) -> bool
+layouts.GetAlias(string) -> ComponentId
+layouts.AddGroup<TEnum>(TEnum, ComponentId)
+layouts.GetGroup<TEnum>(TEnum) -> ReadOnlySpan<ComponentId>
+world.TryGetAlias(string, out ComponentId) -> bool
+world.GetAlias(string) -> ComponentId
+world.GetGroup<TEnum>(TEnum) -> ReadOnlySpan<ComponentId>
+```
+
+`ComponentGroup` attributes may list separate enum constants, pass an enum
+array, or use a combined value from a `[Flags]` enum. Each generated flag bit is
+registered as a separate group; querying with a combined flags value does not
+union those groups.
+
+## Runtime component-change iteration
+
+`ForEachChange<T>` is a runtime API and does not require the source generator.
+It watches one explicit registration across the world and returns a retained
+operation:
+
+```text
+world.ForEachChange<T>(ComponentId, ComponentChangeAction<T>) -> ComponentChangeOperation<T>
+ComponentChangeOperation<T> : IOperation
+ComponentChangeAction<T>(Entity, ChangeKind, ref T) -> void
+ChangeKind = Added | Modified | Removed
+```
+
+The first invocation reports existing instances as `Added`; later invocations
+report additions, writable accesses, and removals since the previous completed
+invocation. `ref` access counts as `Modified` even if the value is unchanged.
+Changes are coalesced by entity identity and component, so add-then-remove may
+cancel, while remove-then-add of an entity already present reports `Modified`.
+Entity generations keep removal of a destroyed entity separate from addition
+of a new entity reusing its index. For `Removed`, including entity destruction,
+the callback receives `Unsafe.NullRef<T>()` and the previous entity handle,
+which may be stale. Tags have no stored payload, but writable tag access still
+reports a change. Writes made by an operation's own callback are not reported
+to that same operation a second time.
 
 ## Runtime integration contract
 
@@ -386,39 +446,10 @@ world.ForEachEntity(in query, (EntityRef entity) =>
 be present. `TryGet<T>` also returns `false` for an unregistered ID or an ID
 registered with another CLR type. `GetRef<T>` throws if the component is
 missing or its registration has another CLR type. A tag has no per-entity
-value: its `TryGet` result
-is `default(T)`, and writes through `GetRef` are ignored.
-
-For one component registration, retain a change operation. Its first `Invoke`
-reports every existing instance as `Added`. Later calls report components that
-became present, components opened for writing, and components that are no longer
-present. The callback receives a writable reference for `Added` and `Modified`.
-For `Removed`, including entity destruction, the reference is
-`Unsafe.NullRef<T>()` and the entity handle is the previous handle; after
-destruction that handle is stale.
-
-```csharp
-var changes = world.ForEachChange<Health>(healthId,
-    static (Entity entity, ChangeKind change, ref Health health) =>
-    {
-        if (change == ChangeKind.Removed)
-        {
-            RecordRemoval(entity);
-            return;
-        }
-
-        RecordCurrent(entity, in health);
-    });
-
-changes.Invoke();
-```
-
-The operation watches the whole world; no query is needed. Membership is
-compared at each invocation, so additions followed by removals between calls
-are coalesced to the final state. A writable `ref` access counts as `Modified`
-even when the caller leaves the value unchanged. Writes through the operation's
-own callback are included in that callback and are not reported again by the
-same operation.
+value: `TryGet` reports whether the tag is present and returns `default(T)` as
+its output. `GetRef` returns a shared placeholder, not per-entity storage, so
+writing through it does not persist a component payload. Writable access still
+records a change for `ForEachChange<T>` observers.
 
 `EntityRef` also supports primary-registration forms. Supply a `ComponentId`
 when the entity has multiple registrations of the same CLR type:
