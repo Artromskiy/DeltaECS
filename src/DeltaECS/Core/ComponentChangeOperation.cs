@@ -422,6 +422,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count) => MoveRange(_dirtyChunks, source, sourceSlot, target, targetSlot, count);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
         => CopyRangeWithin(_dirtyChunks, chunk, sourceSlot, targetSlot, count);
 
@@ -812,6 +813,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
         internal override void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
             => _operation.MoveRange(source, sourceSlot, target, targetSlot, count);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal override void CopyRangeWithin(Chunk chunk, int sourceSlot, int targetSlot, int count)
             => _operation.CopyRangeWithin(chunk, sourceSlot, targetSlot, count);
 
