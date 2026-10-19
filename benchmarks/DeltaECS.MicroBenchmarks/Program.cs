@@ -8,10 +8,18 @@ internal static class Program
     {
         bool changeTrackingOnly = args.Length > 0
             && string.Equals(args[0], "change-tracking", StringComparison.OrdinalIgnoreCase);
+        bool functorOperationReuseOnly = args.Length > 0
+            && string.Equals(args[0], "functor-operation-reuse", StringComparison.OrdinalIgnoreCase);
+        bool preparedAccessOnly = args.Length > 0
+            && string.Equals(args[0], "prepared-access", StringComparison.OrdinalIgnoreCase);
         Type[] benchmarkTypes = changeTrackingOnly
             ? [typeof(ForEachWriteObserverMicroBenchmarks), typeof(ForEachChangeMicroBenchmarks), typeof(TagMembershipWriteMicroBenchmarks)]
-            : MicroBenchmarkCatalog.Types;
-        string[] workloadArgs = changeTrackingOnly ? args[1..] : args;
+            : functorOperationReuseOnly
+                ? [typeof(Movement4ApiComparisonMicroBenchmarks)]
+                : preparedAccessOnly
+                    ? [typeof(PreparedAccessMicroBenchmarks)]
+                : MicroBenchmarkCatalog.Types;
+        string[] workloadArgs = changeTrackingOnly || functorOperationReuseOnly || preparedAccessOnly ? args[1..] : args;
 
         if (!changeTrackingOnly && args.Length > 0 && string.Equals(args[0], "contract-smoke", StringComparison.OrdinalIgnoreCase))
         {

@@ -65,6 +65,30 @@ internal sealed class GeneratedDenseBindingTests
     }
 
     [Test]
+    public void ExplicitIdOperationsKeepTheirPreparedAccessSeparate()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId firstId = layouts.Register<Health>(new SchemaId(96013));
+        ComponentId secondId = layouts.Register<Health>(new SchemaId(96014));
+        using var world = new World(layouts);
+        Entity entity = world.Create([firstId, secondId]);
+        world.GetRef<Health>(entity, firstId).Value = 10;
+        world.GetRef<Health>(entity, secondId).Value = 20;
+        Query query = world.WhereAll(firstId, secondId);
+        var firstFunctor = new IncrementHealthFunctor();
+        var secondFunctor = new IncrementHealthFunctor();
+        var firstOperation = world.ForEach(in query, firstId, ref firstFunctor);
+        var secondOperation = world.ForEach(in query, secondId, ref secondFunctor);
+
+        firstOperation.Invoke(ref firstFunctor);
+        secondOperation.Invoke(ref secondFunctor);
+        firstOperation.Invoke(ref firstFunctor);
+
+        Assert.That(world.Get<Health>(entity, firstId).Value, Is.EqualTo(12));
+        Assert.That(world.Get<Health>(entity, secondId).Value, Is.EqualTo(21));
+    }
+
+    [Test]
     public void WritesMarkEveryMatchingArchetypeBeforeCallbackThrowsAndReleaseLease()
     {
         var layouts = new ComponentRegistry();
@@ -88,16 +112,29 @@ internal sealed class GeneratedDenseBindingTests
         using var world = new World(layouts);
         Entity healthOnly = world.Create(health);
         Query query = world.WhereAll<Health>();
-        Assert.That(Visit(world, in query), Is.EqualTo(1));
+        int visited = 0;
+        var operation = world.ForEach(in query, ref visited, static (ref int count, ref Health value) =>
+        {
+            count++;
+            value.Value++;
+        });
+        operation.Invoke(ref visited);
+        Assert.That(visited, Is.EqualTo(1));
 
         world.Create([health, velocity]);
-        Assert.That(Visit(world, in query), Is.EqualTo(2));
+        visited = 0;
+        operation.Invoke(ref visited);
+        Assert.That(visited, Is.EqualTo(2));
 
         world.Destroy(healthOnly);
-        Assert.That(Visit(world, in query), Is.EqualTo(1));
+        visited = 0;
+        operation.Invoke(ref visited);
+        Assert.That(visited, Is.EqualTo(1));
 
         world.Create(health);
-        Assert.That(Visit(world, in query), Is.EqualTo(2));
+        visited = 0;
+        operation.Invoke(ref visited);
+        Assert.That(visited, Is.EqualTo(2));
     }
 
     [Test]
@@ -159,15 +196,20 @@ internal sealed class GeneratedDenseBindingTests
         Query query = world.WhereAll<Health>();
         Visit(world, in query);
         var state = new DenseBindingReadState();
+        var readOperation = world.ForEach(in query, ref state, static (ref DenseBindingReadState sum, in Health value) => sum.Total += value.Value);
         for (int index = 0; index < 2; index++)
         {
-            world.ForEach(in query, ref state, static (ref DenseBindingReadState sum, in Health value) => sum.Total += value.Value).Invoke(ref state);
+            readOperation.Invoke(ref state);
         }
         Assert.That(state.Total, Is.EqualTo(2));
         // Revisit the write signature after the read signature occupied the last-binding slot.
-        Assert.That(Visit(world, in query), Is.EqualTo(1));
+        int visited = 0;
+        var writeOperation = world.ForEach(in query, ref visited, static (ref int count, ref Health _) => count++);
+        writeOperation.Invoke(ref visited);
+        Assert.That(visited, Is.EqualTo(1));
         world.Dispose();
-        Assert.That(() => Visit(world, in query), Throws.ArgumentException);
+        Assert.That(() => writeOperation.Invoke(ref visited), Throws.ArgumentException);
+        Assert.That(() => readOperation.Invoke(ref state), Throws.ArgumentException);
     }
 
     private static int Visit(World world, in Query query)
@@ -191,4 +233,9 @@ internal sealed class GeneratedDenseBindingTests
 internal struct DenseBindingReadState
 {
     internal int Total;
+}
+
+internal struct IncrementHealthFunctor : IForEach
+{
+    public void Invoke(ref Health health) => health.Value++;
 }

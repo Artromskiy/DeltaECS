@@ -10,7 +10,8 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
 
     private MicroWorld _fixture = null!;
     private Query _query;
-    private IOperation<Movement4NoContextFunctor>? _functorOperation;
+    private IOperation<Movement4NoContextFunctor> _functorOperation = null!;
+    private EcsOperation<Movement4NoContextFunctor, DemandForEachExtensions_C3D97EFC44919683.DemandForEachOperationInvoker_C3D97EFC44919683> _cachedConcreteFunctorOperation;
     private IOperation? _delegateOperation;
     private IOperation? _interceptedOperation;
     private IOperation<Movement4ApiContext>? _delegateContextOperation;
@@ -28,14 +29,32 @@ public class Movement4ApiComparisonMicroBenchmarkImplementation
             _fixture.Movement4C,
             _fixture.Movement4D);
         _query = _fixture.World.CreateQuery(in description);
+        var initialFunctor = new Movement4NoContextFunctor();
+        _functorOperation = _fixture.World.ForEach(in _query, ref initialFunctor);
+        _cachedConcreteFunctorOperation = _fixture.World.ForEach(in _query, ref initialFunctor);
     }
 
     [Benchmark]
     public int Functor()
     {
         var functor = new Movement4NoContextFunctor();
-        _functorOperation ??= _fixture.World.ForEach(in _query, ref functor);
         _functorOperation.Invoke(ref functor);
+        return functor.Checksum;
+    }
+
+    [Benchmark(Baseline = true)]
+    public int CreateAndInvokeFunctorOperation()
+    {
+        var functor = new Movement4NoContextFunctor();
+        _fixture.World.ForEach(in _query, ref functor).Invoke(ref functor);
+        return functor.Checksum;
+    }
+
+    [Benchmark]
+    public int InvokeCachedConcreteFunctorOperation()
+    {
+        var functor = new Movement4NoContextFunctor();
+        _cachedConcreteFunctorOperation.Invoke(ref functor);
         return functor.Checksum;
     }
 

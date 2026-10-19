@@ -211,6 +211,10 @@ public sealed class DemandDrivenForEachGeneratorTests
                 where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
             public static GeneratedBoundExecution<TRows> OpenBoundDenseRead<TBinding, TRows>(World world, in Query query)
                 where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
+            public static GeneratedBoundExecution<TRows> OpenCachedBoundDense<TBinding, TRows>(World world, in Query query, ref TBinding cachedBinding)
+                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
+            public static GeneratedBoundExecution<TRows> OpenCachedBoundDenseRead<TBinding, TRows>(World world, in Query query, ref TBinding cachedBinding)
+                where TBinding : GeneratedDenseBinding<TRows>, new() where TRows : struct => default;
             public static T[] GetGeneratedArray<T>(Array[] rows, int route) => throw new NotImplementedException();
             public static ref T GetGeneratedArrayReference<T>(T[] row) => throw new NotImplementedException();
             public static void ThrowIfNull(object? value, string parameterName) { }
@@ -2015,9 +2019,9 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(run);
 
         Assert.That(generated, Does.Contain($"ForEachAction<{componentTypes}>"));
-        Assert.That(generated, Does.Contain("SetWriteRoutes(new int[] { _route0,"));
-        Assert.That(generated, Does.Contain("_route31 }"));
-        Assert.That(generated, Does.Contain("_route31 = GeneratedForEachRuntime.GetPreparedWriteRoute<T32>(in query);"));
+        Assert.That(generated, Does.Contain("var access31 = GeneratedForEachRuntime.GetPreparedWriteAccess<T32>(in query);"));
+        Assert.That(generated, Does.Contain("route31 = GeneratedForEachRuntime.GetWriteQueryComponentIndex(access31)"));
+        Assert.That(generated, Does.Not.Contain("DenseBinding"));
     }
 
     [Test]
@@ -2025,8 +2029,10 @@ public sealed class DemandDrivenForEachGeneratorTests
     {
         string generated = GeneratedText(RunGenerator());
 
-        Assert.That(generated, Does.Contain("GetPreparedReadRoute<T1>(in query)"));
-        Assert.That(generated, Does.Contain("GetPreparedWriteRoute<T2>(in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedReadAccess<T1>(in query)"));
+        Assert.That(generated, Does.Contain("GetPreparedWriteAccess<T2>(in query)"));
+        Assert.That(generated, Does.Contain("GetReadQueryComponentIndex(access0)"));
+        Assert.That(generated, Does.Contain("GetWriteQueryComponentIndex(access1)"));
         Assert.That(generated, Does.Not.Contain("AccessRead(world, in query, world.Components.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("AccessWrite(world, in query, world.Components.GetPrimary"));
         Assert.That(generated, Does.Not.Contain("ResolveComponentIds"));
@@ -2034,7 +2040,7 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
-    public void DenseGenerationUsesClosedExecutionMethod()
+    public void PrimaryIterationUsesThePreparedQueryRowPath()
     {
         const string source = """
             namespace Delta.ECS;
@@ -2052,21 +2058,21 @@ public sealed class DemandDrivenForEachGeneratorTests
         string generated = GeneratedText(RunGenerator(source));
 
         Assert.That(generated, Does.Contain("ExecuteClosed_"));
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
-        Assert.That(generated, Does.Contain("using var execution = GeneratedForEachRuntime.OpenBoundDense<"));
-        Assert.That(generated, Does.Contain("int chunkCount = execution.Rows.Length;"));
-        Assert.That(generated, Does.Not.Contain("var batch = execution.Rows[chunkIndex]"));
-        Assert.That(generated, Does.Contain("ref var batchCursor = ref"));
-        Assert.That(generated, Does.Contain("int chunksRemaining = chunkCount;"));
-        Assert.That(generated, Does.Contain("if (chunksRemaining > 0)"));
-        Assert.That(generated, Does.Contain("chunksRemaining--;"));
-        Assert.That(generated, Does.Contain("while (chunksRemaining != 0);"));
-        Assert.That(generated, Does.Not.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
-        Assert.That(generated, Does.Contain("batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1)"));
-        Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref firstBatch, chunkIndex)"));
-        Assert.That(generated, Does.Contain("_route0 = GeneratedForEachRuntime.GetPreparedWriteRoute<T1>(in query);"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenWriteDense(world, in query)"));
+        Assert.That(generated, Does.Not.Contain("OpenCachedBoundDense"));
+        Assert.That(generated, Does.Not.Contain("DenseBinding"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
+        Assert.That(generated, Does.Not.Contain("chunkCount"));
+        Assert.That(generated, Does.Not.Contain("batchCursor"));
+        Assert.That(generated, Does.Contain("access0 = GeneratedForEachRuntime.GetPreparedWriteAccess<T1>(in query)"));
         Assert.That(generated, Does.Contain("ref T1 component0 = ref global::System.Runtime.CompilerServices.Unsafe.NullRef<T1>()"));
-        Assert.That(generated, Does.Contain("component0 = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row0)"));
+        Assert.That(generated, Does.Contain("component0 = ref GeneratedForEachRuntime.GetGeneratedRow<T1>(componentRows, route0)"));
+        int prepareAccessIndex = generated.IndexOf("bool prepareAccess = !_cachedAccessPrepared;", StringComparison.Ordinal);
+        int actionValidationIndex = generated.IndexOf("ThrowIfNull(action", StringComparison.Ordinal);
+        int cachedAccessCommitIndex = generated.IndexOf("_cachedAccessPrepared = true;", StringComparison.Ordinal);
+        Assert.That(prepareAccessIndex, Is.GreaterThanOrEqualTo(0));
+        Assert.That(actionValidationIndex, Is.GreaterThan(prepareAccessIndex));
+        Assert.That(cachedAccessCommitIndex, Is.GreaterThan(actionValidationIndex));
         Assert.That(generated, Does.Contain("void VisitStep<T1>(ForEachAction<T1> action, ref T1 component0)"));
         Assert.That(generated, Does.Not.Contain("void Visit2<T1>"));
         Assert.That(generated, Does.Contain("void Visit4<T1>(ForEachAction<T1> action, ref T1 component0)"));
@@ -2098,8 +2104,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Not.Contain("int offset = 0;"));
         Assert.That(generated, Does.Not.Contain("Unsafe.Add(ref component0, index)"));
         Assert.That(generated, Does.Not.Contain("for (int index = 0; index < count; index++)"));
-        Assert.That(generated, Does.Contain(
-            "SetWriteRoutes(new int[] { _route0 });"));
+        Assert.That(generated, Does.Contain("execution.RecordComponentWrites(stackalloc int[] { route0 });"));
         Assert.That(generated, Does.Not.Contain("slots.MarkGeneratedWrite"));
         Assert.That(generated, Does.Not.Contain("Ref<T1>(index)"));
         Assert.That(generated, Does.Not.Contain("ExecuteGeneratedForEach"));
@@ -2183,11 +2188,10 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         string generated = GeneratedText(RunGenerator(source));
 
-        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenBoundDenseRead<"));
-        Assert.That(generated, Does.Contain("int chunksRemaining = chunkCount;"));
-        Assert.That(generated, Does.Contain("while (chunksRemaining != 0);"));
-        Assert.That(generated, Does.Not.Contain("for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)"));
-        Assert.That(generated, Does.Not.Contain("GeneratedForEachRuntime.OpenBoundDense<"));
+        Assert.That(generated, Does.Contain("GeneratedForEachRuntime.OpenReadDense(world, in query)"));
+        Assert.That(generated, Does.Contain("while (execution.MoveNextTrusted(out var componentRows, out int count))"));
+        Assert.That(generated, Does.Not.Contain("DenseBinding"));
+        Assert.That(generated, Does.Not.Contain("OpenBoundDense"));
         Assert.That(generated, Does.Not.Contain("OpenWriteDense(world, in query)"));
         Assert.That(generated, Does.Not.Contain("MarkGeneratedWrite(access0)"));
     }
@@ -2216,13 +2220,10 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         AssertNoDiagnostics(run.Diagnostics);
         Assert.That(generated, Does.Contain("if (execution.HasTagFilters)"));
-        Assert.That(generated, Does.Contain("batch.Chunk.TryGetTagSlots(out var tagSlots)"));
         Assert.That(generated, Does.Contain("execution.TryGetTagSlots(out var tagSlots)"));
         Assert.That(generated, Does.Not.Contain(".HasTagFilters && "));
-        int batchTagLookup = generated.IndexOf("batch.Chunk.TryGetTagSlots(out var tagSlots)", StringComparison.Ordinal);
-        int batchTagBranch = generated.LastIndexOf("if (execution.HasTagFilters)", batchTagLookup, StringComparison.Ordinal);
-        int batchCountRead = generated.IndexOf("int count = batch.Chunk.Count;", batchTagBranch, StringComparison.Ordinal);
-        Assert.That(batchCountRead, Is.GreaterThan(batchTagLookup));
+        Assert.That(generated, Does.Not.Contain("batch.Chunk.TryGetTagSlots"));
+        Assert.That(generated, Does.Contain("GetPreparedReadAccess(in query, componentId0, typeof(T1))"));
         AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
@@ -2248,7 +2249,7 @@ public sealed class DemandDrivenForEachGeneratorTests
 
         string generated = GeneratedText(RunGenerator(source));
 
-        Assert.That(generated, Does.Contain("SetWriteRoutes(new int[] { _route0, _route1 });"));
+        Assert.That(generated, Does.Contain("execution.RecordComponentWrites(stackalloc int[] { route0, route1 });"));
         Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access0)"));
         Assert.That(generated, Does.Not.Contain("execution.MarkArchetypeWrite(access1)"));
     }
@@ -2285,16 +2286,15 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Not.Contain("ref functor"));
         Assert.That(intercepted, Does.Contain("operationQuery, ExecuteInterceptedClosed_"));
         Assert.That(intercepted, Does.Not.Contain("operationQuery, _)"));
-        Assert.That(intercepted, Does.Contain("ref var batch = ref batchCursor;"));
-        Assert.That(intercepted, Does.Not.Contain("= execution.Rows[chunk"));
-        Assert.That(intercepted, Does.Contain("ref var batchCursor = ref"));
-        Assert.That(intercepted, Does.Contain("MemoryMarshal.GetReference(execution.Rows)"));
+        Assert.That(intercepted, Does.Not.Contain("DenseBinding"));
+        Assert.That(intercepted, Does.Not.Contain("batchCursor"));
+        Assert.That(intercepted, Does.Contain("execution.MoveNextTrusted(out var componentRows, out int count)"));
         Assert.That(intercepted, Does.Contain("using var execution"));
         Assert.That(intercepted, Does.Contain("ref global::Delta.ECS.T1 row"));
         Assert.That(intercepted, Does.Contain("Unsafe.NullRef<global::Delta.ECS.T1>()"));
-        Assert.That(intercepted, Does.Contain("= ref GeneratedForEachRuntime.GetGeneratedArrayReference("));
+        Assert.That(intercepted, Does.Contain("= ref GeneratedForEachRuntime.GetGeneratedRow<global::Delta.ECS.T1>(componentRows, route0)"));
         Assert.That(intercepted, Does.Contain("if (execution.HasTagFilters)"));
-        Assert.That(intercepted, Does.Contain("batch.Chunk.TryGetTagSlots(out var tagSlots)"));
+        Assert.That(intercepted, Does.Contain("execution.TryGetTagSlots(out var tagSlots)"));
         Assert.That(intercepted, Does.Not.Contain(".HasTagFilters && "));
         Assert.That(intercepted, Does.Contain("private static void Visit4"));
         Assert.That(intercepted, Does.Contain("private static void VisitStep"));
@@ -2307,10 +2307,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(intercepted, Does.Not.Contain("remaining == 2"));
         Assert.That(intercepted, Does.Not.Contain("if ((count & 8) != 0)"));
         Assert.That(intercepted, Does.Not.Contain("if ((count & 4) != 0)"));
-        int batchTagLookup = intercepted.IndexOf("batch.Chunk.TryGetTagSlots(out var tagSlots)", StringComparison.Ordinal);
-        int batchTagBranch = intercepted.LastIndexOf("if (execution.HasTagFilters)", batchTagLookup, StringComparison.Ordinal);
-        int batchCountRead = intercepted.IndexOf("int count = batch.Chunk.Count;", batchTagBranch, StringComparison.Ordinal);
-        Assert.That(batchCountRead, Is.GreaterThan(batchTagLookup));
+        Assert.That(intercepted, Does.Not.Contain("batch.Chunk.TryGetTagSlots"));
 
         AssertCompiles(new[] { RuntimeStubSource, InterceptionSource }, run.GeneratedTrees);
     }

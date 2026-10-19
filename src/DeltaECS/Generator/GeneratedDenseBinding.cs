@@ -2,6 +2,7 @@ namespace Delta.ECS;
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 /// <summary>Query-owned compiler-support cache for a generated, typed row signature.</summary>
@@ -14,6 +15,10 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     private int _version = -1;
     private int[] _writes = [];
     private QueryPlan? _queryPlan;
+    private bool _hasTagFilters;
+
+    internal QueryPlan? CachedQueryPlan => _queryPlan;
+    internal bool HasTagFilters => _hasTagFilters;
 
     /// <summary>Resolves the complete component signature once for the owning query.</summary>
     protected abstract void Prepare(in Query query);
@@ -45,6 +50,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     internal void Initialize(in Query query)
     {
         _queryPlan = query.Cached;
+        _hasTagFilters = _queryPlan!.HasTagFilters;
         Prepare(in query);
     }
 
@@ -96,6 +102,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
         _count = 0;
         _version = -1;
         _queryPlan = null;
+        _hasTagFilters = false;
     }
 }
 
@@ -200,6 +207,41 @@ public static partial class GeneratedForEachRuntime
         return new GeneratedBoundExecution<TRows>(owner, rows, plan.HasTagFilters);
     }
 
+    /// <summary>Opens a cached typed binding after validating its query on the first invocation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [SuppressMessage("Usage", "CA1062", Justification = "Generated invokers validate their readonly World on the first invocation before caching this binding.")]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static GeneratedBoundExecution<TRows> OpenCachedBoundDense<TBinding, TRows>(
+        World world,
+        in Query query,
+        ref TBinding cachedBinding)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        QueryPlan plan = GetCachedQueryPlan<TBinding, TRows>(world, in query, ref cachedBinding);
+        ReadOnlySpan<TRows> rows = cachedBinding.GetRows(plan);
+        world.BeginQueryLease();
+        cachedBinding.RecordWrites();
+        return new GeneratedBoundExecution<TRows>(world, rows, cachedBinding.HasTagFilters);
+    }
+
+    /// <summary>Opens a cached typed read binding after validating its query on the first invocation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [SuppressMessage("Usage", "CA1062", Justification = "Generated invokers validate their readonly World on the first invocation before caching this binding.")]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static GeneratedBoundExecution<TRows> OpenCachedBoundDenseRead<TBinding, TRows>(
+        World world,
+        in Query query,
+        ref TBinding cachedBinding)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        QueryPlan plan = GetCachedQueryPlan<TBinding, TRows>(world, in query, ref cachedBinding);
+        ReadOnlySpan<TRows> rows = cachedBinding.GetRows(plan);
+        world.BeginQueryLease();
+        return new GeneratedBoundExecution<TRows>(world, rows, cachedBinding.HasTagFilters);
+    }
+
     /// <summary>Binds a validated typed array once while building a generated signature.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -210,6 +252,28 @@ public static partial class GeneratedForEachRuntime
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ref T GetGeneratedArrayReference<T>(T[] row) => ref row.GetRefAtZero();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static QueryPlan GetCachedQueryPlan<TBinding, TRows>(World world, in Query query, ref TBinding cachedBinding)
+        where TBinding : GeneratedDenseBinding<TRows>, new()
+        where TRows : struct
+    {
+        if (cachedBinding is null)
+        {
+            QueryPlan plan = ValidateQuery(world, in query);
+            cachedBinding = plan.GetDenseBinding<TBinding, TRows>(in query);
+            return plan;
+        }
+
+        world.EnsureExecutionAccess();
+        QueryPlan? cachedPlan = cachedBinding.CachedQueryPlan;
+        if (world.IsDisposed || cachedPlan is null)
+        {
+            ThrowHelper.ThrowInvalidQuery(nameof(query));
+        }
+
+        return cachedPlan;
+    }
 }
 
 internal interface IGeneratedDenseBinding

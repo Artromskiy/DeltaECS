@@ -57,19 +57,6 @@ internal static partial class DemandDrivenForEachTemplates
         return string.Join("\n", lines);
     }
 
-    private static void AppendBoundTagSelectionLoop(
-        List<string> lines,
-        IterationModel shape,
-        string contextName,
-        IReadOnlyList<string> denseLoopLines)
-        => AppendTagSelectionLoop(
-            lines,
-            shape,
-            contextName,
-            denseLoopLines,
-            "batch.Chunk.TryGetTagSlots(out var tagSlots)",
-            shape.HasEntity ? "entity" : string.Empty);
-
     private static void AppendUnboundTagSelectionLoop(
         List<string> lines,
         IterationModel shape,

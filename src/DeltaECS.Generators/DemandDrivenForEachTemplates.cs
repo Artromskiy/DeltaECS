@@ -579,7 +579,7 @@ internal static partial class DemandDrivenForEachTemplates
             string orderedClosedMethod = RenderClosedDenseMethod(shape, orderedClosedMethodName, shape.Api.Signature.HasExplicitIds
                 ? ", " + shape.Api.Signature.ComponentIdParameters("componentId")
                 : string.Empty);
-            return RenderDenseBinding(shape) + "\n" + orderedClosedMethod + "\n" + RenderOrderedExtensionsBody(shape);
+            return orderedClosedMethod + "\n" + RenderOrderedExtensionsBody(shape);
         }
 
         SignatureProjection slots = shape.Api.Signature;
@@ -588,7 +588,8 @@ internal static partial class DemandDrivenForEachTemplates
         string ids = slots.HasExplicitIds ? slots.ComponentIdParameters("componentId") : string.Empty;
         string stateGeneric = StateGeneric(shape, generic);
         string callback = ActionType(shape);
-        string componentParameters = slots.HasExplicitIds ? ", " + slots.ComponentIdParameters("componentId") : string.Empty;
+        bool cachePreparedAccess = CachesPreparedAccess(shape);
+        string componentParameters = slots.HasExplicitIds && !cachePreparedAccess ? ", " + slots.ComponentIdParameters("componentId") : string.Empty;
         string prefix = shape.HasEntityTarget
             ? "this World world, global::System.ReadOnlySpan<Entity> entities"
             : "this World world";
@@ -599,7 +600,7 @@ internal static partial class DemandDrivenForEachTemplates
         string closedMethodName = "ExecuteClosed_" + GeneratorSupport.StableName(shape.Key);
         string closed = shape.Parallel
             ? RenderClosedParallelMethod(shape, closedMethodName, componentParameters)
-            : RenderClosedDenseMethod(shape, closedMethodName, componentParameters);
+            : RenderClosedDenseMethod(shape, closedMethodName, componentParameters, cachePreparedAccess: cachePreparedAccess);
         string extension = RenderExtensionMethod(
             shape,
             prefix,
@@ -620,7 +621,7 @@ internal static partial class DemandDrivenForEachTemplates
         string executionDelegate = model.HasInterceptedExecution
             ? RenderInterceptedExecutionDelegate(shape)
             : string.Empty;
-        return GeneratorTemplates.JoinNonEmpty([RenderDenseBinding(shape), closed, executionDelegate, operationInvoker, extension]);
+        return GeneratorTemplates.JoinNonEmpty([closed, executionDelegate, operationInvoker, extension]);
     }
 
     private static string RenderInterceptedExecutionDelegate(IterationModel shape) =>
@@ -855,20 +856,14 @@ internal static partial class DemandDrivenForEachTemplates
         lines.Add("    }");
     }
 
-    private static void PrependDenseLoopCount(
-        List<string> denseLoopLines,
-        bool bound,
-        bool hasEntity,
-        string countName,
-        string batchName)
+    private static void PrependDenseLoopCount(List<string> denseLoopLines, bool hasEntity, string countName)
     {
-        if (!bound && !hasEntity)
+        if (!hasEntity)
         {
             return;
         }
 
-        string countSource = bound ? $"{batchName}.Chunk.Count" : "slots.Count";
-        denseLoopLines.Insert(0, $"int {countName} = {countSource};");
+        denseLoopLines.Insert(0, $"int {countName} = slots.Count;");
     }
 
     private static string RenderInterceptedClosedMethod(IterationModel shape, InterceptionSite site)
@@ -885,7 +880,6 @@ internal static partial class DemandDrivenForEachTemplates
             contextMode: shape.ContextMode,
             methodName: shape.MethodName,
             typeBinding: TypeBindingKind.CallbackInferred);
-        bool bound = UsesDenseBinding(shape);
         string[] parameters = InterceptedParameterNames(site);
         string methodName = "ExecuteInterceptedClosed_" + site.Id;
         string callbackName = "InvokeInterceptedCallback_" + site.Id;
@@ -908,41 +902,25 @@ internal static partial class DemandDrivenForEachTemplates
             "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
             signature,
             "{",
+            "    GeneratedForEachRuntime.ValidateGeneratedWhere(world, in query);",
             slots.HasDynamicIds
                 ? $"    GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});"
                 : string.Empty,
-            bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
+            GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
         var interceptedVisitMethods = new List<string>();
         if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
         {
             lines.Add($"    {InterceptedContextType(closedShape)} {parameters[0]} = {contextParameterName};");
         }
-        if (bound)
-        {
-            lines.Add("    " + OpenDenseBinding(shape, closed: true));
-        }
-        else
-        {
-            lines.Add($"    using var execution = GeneratedForEachRuntime.{(closedShape.ComponentModels.Any(static component => component.IsWrite) ? "OpenWriteDense" : "OpenReadDense")}(world, in query);");
-            lines.AddRange(SplitLines(AppendQueryComponentRoutes(closedShape, "    ")));
-            lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
-        }
+        lines.Add($"    using var execution = GeneratedForEachRuntime.{(closedShape.ComponentModels.Any(static component => component.IsWrite) ? "OpenWriteDense" : "OpenReadDense")}(world, in query);");
+        lines.AddRange(SplitLines(AppendQueryComponentRoutes(closedShape, "    ")));
+        lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         int entityParameterIndex = closedShape.HasContext ? 1 : 0;
         if (closedShape.HasEntity)
         {
             lines.Add("    global::Delta.ECS.GeneratedEntityRefView entityRefView = default;");
             lines.Add($"    global::Delta.ECS.EntityRef {parameters[entityParameterIndex]} = GeneratedForEachRuntime.CreateEntityRef(world, ref entityRefView);");
-        }
-        string batch = GeneratedLocalName(site, "batch", 0);
-        string batchCursor = GeneratedLocalName(site, "batchCursor", 0);
-        string firstBatch = GeneratedLocalName(site, "firstBatch", 0);
-        string chunkCount = GeneratedLocalName(site, "chunkCount", 0);
-        string chunksRemaining = GeneratedLocalName(site, "chunksRemaining", 0);
-        if (bound)
-        {
-            lines.Add($"    int {chunkCount} = execution.Rows.Length;");
-            lines.Add($"    ref var {firstBatch} = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
         }
         for (int index = 0; index < closedShape.ComponentModels.Length; index++)
         {
@@ -1002,7 +980,7 @@ internal static partial class DemandDrivenForEachTemplates
             AppendUnrolledDenseSlotLoop(
                 denseLoopLines,
                 visitMethods,
-                bound ? "            " : "        ",
+                "        ",
                 "    ",
                 countName,
                 visitRefParameters,
@@ -1042,23 +1020,10 @@ internal static partial class DemandDrivenForEachTemplates
 
         void AppendChunkLoop(bool filterTagSlots)
         {
-            if (bound)
-            {
-                lines.Add($"        int {chunksRemaining} = {chunkCount};");
-                lines.Add($"        if ({chunksRemaining} > 0)");
-                lines.Add("        {");
-                lines.Add($"            ref var {batchCursor} = ref {firstBatch};");
-                lines.Add("            do");
-                lines.Add("            {");
-                lines.Add($"                ref var {batch} = ref {batchCursor};");
-            }
-            else
-            {
-                lines.Add(closedShape.HasEntity
-                    ? "        while (execution.MoveNextTrusted(out var slots))"
-                    : $"        while (execution.MoveNextTrusted(out var componentRows, out int {countName}))");
-                lines.Add("        {");
-            }
+            lines.Add(closedShape.HasEntity
+                ? "        while (execution.MoveNextTrusted(out var slots))"
+                : $"        while (execution.MoveNextTrusted(out var componentRows, out int {countName}))");
+            lines.Add("        {");
 
             if (closedShape.HasEntity)
             {
@@ -1068,9 +1033,7 @@ internal static partial class DemandDrivenForEachTemplates
             for (int index = 0; index < closedShape.ComponentModels.Length; index++)
             {
                 string type = closedShape.Components[index];
-                lines.Add(bound
-                    ? $"                {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedArrayReference({batch}.Row{index});"
-                    : closedShape.HasEntity
+                lines.Add(closedShape.HasEntity
                     ? $"                {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<{type}>(access{index}));"
                     : $"                {rowNames[index]} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
             }
@@ -1080,9 +1043,7 @@ internal static partial class DemandDrivenForEachTemplates
                     lines,
                     closedShape,
                     site,
-                    bound
-                        ? $"{batch}.Chunk.TryGetTagSlots(out var tagSlots)"
-                        : "execution.TryGetTagSlots(out var tagSlots)",
+                    "execution.TryGetTagSlots(out var tagSlots)",
                     string.Empty,
                     callbackName,
                     parameters,
@@ -1095,20 +1056,10 @@ internal static partial class DemandDrivenForEachTemplates
                 lines.AddRange(denseLoopLines);
             }
 
-            if (bound)
-            {
-                lines.Add($"                {batchCursor} = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref {batchCursor}, 1);");
-                lines.Add($"                {chunksRemaining}--;");
-                lines.Add($"            }} while ({chunksRemaining} != 0);");
-                lines.Add("        }");
-            }
-            else
-            {
-                lines.Add("        }");
-            }
+            lines.Add("        }");
         }
 
-        PrependDenseLoopCount(denseLoopLines, bound, closedShape.HasEntity, countName, batch);
+        PrependDenseLoopCount(denseLoopLines, closedShape.HasEntity, countName);
 
         AppendChunkFilterBranch(lines, AppendChunkLoop);
         interceptedVisitMethods = visitMethods;
@@ -1363,6 +1314,7 @@ internal static partial class DemandDrivenForEachTemplates
             ? $"GeneratedForEachRuntime.ExecuteEntityList{(shape.Parallel ? "Parallel" : string.Empty)}(world, in query, entities, ref invoker, {AppendParallelWriteIndices(accessShape)}{(shape.Parallel ? ", workerCount" : string.Empty)});"
             : $"GeneratedForEachRuntime.ExecuteParallelDense(world, in query, ref invoker, {AppendParallelWriteIndices(accessShape)}, workerCount);";
         string body = $"""
+                GeneratedForEachRuntime.ValidateGeneratedWhere(world, in query);
                 {(slots.HasDynamicIds ? $"GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});" : string.Empty)}
                 {GeneratorTemplates.Indent(AccessSetup(accessShape).TrimEnd(), "    ")}
                 var invoker = new {invokerType}({constructorArguments});
@@ -1513,9 +1465,12 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string InterceptedContextType(IterationModel shape) => shape.ContextType ?? "global::System.Object";
 
-    private static string RenderClosedDenseMethod(IterationModel shape, string methodName, string componentParameters)
+    private static string RenderClosedDenseMethod(
+        IterationModel shape,
+        string methodName,
+        string componentParameters,
+        bool cachePreparedAccess = false)
     {
-        bool bound = UsesDenseBinding(shape);
         SignatureProjection slots = shape.Api.Signature;
         string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
         string genericPrefix = StateGeneric(shape, generic);
@@ -1526,18 +1481,19 @@ internal static partial class DemandDrivenForEachTemplates
             ? ", " + SignatureProjection.ContextParameter(shape.FunctorPassMode, shape.FunctorType!, "functor")
             : ", " + ActionType(shape) + " action";
         string target = shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query";
+        string cachedAccessParameters = cachePreparedAccess ? ", " + slots.AccessParameters(tokens: true) : string.Empty;
         bool copyRefContext = shape is { HasContext: true, ContextMode: ContextModeKind.Ref };
         string contextName = copyRefContext ? "contextCopy" : "context";
-        string signature = $"private static void {methodName}{genericPrefix}(World world{target}{componentParameters}{contextParameter}{callbackParameter})";
+        string signature = $"private static void {methodName}{genericPrefix}(World world{target}{cachedAccessParameters}{componentParameters}{contextParameter}{callbackParameter})";
         var lines = new List<string>
         {
             "[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
             signature,
             "{",
-            slots.HasDynamicIds
+            slots.HasDynamicIds && !cachePreparedAccess
                 ? $"    GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {slots.Arity});"
                 : string.Empty,
-            bound ? string.Empty : GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
+            cachePreparedAccess ? string.Empty : GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
         };
         var closedDenseVisitMethods = new List<string>();
         if (copyRefContext && !shape.HasEntityTarget)
@@ -1578,21 +1534,9 @@ internal static partial class DemandDrivenForEachTemplates
         {
             lines.Add("    var action = functor;");
         }
-        if (bound)
-        {
-            lines.Add("    " + OpenDenseBinding(shape, closed: false));
-        }
-        else
-        {
-            lines.Add($"    using var execution = GeneratedForEachRuntime.{(shape.ComponentModels.Any(static component => component.IsWrite) ? "OpenWriteDense" : "OpenReadDense")}(world, in query);");
-            lines.AddRange(SplitLines(AppendQueryComponentRoutes(shape, "    ")));
-            lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
-        }
-        if (bound)
-        {
-            lines.Add("    int chunkCount = execution.Rows.Length;");
-            lines.Add("    ref var firstBatch = ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(execution.Rows);");
-        }
+        lines.Add($"    using var execution = GeneratedForEachRuntime.{(shape.ComponentModels.Any(static component => component.IsWrite) ? "OpenWriteDense" : "OpenReadDense")}(world, in query);");
+        lines.AddRange(SplitLines(AppendQueryComponentRoutes(shape, "    ")));
+        lines.AddRange(SplitLines(AppendArchetypeWriteSetup(shape, "    ")));
         for (int index = 0; index < shape.ComponentModels.Length; index++)
         {
             string type = ComponentType(shape, index);
@@ -1680,23 +1624,10 @@ internal static partial class DemandDrivenForEachTemplates
 
         void AppendChunkLoop(bool filterTagSlots)
         {
-            if (bound)
-            {
-                lines.Add("        int chunksRemaining = chunkCount;");
-                lines.Add("        if (chunksRemaining > 0)");
-                lines.Add("        {");
-                lines.Add("            ref var batchCursor = ref firstBatch;");
-                lines.Add("            do");
-                lines.Add("            {");
-                lines.Add("                ref var batch = ref batchCursor;");
-            }
-            else
-            {
-                lines.Add(shape.HasEntity
-                    ? "        while (execution.MoveNextTrusted(out var slots))"
-                    : "        while (execution.MoveNextTrusted(out var componentRows, out int count))");
-                lines.Add("        {");
-            }
+            lines.Add(shape.HasEntity
+                ? "        while (execution.MoveNextTrusted(out var slots))"
+                : "        while (execution.MoveNextTrusted(out var componentRows, out int count))");
+            lines.Add("        {");
 
             if (shape.HasEntity)
             {
@@ -1706,43 +1637,24 @@ internal static partial class DemandDrivenForEachTemplates
             for (int index = 0; index < shape.ComponentModels.Length; index++)
             {
                 string type = ComponentType(shape, index);
-                lines.Add(bound
-                    ? $"                component{index} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(batch.Row{index});"
-                    : shape.HasEntity
+                lines.Add(shape.HasEntity
                     ? $"                component{index} = ref GeneratedForEachRuntime.GetGeneratedArrayReference(slots.GetGeneratedArray<{type}>(access{index}));"
                     : $"                component{index} = ref GeneratedForEachRuntime.GetGeneratedRow<{type}>(componentRows, route{index});");
             }
 
             if (filterTagSlots)
             {
-                if (bound)
-                {
-                    AppendBoundTagSelectionLoop(lines, shape, contextName, denseLoopLines);
-                }
-                else
-                {
-                    AppendUnboundTagSelectionLoop(lines, shape, contextName, denseLoopLines);
-                }
+                AppendUnboundTagSelectionLoop(lines, shape, contextName, denseLoopLines);
             }
             else
             {
                 lines.AddRange(denseLoopLines);
             }
 
-            if (bound)
-            {
-                lines.Add("                batchCursor = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref batchCursor, 1);");
-                lines.Add("                chunksRemaining--;");
-                lines.Add("            } while (chunksRemaining != 0);");
-                lines.Add("        }");
-            }
-            else
-            {
-                lines.Add("        }");
-            }
+            lines.Add("        }");
         }
 
-        PrependDenseLoopCount(denseLoopLines, bound, shape.HasEntity, "count", "batch");
+        PrependDenseLoopCount(denseLoopLines, shape.HasEntity, "count");
 
         AppendChunkFilterBranch(lines, AppendChunkLoop);
 
@@ -1808,6 +1720,9 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string OperationType(IterationModel shape) => OperationType(shape, OperationInvokerType(shape));
 
+    private static bool CachesPreparedAccess(IterationModel shape) => !shape.Parallel && !shape.HasEntityTarget
+            && shape.ComponentModels.Length > 0;
+
     private static string OperationType(IterationModel shape, string invoker, string? contextType = null)
     {
         bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
@@ -1854,6 +1769,7 @@ internal static partial class DemandDrivenForEachTemplates
             shape.HasEntityTarget ? "private readonly global::Delta.ECS.Entity[] _entities;" : string.Empty,
             "private readonly global::Delta.ECS.Query _query;"
         };
+        AppendCachedAccessFields(shape, fields);
         var constructorParameters = new List<string>
         {
             "global::Delta.ECS.World world",
@@ -1923,6 +1839,18 @@ internal static partial class DemandDrivenForEachTemplates
         assignments.Add(shape.Parallel ? "_workerCount = workerCount;" : string.Empty);
     }
 
+    private static void AppendCachedAccessFields(IterationModel shape, List<string> fields)
+    {
+        if (!CachesPreparedAccess(shape))
+        {
+            return;
+        }
+
+        fields.Add("private bool _cachedAccessPrepared;");
+        fields.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+            $"private {(shape.ComponentModels[index].IsWrite ? "WriteAccess" : "ReadAccess")} _access{index};"));
+    }
+
     private static string RenderOperationInvokerMethods(
         IterationModel shape,
         string closedMethodName,
@@ -1944,7 +1872,7 @@ internal static partial class DemandDrivenForEachTemplates
             "global::Delta.ECS.World world = _world;",
             shape.HasEntityTarget ? "global::Delta.ECS.Entity[] operationEntities = _entities;" : string.Empty,
             "global::Delta.ECS.Query operationQuery = _query;",
-            shape.Api.Signature.ComponentIdLocals("operationComponentIds"),
+            CachesPreparedAccess(shape) ? string.Empty : shape.Api.Signature.ComponentIdLocals("operationComponentIds"),
             shape.HasContext && shape.ContextMode != ContextModeKind.Ref
                 ? $"{ContextType(shape)} contextCopy = _context;"
                 : string.Empty,
@@ -2045,10 +1973,15 @@ internal static partial class DemandDrivenForEachTemplates
         string functorName)
     {
         SignatureProjection slots = shape.Api.Signature;
+        bool cachePreparedAccess = CachesPreparedAccess(shape);
         var closedArguments = new List<string>(shape.HasEntityTarget
             ? new[] { "world", "operationEntities", "in operationQuery" }
             : ["world", "in operationQuery"]);
-        if (slots.HasExplicitIds)
+        if (cachePreparedAccess)
+        {
+            closedArguments.Add(slots.AccessArguments("_access"));
+        }
+        if (slots.HasExplicitIds && !cachePreparedAccess)
         {
             closedArguments.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments("componentId"));
         }
@@ -2077,12 +2010,21 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("    {");
             indent = "        ";
         }
-        if (!shape.IsFunctor)
+        if (!shape.IsFunctor && !cachePreparedAccess)
         {
             lines.Add(indent + "global::Delta.ECS.GeneratedForEachRuntime.ThrowIfNull(action, nameof(action));");
         }
 
+        if (cachePreparedAccess)
+        {
+            lines.Add(GeneratorTemplates.Indent(BuildCachedAccessPreparation(shape), indent));
+        }
+
         lines.Add(indent + invoke);
+        if (cachePreparedAccess)
+        {
+            lines.Add(indent + "if (prepareAccess) _cachedAccessPrepared = true;");
+        }
         if (profiling)
         {
             lines.Add("    }");
@@ -2092,6 +2034,30 @@ internal static partial class DemandDrivenForEachTemplates
             lines.Add("    }");
         }
         return string.Join("\n", lines);
+    }
+
+    private static string BuildCachedAccessPreparation(IterationModel shape)
+    {
+        var lines = new List<string>
+        {
+            "bool prepareAccess = !_cachedAccessPrepared;",
+            "if (prepareAccess)",
+            "{",
+            shape.IsFunctor
+                ? string.Empty
+                : "    global::Delta.ECS.GeneratedForEachRuntime.ThrowIfNull(action, nameof(action));",
+            "    global::Delta.ECS.GeneratedForEachRuntime.ValidateGeneratedWhere(world, in operationQuery);",
+            GeneratorTemplates.Indent(shape.Api.Signature.ComponentIdLocals(), "    "),
+            "    global::Delta.ECS.Query query = operationQuery;",
+            shape.Api.Signature.HasDynamicIds
+                ? $"    global::Delta.ECS.GeneratedForEachRuntime.ValidateComponentIdCount(componentIds, {shape.Api.Signature.Arity});"
+                : string.Empty,
+            GeneratorTemplates.Indent(AccessSetup(shape).TrimEnd(), "    "),
+            GeneratorTemplates.Indent(GeneratorTemplates.JoinNonEmpty(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
+                $"_access{index} = access{index};")), "    "),
+            "}"
+        };
+        return GeneratorTemplates.JoinNonEmpty(lines);
     }
 
     private static string RenderMethod(string documentation, string signature, string body, string? profileName)
@@ -2120,12 +2086,6 @@ internal static partial class DemandDrivenForEachTemplates
 
     private static string AppendQueryComponentRoutes(IterationModel shape, string indent)
     {
-        SignatureProjection slots = shape.Api.Signature;
-        if (!shape.HasEntity && !slots.HasExplicitIds)
-        {
-            return string.Empty;
-        }
-
         return string.Join("\n", GeneratorTemplates.Indexed(
             shape.ComponentModels.Length,
             index => !shape.HasEntity || shape.ComponentModels[index].IsWrite,
@@ -2138,19 +2098,16 @@ internal static partial class DemandDrivenForEachTemplates
         SignatureProjection slots = shape.Api.Signature;
         return string.Join("\n", GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
         {
-            bool routeOnly = shape is { HasEntity: false, HasEntityTarget: false }
-                             && !slots.HasExplicitIds
-                             && !shape.Parallel;
             string componentType = ComponentType(shape, index);
-            string variable = (routeOnly ? "int route" : "var access") + index;
+            string variable = "var access" + index;
             string accessKind = shape.ComponentModels[index].IsWrite ? "Write" : "Read";
-            string method = routeOnly ? "GetPrepared" + accessKind + "Route" : "GetPrepared" + accessKind + "Access";
-            string generic = !slots.HasExplicitIds || routeOnly ? $"<{componentType}>" : string.Empty;
+            string method = "GetPrepared" + accessKind + "Access";
+            string generic = slots.HasExplicitIds ? string.Empty : $"<{componentType}>";
             string arguments = string.Join(", ", new[]
             {
                 "in query",
                 slots.HasExplicitIds ? slots.ComponentIdArgument(index, "componentId") : null,
-                !slots.HasExplicitIds || routeOnly ? null : $"typeof({componentType})",
+                slots.HasExplicitIds ? $"typeof({componentType})" : null,
             }.Where(static value => !string.IsNullOrEmpty(value)));
             return $"{variable} = GeneratedForEachRuntime.{method}{generic}({arguments});";
         }));

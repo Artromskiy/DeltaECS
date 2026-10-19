@@ -30,6 +30,7 @@ internal static class MicroBenchmarkConfiguration
         nameof(DenseIterationMicroBenchmarks) => [100, 1_000, 10_000, 100_000, 1_000_000],
         nameof(GeneratedFunctorMovement4MicroBenchmarks) => [1_000_000],
         nameof(Movement4ApiComparisonMicroBenchmarks) => [100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000],
+        nameof(PreparedAccessMicroBenchmarks) => [1, 131_072],
         nameof(WhereIterationMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
         nameof(WhereApiMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
         nameof(StructuralOperationsMicroBenchmarks) => [100, 1_000, 10_000, 100_000],
