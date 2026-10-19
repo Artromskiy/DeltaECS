@@ -30,6 +30,19 @@ internal sealed class ComponentRegistryTests
     }
 
     [Test]
+    public void GetComponentIdsReturnsEveryRegistrationAndPreservesPreviouslyReturnedSpans()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId first = layouts.Register<Position>(new SchemaId(70_003));
+        ReadOnlySpan<ComponentId> initial = layouts.GetComponentIds<Position>();
+        ComponentId second = layouts.Register<Position>(new SchemaId(70_004));
+
+        Assert.That(initial.ToArray(), Is.EqualTo(new[] { first }));
+        Assert.That(layouts.GetComponentIds<Position>().ToArray(), Is.EqualTo(new[] { first, second }));
+        Assert.That(layouts.GetComponentIds<MissingComponent>().IsEmpty, Is.True);
+    }
+
+    [Test]
     public void RepeatedSchemaReturnsSameIdAndDoesNotReplacePrimary()
     {
         var layouts = new ComponentRegistry();

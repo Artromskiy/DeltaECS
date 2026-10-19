@@ -2,6 +2,13 @@ using Delta.ECS;
 
 namespace Delta.ECS.Unity
 {
+    internal static class ViewComponentSchemaIds
+    {
+        internal const ulong ViewToken = 0x405B11F5A17E14A1UL;
+        internal const ulong ViewBound = 0xB31CB42A81D3B164UL;
+        internal const ulong HideFromEntityHierarchy = 0x8C13A2E9764DB501UL;
+    }
+
     /// <summary>Receives the entity context after a Unity view is bound to an entity.</summary>
     public interface IEntityView
     {
@@ -10,7 +17,7 @@ namespace Delta.ECS.Unity
     }
 
     /// <summary>Selects the Unity prefab used to represent an entity.</summary>
-    [ComponentSchema(0x405B11F5A17E14A1UL)]
+    [ComponentSchema(ViewComponentSchemaIds.ViewToken)]
     public readonly struct ViewToken
     {
         /// <summary>Gets the identifier of the view prefab in a <see cref="ViewPrefabCatalog"/>.</summary>
@@ -21,8 +28,15 @@ namespace Delta.ECS.Unity
     }
 
     /// <summary>Marks an entity whose Unity view has already been bound.</summary>
-    [ComponentSchema(0xB31CB42A81D3B164UL)]
+    [ComponentSchema(ViewComponentSchemaIds.ViewBound)]
     public struct ViewBound
+    {
+    }
+
+    /// <summary>Hides an unbound ECS entity from the Unity Hierarchy window while this tag is present.</summary>
+    /// <remarks>Entities bound to a GameObject keep their normal Unity hierarchy visibility.</remarks>
+    [ComponentSchema(ViewComponentSchemaIds.HideFromEntityHierarchy)]
+    public readonly struct HideFromEntityHierarchy
     {
     }
 }

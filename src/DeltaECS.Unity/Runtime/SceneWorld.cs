@@ -29,9 +29,11 @@ namespace Delta.ECS.Unity
         private readonly SceneData _sceneData;
         private readonly SceneAuthoring _authoring;
         private readonly bool _ownsWorld;
+        private readonly ComponentId _hiddenEntityHierarchyComponentId;
         private bool _disposed;
 
         public World World => _world;
+        internal ComponentId HiddenEntityHierarchyComponentId => _hiddenEntityHierarchyComponentId;
 
         public Entity[] AuthoredEntities
         {
@@ -60,6 +62,7 @@ namespace Delta.ECS.Unity
             _authoring = authoring;
             _integration = world;
             _ownsWorld = ownsWorld;
+            _hiddenEntityHierarchyComponentId = world.Components.GetPrimary<HideFromEntityHierarchy>();
 
             _sceneData.EnsureStableIds();
             _integration.Initialize();
@@ -570,6 +573,7 @@ namespace Delta.ECS.Unity
         private static World CreateWorld(int initialEntityCapacity)
         {
             var layouts = new ComponentRegistry();
+            layouts.Register<HideFromEntityHierarchy>(new SchemaId(ViewComponentSchemaIds.HideFromEntityHierarchy));
             foreach (IGeneratedComponentRegistration registration in GeneratedComponentCatalog.GetRegistrations())
             {
                 layouts.Register(registration);

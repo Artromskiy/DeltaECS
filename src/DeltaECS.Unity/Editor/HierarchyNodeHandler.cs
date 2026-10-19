@@ -20,6 +20,7 @@ namespace Delta.ECS.Unity.Editor
     {
         private const double RuntimeHierarchyRefreshInterval = 0.5d;
         private static readonly ComponentId[] NoRequiredComponents = Array.Empty<ComponentId>();
+        private static readonly SchemaId HiddenEntitySchema = new(ViewComponentSchemaIds.HideFromEntityHierarchy);
         private static double _nextRuntimeHierarchyRefresh;
         private static bool _wasPlaying;
         private static readonly HashSet<HierarchyNodeHandler> Instances = new();
@@ -269,6 +270,30 @@ namespace Delta.ECS.Unity.Editor
             return true;
         }
 
+        private static bool IsHiddenFromHierarchy(
+            EntityAuthoring authoring,
+            SceneWorld runtimeWorld,
+            Entity runtimeEntity)
+        {
+            if (runtimeWorld != null && runtimeWorld.World.IsAlive(runtimeEntity))
+            {
+                return runtimeWorld.World.Has(runtimeEntity, runtimeWorld.HiddenEntityHierarchyComponentId);
+            }
+
+            IList<ComponentData> components = authoring.Components;
+            for (int index = 0; index < components.Count; index++)
+            {
+                if (components[index] != null
+                    && components[index].TryGetSchemaId(out SchemaId schema)
+                    && schema == HiddenEntitySchema)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void BindToView(HierarchyView view) => OnBindView(view);
 
         private void OnEntityNameChanged(ChangeEvent<string> evt)
@@ -458,7 +483,7 @@ namespace Delta.ECS.Unity.Editor
                         || (runtimeWorld != null
                             && runtimeWorld.World.IsAlive(runtimeEntity)
                             && runtimeWorld.TryGetView(runtimeEntity, out _));
-                    if (hasView)
+                    if (hasView || IsHiddenFromHierarchy(authoring, runtimeWorld, runtimeEntity))
                     {
                         continue;
                     }
@@ -569,7 +594,8 @@ namespace Delta.ECS.Unity.Editor
             HierarchyNode sceneNode,
             SceneWorld runtimeWorld)
         {
-            Query query = runtimeWorld.World.WhereAll(NoRequiredComponents);
+            Query query = runtimeWorld.World.WhereNone(runtimeWorld.HiddenEntityHierarchyComponentId)
+                .WhereAll(NoRequiredComponents);
             bool changed = false;
             runtimeWorld.World.ForEachEntity(in query, entity =>
             {

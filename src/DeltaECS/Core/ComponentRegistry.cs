@@ -11,6 +11,7 @@ public sealed partial class ComponentRegistry
 {
     private readonly Dictionary<SchemaId, int> _idsBySchema = new();
     private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();
+    private readonly Dictionary<Type, ComponentTypeMembers> _componentIdsByType = new();
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
     private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
@@ -67,6 +68,13 @@ public sealed partial class ComponentRegistry
     /// <remarks>The returned span remains valid if the registry later registers more generated components.</remarks>
     public ReadOnlySpan<ComponentId> GetGroup<TEnum>(TEnum groupId) where TEnum : struct, Enum
         => _componentGroups.TryGetValue((typeof(TEnum).TypeHandle, GetGroupValue(groupId)), out ComponentGroupMembers? members)
+            ? members.GetComponents()
+            : [];
+
+    /// <summary>Gets all component registrations for <typeparamref name="T"/>, in registration order.</summary>
+    /// <remarks>The returned span remains valid if the registry later registers more components.</remarks>
+    public ReadOnlySpan<ComponentId> GetComponentIds<T>()
+        => _componentIdsByType.TryGetValue(typeof(T), out ComponentTypeMembers? members)
             ? members.GetComponents()
             : [];
 
@@ -439,6 +447,13 @@ public sealed partial class ComponentRegistry
         _componentVisitorTokens.Add(componentRegistrationToken);
         _idsBySchema.Add(layout.SchemaId, id.Value);
         _primaryIdsByType.TryAdd(layout.RuntimeType, id);
+        if (!_componentIdsByType.TryGetValue(layout.RuntimeType, out ComponentTypeMembers? members))
+        {
+            members = new ComponentTypeMembers();
+            _componentIdsByType.Add(layout.RuntimeType, members);
+        }
+
+        members.Add(id);
 
         return id;
     }
@@ -466,6 +481,20 @@ public sealed partial class ComponentRegistry
                 return;
             }
 
+            _componentIds.Add(componentId);
+            _cached = null;
+        }
+
+        internal ReadOnlySpan<ComponentId> GetComponents() => _cached ??= _componentIds.ToArray();
+    }
+
+    private sealed class ComponentTypeMembers
+    {
+        private readonly List<ComponentId> _componentIds = new();
+        private ComponentId[]? _cached;
+
+        internal void Add(ComponentId componentId)
+        {
             _componentIds.Add(componentId);
             _cached = null;
         }
