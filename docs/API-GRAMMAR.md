@@ -473,15 +473,20 @@ passed read-only or by value; mutable `ref` context is rejected.
 
 ## Structural forms
 
-Direct `World` structural calls execute immediately. Entity targets return
-`bool` to report whether that entity changed; entity-list and query targets
-return the number of changed entities. Generated typed forms accept primary
-registrations or explicit selectors:
+Direct `World` structural calls execute immediately. Change-reporting single
+entity forms return `bool`, while batch and query forms return the number of
+changed entities. Direct typed `AddOrSet` returns `void` for one entity or an
+entity batch. Generated typed forms accept primary registrations or explicit
+selectors:
 
 ```text
 world.Add<T...>(e | E | Q) -> bool | int
 world.Add<T...>(e | E, V...) -> bool | int
 world.Add<T...>(e | E, I... | D, V...) -> bool | int
+world.AddOrSet<T...>(e | E, V...) -> void
+world.AddOrSet<T...>(e | E, I... | D, V...) -> void
+world.Set<T...>(e | E, V...) -> bool | int
+world.Set<T...>(e | E, I... | D, V...) -> bool | int
 world.Remove<T...>(e | E | Q) -> bool | int
 world.Destroy(e) -> bool
 world.Destroy(E | Q) -> int
@@ -496,6 +501,11 @@ world.Create<T...>(I... | D, V...) -> Entity
 world.Create(I... | D) -> Entity
 world.Create(I... | D, O) -> int
 world.Create(I... | D, N, O?) -> int
+
+world.Where(...).Add<T...>() / Add(I... | D) -> EcsResultOperation<int>
+world.Where(...).Add<T...>(V... | I... | D, V...) -> EcsResultOperation<int>
+world.Where(...).AddOrSet<T...>(V... | I... | D, V...) -> EcsOperation<TInvoker>
+world.Where(...).Set<T...>(V... | I... | D, V...) -> EcsResultOperation<int>
 ```
 
 `I...` forms are positional `ComponentId` arguments; `D` is one explicit
@@ -504,10 +514,21 @@ and `Remove` accept IDs after the target; `Create` places them before `N` and
 `O`. Generic selectors are reserved for primary-registration forms and forms
 that also consume typed values.
 Generic value types may be inferred from `V...`; multi-component value-based
-`Create` and `Add` forms require explicit registrations, and the positions of
-`I...` and `V...` correspond to component types in `T...`. Multi-value `Add`
-applies all values during one combined structural transition per eligible
-entity. The runtime's primary-registration `Create<T>()` is the single-component
+`Create`, `Add`, `AddOrSet`, and `Set` forms require explicit registrations,
+and the positions of `I...` and `V...` correspond to component types in `T...`.
+`Add` inserts only missing components, initializes only those new rows from
+`V...`, and leaves existing values untouched; it returns `true` for one entity
+or the number of changed entities for a batch. `AddOrSet` inserts missing
+components and overwrites existing values, returning `void`. `Set` updates only
+entities that already have every selected component; it returns `false` for one
+entity or excludes that entity from the batch count when any selected component
+is missing. `Set` never adds a component. For tags, the typed value is ignored:
+`Add` reports whether the tag was added, `AddOrSet` ensures it is present, and
+`Set` succeeds only when it is already present. A `Where` terminal captures its
+values and runs when its returned operation is invoked; `AddOrSet.Invoke()` has
+no result and `Set.Invoke()` returns the number of entities updated. Direct
+query-level `Add` without values remains the type-erased membership form. The
+runtime's primary-registration `Create<T>()` is the single-component
 convenience form.
 
 `N` is the number of entities to create and `O` is optional caller-owned
@@ -545,15 +566,16 @@ world.AddOrSet(e, data) -> void
 world.Set(e, data) -> bool
 ```
 
-On `EntityData`, `Add` preserves an existing entry and returns `false`,
-`AddOrSet` inserts or replaces it, and `Set` replaces only an existing entry.
-For `World`, `Add` adds only missing components and tags, leaving existing
-component values untouched; its result reports whether composition changed.
-`AddOrSet` adds missing entries and writes values for entries already present.
-`Set` writes only when the entity already contains every entry in the data; it
-returns `false` without writing any values when one is missing. Tags contribute
-membership but no payload. An empty set cannot create an entity; adding it
-returns `false`, `AddOrSet` does nothing, and `Set` returns `false`.
+`Add` preserves an existing entry and returns `false`; `AddOrSet` inserts or
+replaces it and returns `void`; `Set` replaces only an existing entry and
+returns `false` if it is missing. On `World`, `Add` adds only missing
+components and tags, leaving existing component values untouched; its result
+reports whether composition changed. `AddOrSet` adds missing entries and writes
+values for entries already present. `Set` writes only when the entity already
+contains every entry in the data; it returns `false` without writing any values
+when one is missing. Tags contribute membership but no payload. An empty set
+cannot create an entity; adding it returns `false`, `AddOrSet` does nothing, and
+`Set` returns `false`.
 
 `EntityData` can be reused as input for multiple single-entity operations. Its
 values are applied to the world at each call; subsequent changes to the data
@@ -581,6 +603,12 @@ registration, returning `bool` or a changed-entity count. `Remove<T>` selects
 the primary registration; use TypeErased `Remove(e | E | Q, I... | D)` when
 the registration is selected by ID. Generated multi-component forms use the
 structural grammar above.
+
+`Set<T>` selects the primary registration or an explicit `ComponentId` and
+writes the value only when the entity already has the component. It returns
+`false` for a stale entity, a missing component, or an invalid/mismatched
+explicit ID; it never adds the component. For a tag, `Set<T>` succeeds only
+when the tag is already present; tags do not store the supplied value.
 
 ## Query factories
 

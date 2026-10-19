@@ -29,7 +29,7 @@ public sealed class EntityData
         {
             if (existing is not ComponentEntry<T>)
             {
-                throw TypeMismatch<T>(componentId);
+                ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
             }
 
             return false;
@@ -49,13 +49,13 @@ public sealed class EntityData
         EnsureValid(componentId);
         if (_components.TryGetValue(componentId, out IEntry? existing))
         {
-            if (existing is not ComponentEntry<T> component)
+            if (existing is ComponentEntry<T> component)
             {
-                throw TypeMismatch<T>(componentId);
+                component.Value = value;
+                return;
             }
 
-            component.Value = value;
-            return;
+            ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
         }
 
         AddEntry(componentId, new ComponentEntry<T>(value));
@@ -73,7 +73,7 @@ public sealed class EntityData
         {
             if (existing is not TagEntry)
             {
-                throw new InvalidOperationException($"Component ID {componentId} already stores a component value.");
+                ThrowHelper.ThrowEntityDataTagValueMismatch(componentId);
             }
 
             return false;
@@ -107,15 +107,15 @@ public sealed class EntityData
     {
         if (!_components.TryGetValue(componentId, out IEntry? entry))
         {
-            throw new KeyNotFoundException($"No component data is stored for component ID {componentId}.");
+            ThrowHelper.ThrowEntityDataMissingValue(componentId);
         }
 
-        if (entry is not ComponentEntry<T> component)
+        if (entry is ComponentEntry<T> component)
         {
-            throw TypeMismatch<T>(componentId);
+            return component.Value;
         }
 
-        return component.Value;
+        return ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
     }
 
     /// <summary>Tries to replace a stored component value without adding a new entry.</summary>
@@ -128,13 +128,13 @@ public sealed class EntityData
             return false;
         }
 
-        if (entry is not ComponentEntry<T> component)
+        if (entry is ComponentEntry<T> component)
         {
-            throw TypeMismatch<T>(componentId);
+            component.Value = value;
+            return true;
         }
 
-        component.Value = value;
-        return true;
+        return ThrowHelper.ThrowEntityDataTypeMismatch<bool>(componentId);
     }
 
     /// <summary>Gets a writable reference to a stored component value.</summary>
@@ -144,15 +144,15 @@ public sealed class EntityData
     {
         if (!_components.TryGetValue(componentId, out IEntry? entry))
         {
-            throw new KeyNotFoundException($"No component data is stored for component ID {componentId}.");
+            ThrowHelper.ThrowEntityDataMissingValue(componentId);
         }
 
-        if (entry is not ComponentEntry<T> component)
+        if (entry is ComponentEntry<T> component)
         {
-            throw TypeMismatch<T>(componentId);
+            return ref component.Value;
         }
 
-        return ref component.Value;
+        return ref ThrowHelper.ThrowEntityDataRefTypeMismatch<T>(componentId);
     }
 
     /// <summary>Gets a read-only reference to a stored component value.</summary>
@@ -197,7 +197,7 @@ public sealed class EntityData
             {
                 if (!layouts.IsTag(componentId))
                 {
-                    throw new InvalidOperationException($"Component ID {componentId} is not registered as a tag.");
+                    ThrowHelper.ThrowEntityDataUnregisteredTag(componentId);
                 }
 
                 continue;
@@ -232,12 +232,9 @@ public sealed class EntityData
     {
         if (!componentId.IsValid)
         {
-            throw new ArgumentOutOfRangeException(nameof(componentId));
+            ThrowHelper.ThrowComponentIdOutOfRange();
         }
     }
-
-    private static InvalidOperationException TypeMismatch<T>(ComponentId componentId)
-        => new($"Component ID {componentId} does not store a value of type {typeof(T)}.");
 
     private void AddEntry(ComponentId componentId, IEntry entry)
     {

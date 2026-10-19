@@ -224,6 +224,16 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static void ValidateComponentIdCount(ReadOnlySpan<ComponentId> components, int expected) { }
             public static bool ExecuteGeneratedAdd<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
                 where TInitializer : struct, IGeneratedComponentValueInitializer => true;
+            public static int ExecuteGeneratedAdd<TInitializer>(World world, ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => 0;
+            public static void ExecuteGeneratedAddOrSet<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer { }
+            public static void ExecuteGeneratedAddOrSet<TInitializer>(World world, ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer { }
+            public static bool ExecuteGeneratedSet<TInitializer>(World world, Entity entity, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => false;
+            public static int ExecuteGeneratedSet<TInitializer>(World world, ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
+                where TInitializer : struct, IGeneratedComponentValueInitializer => 0;
             public static Entity ExecuteGeneratedCreate<TInitializer>(World world, ReadOnlySpan<ComponentId> components, ref TInitializer initializer)
                 where TInitializer : struct, IGeneratedComponentValueInitializer => default;
             public static ref T GetGeneratedRow<T>(Array[] componentRows, int queryComponentIndex) => throw new NotImplementedException();
@@ -243,6 +253,10 @@ public sealed class DemandDrivenForEachGeneratorTests
             public static int ExecuteGeneratedWhereDestroy<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices)
                 where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static int ExecuteGeneratedWhereAdd<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
+            public static void ExecuteGeneratedWhereAddOrSet<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
+                where TInvoker : struct, IGeneratedWhereStructuralInvoker { }
+            public static int ExecuteGeneratedWhereSet<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
                 where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
             public static int ExecuteGeneratedWhereRemove<TInvoker>(World world, in Query query, ref TInvoker invoker, ReadOnlySpan<int> writeComponentIndices, ReadOnlySpan<ComponentId> componentIds)
                 where TInvoker : struct, IGeneratedWhereStructuralInvoker => 0;
@@ -312,6 +326,14 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.Add<Position, Velocity>(entities);
                 world.Add(entities, position, velocity);
                 world.Add(entities, selectedComponents);
+                world.AddOrSet<Position, Velocity>(entity, new Position(), new Velocity());
+                world.AddOrSet<Position, Velocity>(entity, position, velocity, new Position(), new Velocity());
+                world.AddOrSet<Position, Velocity>(entities, new Position(), new Velocity());
+                world.AddOrSet<Position, Velocity>(entities, position, velocity, new Position(), new Velocity());
+                world.Set<Position, Velocity>(entity, new Position(), new Velocity());
+                world.Set<Position, Velocity>(entity, position, velocity, new Position(), new Velocity());
+                world.Set<Position, Velocity>(entities, new Position(), new Velocity());
+                world.Set<Position, Velocity>(entities, position, velocity, new Position(), new Velocity());
                 world.Remove<Position, Velocity>(entity);
                 world.Remove(entity, position, velocity);
                 world.Remove(entity, selectedComponents);
@@ -555,6 +577,14 @@ public sealed class DemandDrivenForEachGeneratorTests
                     .Add<Dead>(new Dead());
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
                     .Add<Dead>(world.Components.GetPrimary<Dead>(), new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .AddOrSet<Dead>(new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .AddOrSet<Dead>(deadId, new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .Set<Dead>(new Dead());
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
+                    .Set<Dead>(deadId, new Dead());
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove<Alive>();
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0).Remove(aliveId);
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= 0)
@@ -2552,9 +2582,11 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("public static int Create<T1, T2>(this World target, int count, global::System.Span<Entity> output)"));
         Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity)"));
         Assert.That(generated, Does.Contain("public static bool Add<T1, T2>(this World target, Entity entity, in T1 value0, in T2 value1)"));
+        Assert.That(generated, Does.Contain("public static void AddOrSet<T1, T2>(this World target, Entity entity, in T1 value0, in T2 value1)"));
+        Assert.That(generated, Does.Contain("public static int Set<T1, T2>(this World target, global::System.ReadOnlySpan<Entity> entities, in T1 value0, in T2 value1)"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedAdd"));
-        Assert.That(generated, Does.Not.Contain(" Set<"));
-        Assert.That(generated, Does.Not.Contain("ExecuteGeneratedSet"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedAddOrSet"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedSet"));
         Assert.That(generated, Does.Contain("public static bool Add(this World target, Entity entity, ComponentId component0, ComponentId component1)"));
         Assert.That(generated, Does.Contain("public static bool Remove(this World target, Entity entity, ComponentId component0, ComponentId component1)"));
         Assert.That(generated, Does.Contain("public static int Create(this World target, ComponentId component0, ComponentId component1, int count)"));
@@ -2761,9 +2793,14 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("GeneratedWhereQuery_"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereDestroy"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAdd"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereAddOrSet"));
+        Assert.That(generated, Does.Contain("ExecuteGeneratedWhereSet"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereRemove"));
         Assert.That(generated, Does.Contain("ExecuteGeneratedWhereForEach"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(in U1 value0)"));
+        Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsOperation<GeneratedWhereOperationInvoker_"));
+        Assert.That(generated, Does.Contain("AddOrSet<U1>(in U1 value0)"));
+        Assert.That(generated, Does.Contain("EcsResultOperation<int> Set<U1>(in U1 value0)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add<U1>(ComponentId componentId, in U1 value0)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Add(ComponentId componentId)"));
         Assert.That(generated, Does.Contain("public global::Delta.ECS.EcsResultOperation<int> Remove(ComponentId componentId)"));

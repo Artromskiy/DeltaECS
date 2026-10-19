@@ -155,7 +155,7 @@ internal sealed class TerminalModel(
         pattern);
     internal List<string[]> StaticMethodGroupComponents { get; } = new();
     internal bool IsCallback => Kind is TerminalKind.ForEach or TerminalKind.ForEachEntity;
-    internal string SignatureKey => Api.SignatureKey;
+    internal string SignatureKey => Kind + "|" + Api.SignatureKey;
     internal string Key => SignatureKey + "|" + string.Join(";", Components);
 
     internal void Merge(TerminalModel candidate)
@@ -214,6 +214,8 @@ internal enum TerminalKind
 {
     Destroy,
     Add,
+    AddOrSet,
+    Set,
     Remove,
     ForEach,
     ForEachEntity

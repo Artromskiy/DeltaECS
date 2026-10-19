@@ -98,6 +98,156 @@ internal sealed class GenericSingleItemApiTests
     }
 
     [Test]
+    public void AddOnlyAddsMissingComponentsAndSetOnlyUpdatesExistingComponents()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_081));
+        ComponentId alternatePositionId = layouts.Register<Position>(new SchemaId(60_082));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_083));
+        using var world = new World(layouts);
+
+        Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
+        var replacement = new Position { X = 3, Y = 4 };
+        var alternate = new Position { X = 5, Y = 6 };
+        var velocity = new Velocity { X = 7, Y = 8 };
+
+        Assert.That(world.Add(entity, in replacement), Is.False);
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(new Position { X = 1, Y = 2 }));
+        Assert.That(world.Set(entity, velocityId, in velocity), Is.False);
+        Assert.That(world.Has<Velocity>(entity), Is.False);
+
+        Assert.That(world.Set(entity, in replacement), Is.True);
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(replacement));
+        Assert.That(world.Set(entity, alternatePositionId, in alternate), Is.False);
+        Assert.That(world.Add(entity, alternatePositionId, in alternate), Is.True);
+        Assert.That(world.Get<Position>(entity, alternatePositionId), Is.EqualTo(alternate));
+        Assert.That(world.Add(entity, velocityId, in velocity), Is.True);
+        var replacementVelocity = new Velocity { X = 9, Y = 10 };
+        Assert.That(world.Set(entity, velocityId, in replacementVelocity), Is.True);
+        Assert.That(world.Get<Velocity>(entity), Is.EqualTo(replacementVelocity));
+
+        Assert.That(world.AliveEntityCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void AddOrSetAddsOrReplacesValuesAndReportsSetEligibility()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_086));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_087));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId, new Position { X = 1, Y = 2 });
+        var position = new Position { X = 3, Y = 4 };
+        var velocity = new Velocity { X = 5, Y = 6 };
+
+        world.AddOrSet(entity, in position);
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(position));
+        world.AddOrSet(entity, velocityId, in velocity);
+        Assert.That(world.Get<Velocity>(entity), Is.EqualTo(velocity));
+
+        var entities = new[] { entity };
+        var batchPosition = new Position { X = 7, Y = 8 };
+        world.AddOrSet(entities, in batchPosition);
+        Assert.That(world.Set(entities, in position), Is.EqualTo(1));
+        Assert.That(world.Get<Position>(entity), Is.EqualTo(position));
+        Assert.That(world.Set(entities, velocityId, in velocity), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void GeneratedMultiComponentMutationsUseTheSameSemantics()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_088));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_089));
+        using var world = new World(layouts);
+        var initial = new Position { X = 1, Y = 2 };
+        Entity first = world.Create(positionId, in initial);
+        Entity second = world.Create(positionId, in initial);
+        var position = new Position { X = 3, Y = 4 };
+        var velocity = new Velocity { X = 5, Y = 6 };
+
+        Assert.That(world.Add<Position, Velocity>(first, position, velocity), Is.True);
+        Assert.That(world.Get<Position>(first), Is.EqualTo(initial));
+        Assert.That(world.Get<Velocity>(first), Is.EqualTo(velocity));
+        Assert.That(world.Add<Position, Velocity>(first, position, velocity), Is.False);
+        Assert.That(world.Get<Position>(first), Is.EqualTo(initial));
+
+        var addedPosition = new Position { X = 7, Y = 8 };
+        var addedVelocity = new Velocity { X = 9, Y = 10 };
+        world.AddOrSet<Position, Velocity>(first, positionId, velocityId, addedPosition, addedVelocity);
+        Assert.That(world.Get<Position>(first), Is.EqualTo(addedPosition));
+        Assert.That(world.Get<Velocity>(first), Is.EqualTo(addedVelocity));
+
+        var replacementPosition = new Position { X = 11, Y = 12 };
+        var replacementVelocity = new Velocity { X = 13, Y = 14 };
+        Entity[] entities = [first, second];
+        Assert.That(world.Set<Position, Velocity>(entities, positionId, velocityId, replacementPosition, replacementVelocity), Is.EqualTo(1));
+        Assert.That(world.Get<Position>(first), Is.EqualTo(replacementPosition));
+        Assert.That(world.Get<Velocity>(first), Is.EqualTo(replacementVelocity));
+        Assert.That(world.Get<Position>(second), Is.EqualTo(initial));
+    }
+
+    [Test]
+    public void WhereValueTerminalsUseAddOrSetAndSetSemantics()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_090));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(60_091));
+        using var world = new World(layouts);
+        var position = new Position { X = 1, Y = 2 };
+        Entity first = world.Create(positionId, in position);
+        Entity second = world.Create(positionId, in position);
+        var initialVelocity = new Velocity { X = 3, Y = 4 };
+        Assert.That(world.Add(first, velocityId, in initialVelocity), Is.True);
+
+        Query query = world.WhereAll<Position>();
+        var addedOrSetVelocity = new Velocity { X = 5, Y = 6 };
+        world.Where(in query, static (in Position _) => true)
+            .AddOrSet<Velocity>(velocityId, addedOrSetVelocity)
+            .Invoke();
+
+        Assert.That(world.Get<Velocity>(first), Is.EqualTo(addedOrSetVelocity));
+        Assert.That(world.Get<Velocity>(second), Is.EqualTo(addedOrSetVelocity));
+
+        var setVelocity = new Velocity { X = 7, Y = 8 };
+        int setCount = world.Where(in query, static (in Position _) => true)
+            .Set<Velocity>(velocityId, setVelocity)
+            .Invoke();
+        Assert.That(setCount, Is.EqualTo(2));
+        Assert.That(world.Get<Velocity>(first), Is.EqualTo(setVelocity));
+        Assert.That(world.Get<Velocity>(second), Is.EqualTo(setVelocity));
+
+        Assert.That(world.Remove(second, velocityId), Is.True);
+        setCount = world.Where(in query, static (in Position _) => true)
+            .Set<Velocity>(velocityId, initialVelocity)
+            .Invoke();
+        Assert.That(setCount, Is.EqualTo(1));
+        Assert.That(world.Get<Velocity>(first), Is.EqualTo(initialVelocity));
+        Assert.That(world.Has(second, velocityId), Is.False);
+    }
+
+    [Test]
+    public void TagAddOrSetAndSetFollowPresenceSemantics()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(60_084));
+        layouts.Register<MarkedTag>(new SchemaId(60_085));
+        using var world = new World(layouts);
+        Entity entity = world.Create(positionId);
+        MarkedTag tag = default;
+
+        Assert.That(world.Set(entity, in tag), Is.False);
+        Assert.That(world.Has<MarkedTag>(entity), Is.False);
+        world.AddOrSet(entity, in tag);
+        Assert.That(world.Has<MarkedTag>(entity), Is.True);
+        Assert.That(world.Set(entity, in tag), Is.True);
+        Assert.That(world.Add(entity, in tag), Is.False);
+
+        Assert.That(world.Destroy(entity), Is.True);
+        Assert.That(world.Set(entity, in tag), Is.False);
+    }
+
+    [Test]
     public void UntypedSingleEntityStructuralOperationsReportWhetherTheyChanged()
     {
         var layouts = new ComponentRegistry();
@@ -459,4 +609,6 @@ internal sealed class GenericSingleItemApiTests
         Assert.Throws<ArgumentException>(() => world.Create(componentId: new ComponentId(200), value: new Position()));
         Assert.That(world.AliveEntityCount, Is.Zero);
     }
+
+    private readonly struct MarkedTag;
 }

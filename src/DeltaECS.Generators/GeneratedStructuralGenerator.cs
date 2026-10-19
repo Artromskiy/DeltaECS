@@ -33,7 +33,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         string name = member.Name.Identifier.ValueText;
-        if (name is not ("Add" or "Remove" or "Create")
+        if (name is not ("Add" or "AddOrSet" or "Set" or "Remove" or "Create")
             || !ApiDescriptor.TryGet(name, out ApiDescriptor descriptor)
             || descriptor.Family != GeneratedApiKind.Structural
             || !GeneratorSupport.IsNamedType(model.GetTypeInfo(member.Expression).Type, "World"))
@@ -72,7 +72,7 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
                 invocation.ArgumentList.Arguments,
                 descriptor,
                 genericArity,
-                valuesAllowed: name == "Add",
+                valuesAllowed: name is "Add" or "AddOrSet" or "Set",
                 out InvocationCursorResult cursorResult,
                 out int boundArity,
                 out bool hasValues,
@@ -82,10 +82,15 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         if (hasValues
-            && (name != "Add"
+            && (name is not ("Add" or "AddOrSet" or "Set")
                 || cursorResult.Target is not (TargetKind.Entity or TargetKind.EntityList)
                 || boundArity < 1
                 || !HasSupportedValues(model, invocation, cursorResult)))
+        {
+            return false;
+        }
+
+        if ((name is "AddOrSet" or "Set") && !hasValues)
         {
             return false;
         }
@@ -101,7 +106,13 @@ public sealed class GeneratedStructuralGenerator : IIncrementalGenerator
         }
 
         shape = new StructuralModel(
-            name == "Remove" ? StructuralOperation.Remove : StructuralOperation.Add,
+            name switch
+            {
+                "AddOrSet" => StructuralOperation.AddOrSet,
+                "Set" => StructuralOperation.Set,
+                "Remove" => StructuralOperation.Remove,
+                _ => StructuralOperation.Add
+            },
             cursorResult.Target,
             boundArity,
             TypeBinding: hasValues || genericArity.HasValue ? TypeBindingKind.Generic : TypeBindingKind.None,

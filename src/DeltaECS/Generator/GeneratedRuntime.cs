@@ -88,9 +88,31 @@ public struct GeneratedWhereStructuralContext
 
         if (selected)
         {
-            if (!_plan.IsDestroy)
+            if (!_plan.IsDestroy && !_plan.IsSet)
             {
                 _world.RecordComponentMembershipChanges(_sourceChunk, sourceSlot, count, _plan.ComponentIds, _plan.IsAdd);
+            }
+
+            if (_plan.IsSet)
+            {
+                _changedCount += _world.SetGeneratedWhereRun(
+                    _sourceChunk,
+                    sourceSlot,
+                    count,
+                    _plan.ComponentIds,
+                    ref initializer);
+                _writeSlot = sourceSlot + count;
+                return;
+            }
+
+            if (_plan.IsAddOrSet)
+            {
+                _world.RecordExistingGeneratedComponentChanges(
+                    _sourceChunk,
+                    sourceSlot,
+                    count,
+                    _plan.SourceArchetype,
+                    _plan.ComponentIds);
             }
 
             if (!_plan.IsDestroy && _plan.TargetArchetype is null)
@@ -101,8 +123,18 @@ public struct GeneratedWhereStructuralContext
                     count,
                     _plan.TagIndices,
                     _plan.IsAdd);
-                _changedCount += changedTags;
+                _changedCount += _plan.IsAddOrSet ? count : changedTags;
                 _tagsChanged |= changedTags != 0;
+                if (_plan.IsAddOrSet)
+                {
+                    _world.InitializeGeneratedWhereRun(
+                        _sourceChunk,
+                        sourceSlot,
+                        count,
+                        _plan.SourceArchetype,
+                        _plan.ComponentIds,
+                        ref initializer);
+                }
                 _writeSlot = sourceSlot + count;
                 return;
             }
@@ -131,6 +163,7 @@ public struct GeneratedWhereStructuralContext
                     _plan.TargetCursor!,
                     _plan.TagIndices,
                     _plan.IsAdd,
+                    _plan.IsAddOrSet,
                     ref initializer);
                 _tagsChanged |= tagsChanged;
             }
@@ -158,9 +191,9 @@ public struct GeneratedWhereStructuralContext
         }
 
         _completed = true;
-        if (_changedCount == 0)
+        if (_plan.IsSet || _changedCount == 0)
         {
-            return 0;
+            return _changedCount;
         }
 
         if (!_plan.IsDestroy && _plan.TargetArchetype is null)
@@ -577,6 +610,62 @@ public static partial class GeneratedForEachRuntime
         return world.AddGeneratedComponentValues(entities, componentIds, ref initializer);
     }
 
+    /// <summary>Executes one generated multi-component add-or-set operation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteGeneratedAddOrSet<TInitializer>(
+        World world,
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        world.AddOrSetGeneratedComponentValues(entity, componentIds, ref initializer);
+    }
+
+    /// <summary>Executes a generated multi-component add-or-set operation for an entity batch.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteGeneratedAddOrSet<TInitializer>(
+        World world,
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        world.AddOrSetGeneratedComponentValues(entities, componentIds, ref initializer);
+    }
+
+    /// <summary>Executes one generated multi-component set operation.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool ExecuteGeneratedSet<TInitializer>(
+        World world,
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.SetGeneratedComponentValues(entity, componentIds, ref initializer);
+    }
+
+    /// <summary>Executes a generated multi-component set operation for an entity batch.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ExecuteGeneratedSet<TInitializer>(
+        World world,
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return world.SetGeneratedComponentValues(entities, componentIds, ref initializer);
+    }
+
     /// <summary>Validates that a registration uses the generated component type.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -716,6 +805,8 @@ public static partial class GeneratedForEachRuntime
             writeComponentIndices,
             isDestroy: true,
             isAdd: false,
+            isAddOrSet: false,
+            isSet: false,
             componentIds: default);
     }
 
@@ -738,6 +829,56 @@ public static partial class GeneratedForEachRuntime
             writeComponentIndices,
             isDestroy: false,
             isAdd: true,
+            isAddOrSet: false,
+            isSet: false,
+            componentIds);
+    }
+
+    /// <summary>Executes a generated predicate and immediately adds or sets values on its matches.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ExecuteGeneratedWhereAddOrSet<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        scoped ReadOnlySpan<ComponentId> componentIds)
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        _ = ExecuteGeneratedWhereStructural(
+            world,
+            in query,
+            ref invoker,
+            writeComponentIndices,
+            isDestroy: false,
+            isAdd: true,
+            isAddOrSet: true,
+            isSet: false,
+            componentIds);
+    }
+
+    /// <summary>Executes a generated predicate and sets values on matches that already have all requested components.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int ExecuteGeneratedWhereSet<TInvoker>(
+        World world,
+        in Query query,
+        ref TInvoker invoker,
+        scoped ReadOnlySpan<int> writeComponentIndices,
+        scoped ReadOnlySpan<ComponentId> componentIds)
+        where TInvoker : struct, IGeneratedWhereStructuralInvoker
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        return ExecuteGeneratedWhereStructural(
+            world,
+            in query,
+            ref invoker,
+            writeComponentIndices,
+            isDestroy: false,
+            isAdd: false,
+            isAddOrSet: false,
+            isSet: true,
             componentIds);
     }
 
@@ -760,6 +901,8 @@ public static partial class GeneratedForEachRuntime
             writeComponentIndices,
             isDestroy: false,
             isAdd: false,
+            isAddOrSet: false,
+            isSet: false,
             componentIds);
     }
 
@@ -1217,6 +1360,8 @@ public static partial class GeneratedForEachRuntime
         scoped ReadOnlySpan<int> writeComponentIndices,
         bool isDestroy,
         bool isAdd,
+        bool isAddOrSet,
+        bool isSet,
         scoped ReadOnlySpan<ComponentId> componentIds)
         where TInvoker : struct, IGeneratedWhereStructuralInvoker
     {
@@ -1224,6 +1369,8 @@ public static partial class GeneratedForEachRuntime
                 in query,
                 isDestroy,
                 isAdd,
+                isAddOrSet,
+                isSet,
                 componentIds,
                 out GeneratedDenseExecution execution))
         {
@@ -1372,9 +1519,11 @@ internal readonly struct GeneratedWhereStructuralPlan
     internal ComponentId[] ComponentIds { get; }
     internal int[] TagIndices { get; }
     internal bool IsAdd { get; }
+    internal bool IsAddOrSet { get; }
+    internal bool IsSet { get; }
     internal bool IsDestroy { get; }
 
-    internal bool IsNoOp => !IsDestroy && TargetArchetype is null && TagIndices.Length == 0;
+    internal bool IsNoOp => !IsDestroy && !IsAddOrSet && !IsSet && TargetArchetype is null && TagIndices.Length == 0;
     internal GeneratedWhereStructuralPlan(
         Archetype sourceArchetype,
         Archetype? targetArchetype,
@@ -1384,6 +1533,8 @@ internal readonly struct GeneratedWhereStructuralPlan
         ComponentId[] componentIds,
         int[] tagIndices,
         bool isAdd,
+        bool isAddOrSet,
+        bool isSet,
         bool isDestroy)
     {
         SourceArchetype = sourceArchetype;
@@ -1394,6 +1545,8 @@ internal readonly struct GeneratedWhereStructuralPlan
         ComponentIds = componentIds;
         TagIndices = tagIndices;
         IsAdd = isAdd;
+        IsAddOrSet = isAddOrSet;
+        IsSet = isSet;
         IsDestroy = isDestroy;
     }
 }

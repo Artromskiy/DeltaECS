@@ -702,7 +702,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             return true;
         }
 
-        if (name is "Add" or "Remove"
+        if (name is "Add" or "AddOrSet" or "Set" or "Remove"
             && member.Name is GenericNameSyntax or IdentifierNameSyntax)
         {
             GenericNameSyntax? generic = member.Name as GenericNameSyntax;
@@ -718,7 +718,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                     invocation.ArgumentList.Arguments,
                     terminalDescriptor,
                     genericArity,
-                    valuesAllowed: name == "Add",
+                    valuesAllowed: name is "Add" or "AddOrSet" or "Set",
                     out InvocationCursorResult selection,
                     out _,
                     out bool hasValues,
@@ -732,6 +732,14 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 return false;
             }
 
+            if (name is "AddOrSet" or "Set")
+            {
+                if (!hasValues)
+                {
+                    return false;
+                }
+            }
+
             string[] componentTypes = generic is not null
                 ? generic.TypeArgumentList.Arguments.Select(argument => GeneratorSupport.DisplayType(model.GetTypeInfo(argument).Type!)).ToArray()
                 : hasValues
@@ -742,7 +750,13 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 : string.Empty;
 
             terminal = new TerminalModel(
-                name == "Add" ? TerminalKind.Add : TerminalKind.Remove,
+                name switch
+                {
+                    "AddOrSet" => TerminalKind.AddOrSet,
+                    "Set" => TerminalKind.Set,
+                    "Remove" => TerminalKind.Remove,
+                    _ => TerminalKind.Add
+                },
                 pattern,
                 hasEntity: false,
                 components: componentTypes,

@@ -373,7 +373,7 @@ internal static class GeneratedWhereTemplates
             })
             .OfType<string>().ToArray();
         IEnumerable<string> componentSetKeys = shape.Terminals.Ordered()
-            .Where(static terminal => terminal.Kind is TerminalKind.Add or TerminalKind.Remove
+            .Where(static terminal => terminal.Kind is TerminalKind.Add or TerminalKind.AddOrSet or TerminalKind.Set or TerminalKind.Remove
                 && !terminal.Api.Signature.HasExplicitIds)
             .Select(static terminal => terminal.Arity)
             .Distinct()
@@ -746,7 +746,7 @@ internal static class GeneratedWhereTemplates
             ? terminal.Api.Signature.GenericList("U")
             : string.Empty;
 
-    private static string TerminalGenericList(TerminalModel terminal) => terminal.Kind is TerminalKind.Add or TerminalKind.Remove
+    private static string TerminalGenericList(TerminalModel terminal) => terminal.Kind is TerminalKind.Add or TerminalKind.AddOrSet or TerminalKind.Set or TerminalKind.Remove
             ? terminal.Api.Signature.HasGenericSelectors ? terminal.Api.Signature.GenericList("U") : string.Empty
             : terminal.IsCallback && !terminal.IsFunctor ? terminal.Api.Signature.GenericList("U") : string.Empty;
 
@@ -1017,6 +1017,8 @@ internal static class GeneratedWhereTemplates
         {
             TerminalKind.Destroy => $"private int ExecuteTerminal_{terminalHash}()",
             TerminalKind.Add => $"private int ExecuteTerminal_{terminalHash}{genericParameters}({terminalParameters})",
+            TerminalKind.AddOrSet => $"private void ExecuteTerminal_{terminalHash}{genericParameters}({terminalParameters})",
+            TerminalKind.Set => $"private int ExecuteTerminal_{terminalHash}{genericParameters}({terminalParameters})",
             TerminalKind.Remove => $"private int ExecuteTerminal_{terminalHash}{genericParameters}({terminalParameters})",
             TerminalKind.ForEach => terminal.IsFunctor
                 ? $$"""private void ExecuteTerminal_{{terminalHash}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
@@ -1079,7 +1081,7 @@ internal static class GeneratedWhereTemplates
             invokerArguments.Add("action");
         }
 
-        if (terminal.Kind is TerminalKind.Add or TerminalKind.Remove)
+        if (terminal.Kind is TerminalKind.Add or TerminalKind.AddOrSet or TerminalKind.Set or TerminalKind.Remove)
         {
             body.Add(GeneratorTemplates.ComponentIdSpan(
                 terminalSlots,
@@ -1100,7 +1102,7 @@ internal static class GeneratedWhereTemplates
         invokerArguments.AddRange(GeneratorTemplates.Indexed(accessCount, index => "access" + index));
         body.Add($"var invoker = new {invokerName}{invokerGeneric}({string.Join(", ", invokerArguments)});");
         string writes = GeneratorTemplates.WriteSpan(shape.ComponentModels.Concat(terminal.ComponentModels));
-        bool returnsCount = terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove;
+        bool returnsCount = terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Set or TerminalKind.Remove;
         if (returnsCount)
         {
             body.Add("int __whereResult;");
@@ -1110,6 +1112,8 @@ internal static class GeneratedWhereTemplates
         {
             TerminalKind.Destroy => $$"""__whereResult = GeneratedForEachRuntime.ExecuteGeneratedWhereDestroy(_world, in _query, ref invoker, {{writes}});""",
             TerminalKind.Add => $$"""__whereResult = GeneratedForEachRuntime.ExecuteGeneratedWhereAdd(_world, in _query, ref invoker, {{writes}}, components);""",
+            TerminalKind.AddOrSet => $$"""GeneratedForEachRuntime.ExecuteGeneratedWhereAddOrSet(_world, in _query, ref invoker, {{writes}}, components);""",
+            TerminalKind.Set => $$"""__whereResult = GeneratedForEachRuntime.ExecuteGeneratedWhereSet(_world, in _query, ref invoker, {{writes}}, components);""",
             TerminalKind.Remove => $$"""__whereResult = GeneratedForEachRuntime.ExecuteGeneratedWhereRemove(_world, in _query, ref invoker, {{writes}}, components);""",
             _ => $$"""GeneratedForEachRuntime.ExecuteGeneratedWhereForEach(_world, in _query, ref invoker, {{writes}});"""
         });
@@ -1147,7 +1151,7 @@ internal static class GeneratedWhereTemplates
                 "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]"),
             GeneratorTemplates.RenderBlock(executionSignature, GeneratorTemplates.JoinNonEmpty(body))
         };
-        if (terminal.IsCallback)
+        if (terminal.IsCallback || terminal.Kind == TerminalKind.AddOrSet)
         {
             methods.Add(RenderDeferredTerminalInvoker(shape, terminal, hash, terminalHash));
         }
@@ -1185,7 +1189,12 @@ internal static class GeneratedWhereTemplates
     {
         string returnType = terminal.Kind switch
         {
-            TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove => "global::Delta.ECS.EcsResultOperation<int>",
+            TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Set or TerminalKind.Remove => "global::Delta.ECS.EcsResultOperation<int>",
+            TerminalKind.AddOrSet => OperationTypeForTerminal(
+                terminal,
+                hash,
+                terminalHash,
+                terminal.IsGeneratedEntityConsumer ? "<TWhereAction>" : genericParameters),
             TerminalKind.ForEach or TerminalKind.ForEachEntity => OperationTypeForTerminal(
                 terminal,
                 hash,
@@ -1197,6 +1206,8 @@ internal static class GeneratedWhereTemplates
         {
             TerminalKind.Destroy => "Destroy()",
             TerminalKind.Add => $"Add{genericParameters}({terminalParameters})",
+            TerminalKind.AddOrSet => $"AddOrSet{genericParameters}({terminalParameters})",
+            TerminalKind.Set => $"Set{genericParameters}({terminalParameters})",
             TerminalKind.Remove => $"Remove{genericParameters}({terminalParameters})",
             TerminalKind.ForEach => terminal.IsFunctor
                 ? $$"""ForEach({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
@@ -1244,7 +1255,7 @@ internal static class GeneratedWhereTemplates
         string executeGeneric = terminal.IsGeneratedEntityConsumer
             ? "<TWhereAction>"
             : genericParameters;
-        if (terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove)
+        if (terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Set or TerminalKind.Remove)
         {
             string invocation = $"operationView.ExecuteTerminal_{terminalHash}{executeGeneric}({string.Join(", ", arguments)})";
             setup.Add("var operationView = this;");
@@ -1259,6 +1270,11 @@ internal static class GeneratedWhereTemplates
         if (slots.HasExplicitIds)
         {
             invokerArguments.Add(slots.HasDynamicIds ? "operationComponentIds" : slots.ComponentIdArguments("componentId"));
+        }
+
+        if (terminal.HasValues)
+        {
+            invokerArguments.Add(slots.ValueNames("operationValue"));
         }
 
         if (terminal.IsCallback && !terminal.IsFunctor)
@@ -1319,26 +1335,38 @@ internal static class GeneratedWhereTemplates
         {
             $"private {viewType} _view;",
             terminal.Api.Signature.ComponentIdFields(),
-            terminal.IsFunctor || terminal.IsGeneratedEntityConsumer
-                ? string.Empty
-                : $"private readonly {ActionType(terminal, hash, terminalHash)} _action;"
+            terminal.HasValues
+                ? GeneratorTemplates.JoinIndexed(terminal.Arity, index => $"private readonly U{index + 1} _value{index};", "\n")
+                : string.Empty,
+            terminal.IsCallback && !terminal.IsFunctor
+                ? $"private readonly {ActionType(terminal, hash, terminalHash)} _action;"
+                : string.Empty
         });
         string constructorParameters = string.Join(", ", new[]
         {
             viewType + " view",
             terminal.Api.Signature.ComponentIdStorageParameters(),
-            terminal.IsFunctor || terminal.IsGeneratedEntityConsumer ? string.Empty : ActionType(terminal, hash, terminalHash) + " action"
+            terminal.HasValues ? terminal.Api.Signature.ValueParameters("U") : string.Empty,
+            terminal.IsCallback && !terminal.IsFunctor ? ActionType(terminal, hash, terminalHash) + " action" : string.Empty
         }.Where(static parameter => parameter.Length != 0));
         string assignments = GeneratorTemplates.JoinNonEmpty(new[]
         {
             "_view = view;",
             terminal.Api.Signature.ComponentIdAssignments(),
-            terminal.IsFunctor || terminal.IsGeneratedEntityConsumer ? string.Empty : "_action = action;"
+            terminal.HasValues
+                ? GeneratorTemplates.JoinIndexed(terminal.Arity, index => $"_value{index} = value{index};", "\n")
+                : string.Empty,
+            terminal.IsCallback && !terminal.IsFunctor ? "_action = action;" : string.Empty
         });
         var callArguments = new List<string>();
         if (terminal.Api.Signature.HasExplicitIds)
         {
             callArguments.Add(terminal.Api.Signature.HasDynamicIds ? "componentIds" : terminal.Api.Signature.ComponentIdArguments("componentId"));
+        }
+
+        if (terminal.HasValues)
+        {
+            callArguments.Add(terminal.Api.Signature.ValueArguments("_value"));
         }
 
         if (terminal.HasContext)
@@ -1350,11 +1378,11 @@ internal static class GeneratedWhereTemplates
         {
             callArguments.Add(SignatureProjection.ContextArgument(terminal.FunctorPassMode, "functor"));
         }
-        else if (!terminal.IsGeneratedEntityConsumer)
+        else if (terminal.IsCallback && !terminal.IsGeneratedEntityConsumer)
         {
             callArguments.Add("_action");
         }
-        else
+        else if (terminal.IsGeneratedEntityConsumer)
         {
             callArguments.Add("ref functor");
         }

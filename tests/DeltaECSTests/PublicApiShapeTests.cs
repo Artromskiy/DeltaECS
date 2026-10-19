@@ -84,22 +84,18 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
-    public void ValueReplacementSetApiIsAbsent()
+    public void ValueReplacementSetApiIsAvailable()
     {
         Assert.Multiple(() =>
         {
             Assert.That(
                 typeof(World).GetMethods(BindingFlags.Public | BindingFlags.Instance)
                     .Any(static method => method.Name == "Set"),
-                Is.False);
-            Assert.That(
-                typeof(GeneratedComponentValueWriter).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                    .Any(static method => method.Name == "Set"),
-                Is.False);
+                Is.True);
             Assert.That(
                 typeof(GeneratedForEachRuntime).GetMethods(BindingFlags.Public | BindingFlags.Static)
                     .Any(static method => method.Name == "ExecuteGeneratedSet"),
-                Is.False);
+                Is.True);
         });
     }
 

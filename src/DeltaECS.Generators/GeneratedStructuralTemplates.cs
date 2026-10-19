@@ -31,7 +31,13 @@ internal static class GeneratedStructuralTemplates
             method,
             shape.HasValues
                 ? GeneratorTemplates.ValueInitializer(
-                    $"Generated{(shape.Operation == StructuralOperation.Create ? "Create" : "Add")}Values",
+                    shape.Operation switch
+                    {
+                        StructuralOperation.Create => "GeneratedCreateValues",
+                        StructuralOperation.AddOrSet => "GeneratedAddOrSetValues",
+                        StructuralOperation.Set => "GeneratedSetValues",
+                        _ => "GeneratedAddValues"
+                    },
                     slots,
                     "T",
                     shape.Operation == StructuralOperation.Create
@@ -117,7 +123,7 @@ internal static class GeneratedStructuralTemplates
                     "\n")
                 : GeneratorTemplates.JoinIndexed(
                     slots.Arity,
-                    index => $$"""if (!GeneratedForEachRuntime.IsComponentType<{{slots.GenericType(index)}}>(target, {{slots.ComponentIdArgument(index)}})) return {{(shape.Api.Target == TargetKind.Entity ? "false" : "0")}};""",
+                    index => $$"""if (!GeneratedForEachRuntime.IsComponentType<{{slots.GenericType(index)}}>(target, {{slots.ComponentIdArgument(index)}})) {{(shape.Operation == StructuralOperation.AddOrSet ? "return;" : shape.Api.Target == TargetKind.Entity ? "return false;" : "return 0;")}}""",
                     "\n")
             : string.Empty;
         return GeneratorTemplates.JoinNonEmpty(new[]
@@ -136,12 +142,14 @@ internal static class GeneratedStructuralTemplates
 
     private static string RenderValueBody(StructuralModel shape, SignatureProjection slots)
     {
-        string operation = shape.Operation switch
+        string initializerName = shape.Operation switch
         {
-            StructuralOperation.Create => "Create",
-            _ => "Add"
+            StructuralOperation.Create => "GeneratedCreateValues",
+            StructuralOperation.AddOrSet => "GeneratedAddOrSetValues",
+            StructuralOperation.Set => "GeneratedSetValues",
+            _ => "GeneratedAddValues"
         };
-        string initializerName = $$"""Generated{{operation}}Values{{slots.GenericParameters()}}""";
+        string initializerType = $$"""{{initializerName}}{{slots.GenericParameters()}}""";
         string initializerArguments = GeneratorTemplates.JoinIndexed(
             slots.Arity,
             index => "components[" + index + "], in " + (slots.Arity == 1 ? "value" : "value" + index),
@@ -150,13 +158,17 @@ internal static class GeneratedStructuralTemplates
         {
             StructuralOperation.Create => $$"""return GeneratedForEachRuntime.ExecuteGeneratedCreate(target, components, ref initializer);""",
             StructuralOperation.Add when shape.Api.Target == TargetKind.EntityList => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entities, components, ref initializer);""",
-            _ => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entity, components, ref initializer);"""
+            StructuralOperation.Add => $$"""return GeneratedForEachRuntime.ExecuteGeneratedAdd(target, entity, components, ref initializer);""",
+            StructuralOperation.AddOrSet when shape.Api.Target == TargetKind.EntityList => $$"""GeneratedForEachRuntime.ExecuteGeneratedAddOrSet(target, entities, components, ref initializer);""",
+            StructuralOperation.AddOrSet => $$"""GeneratedForEachRuntime.ExecuteGeneratedAddOrSet(target, entity, components, ref initializer);""",
+            StructuralOperation.Set when shape.Api.Target == TargetKind.EntityList => $$"""return GeneratedForEachRuntime.ExecuteGeneratedSet(target, entities, components, ref initializer);""",
+            _ => $$"""return GeneratedForEachRuntime.ExecuteGeneratedSet(target, entity, components, ref initializer);"""
         };
         return GeneratorTemplates.JoinNonEmpty(new[]
         {
             RenderComponents(shape, slots),
             $$"""
-                var initializer = new {{initializerName}}(
+                var initializer = new {{initializerType}}(
                 {{initializerArguments}}
                 );
                 """,
@@ -175,7 +187,12 @@ internal static class GeneratedStructuralTemplates
 
     private static string RenderMutationBody(StructuralModel shape, SignatureProjection slots)
     {
-        string operation = shape.Operation == StructuralOperation.Add ? "Add" : "Remove";
+        string operation = shape.Operation == StructuralOperation.Remove ? "Remove" : shape.Operation switch
+        {
+            StructuralOperation.AddOrSet => "AddOrSet",
+            StructuralOperation.Set => "Set",
+            _ => "Add"
+        };
         string targetArguments = shape.Api.Target switch
         {
             TargetKind.Query => "in query, components",
@@ -195,6 +212,8 @@ internal static class GeneratedStructuralTemplates
     {
         StructuralOperation.Create => "Create",
         StructuralOperation.Add => "Add",
+        StructuralOperation.AddOrSet => "AddOrSet",
+        StructuralOperation.Set => "Set",
         StructuralOperation.Remove => "Remove",
         _ => "Create"
     };
@@ -202,7 +221,9 @@ internal static class GeneratedStructuralTemplates
     private static string ReturnType(StructuralModel shape)
         => shape.Operation == StructuralOperation.Create && (shape.HasValues || shape.CreatesOne)
             ? "Entity"
-            : shape.Api.Target == TargetKind.Entity ? "bool" : "int";
+            : shape.Operation == StructuralOperation.AddOrSet
+                ? "void"
+                : shape.Api.Target == TargetKind.Entity ? "bool" : "int";
 
 
 }

@@ -755,15 +755,13 @@ public sealed partial class World : IDisposable
         in Query query,
         bool isDestroy,
         bool isAdd,
+        bool isAddOrSet,
+        bool isSet,
         ReadOnlySpan<ComponentId> componentIds,
         out GeneratedDenseExecution execution)
     {
         EnsureExecutionAccess();
-        EnsureNoActiveLease(isDestroy
-            ? "destroy entities"
-            : isAdd
-                ? "add components"
-                : "remove components");
+        EnsureNoActiveLease(isDestroy ? "destroy entities" : isAdd ? "add components" : "remove components");
         ValidateQuery(in query);
 
         ComponentSet changeSet;
@@ -811,11 +809,13 @@ public sealed partial class World : IDisposable
                         changeSet.ComponentIdArray,
                         changeSet.TagIndices,
                         isAdd,
+                        isAddOrSet,
+                        isSet,
                         isDestroy);
                 continue;
             }
 
-            if (!isDestroy)
+            if (!isDestroy && !isSet)
             {
                 TransitionEdge edge = GetTransitionEdge(
                     sourceArchetype.Id,
@@ -840,6 +840,8 @@ public sealed partial class World : IDisposable
                     changeSet.ComponentIdArray,
                     changeSet.TagIndices,
                     isAdd,
+                    isAddOrSet,
+                    isSet,
                     isDestroy);
         }
 
@@ -942,6 +944,7 @@ public sealed partial class World : IDisposable
         GeneratedWhereTargetCursor targetCursor,
         ReadOnlySpan<int> tagIndices,
         bool isAdd,
+        bool initializeExisting,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
@@ -992,7 +995,8 @@ public sealed partial class World : IDisposable
                 targetArchetype,
                 targetSlot,
                 edge.AddedTargetRowIndices,
-                copied);
+                copied,
+                initializeExisting);
             initializer.Initialize(ref writer);
             sourceSlot += copied;
             targetCursor.Slot += copied;

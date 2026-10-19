@@ -107,7 +107,7 @@ internal readonly record struct ApiDescriptor(
             "WhereAll" or "WhereAny" or "WhereNone" => QueryFactory(),
             "Where" or "WhereEntity" => Where(name),
             "OrderBy" or "ThenBy" => Ordering(),
-            "Add" or "Remove" or "Create" or "Destroy" => Structural(name),
+            "Add" or "AddOrSet" or "Set" or "Remove" or "Create" or "Destroy" => Structural(name),
             _ => default
         };
         return descriptor.Family != GeneratedApiKind.Unknown;
@@ -152,7 +152,7 @@ internal readonly record struct ApiDescriptor(
             GeneratedApiKind.Structural,
             target: name == "Create" ? InvocationTargetRule.None : InvocationTargetRule.StructuralTarget,
             allowsIds: true,
-            tail: name == "Add"
+            tail: name is "Add" or "AddOrSet" or "Set"
                 ? InvocationTailRule.Values
                 : name == "Create" ? InvocationTailRule.CountOutput : InvocationTailRule.None);
 

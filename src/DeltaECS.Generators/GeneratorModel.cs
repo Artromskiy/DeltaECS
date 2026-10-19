@@ -95,6 +95,8 @@ internal enum ContextModeKind
 internal enum StructuralOperation
 {
     Add,
+    AddOrSet,
+    Set,
     Remove,
     Create
 }

@@ -51,15 +51,14 @@ public sealed partial class World
     public bool Set(Entity entity, EntityData data)
     {
         ThrowHelper.ThrowIfNull(data, nameof(data));
-        EnsureNoActiveLease("set components");
+        EnsureExecutionAccess();
         data.Validate(_layouts);
         var initializer = new EntityDataInitializer(data, isCreate: false);
         return SetGeneratedComponentValues(entity, data.ComponentIds, ref initializer);
     }
 
-    /// <summary>
-    /// Adds and initializes the primary component for <typeparamref name="T"/> on one entity.
-    /// </summary>
+    /// <summary>Tries to add the primary component for <typeparamref name="T"/> without replacing an existing value.</summary>
+    /// <returns><see langword="true"/> when the component or tag was added.</returns>
     /// <example>
     /// <para>For one component:</para>
     /// <code>world.Add(entity, new Health { Value = 100 });</code>
@@ -80,13 +79,86 @@ public sealed partial class World
             : AddComponentBatch([entity], componentId, in value) == 1;
     }
 
-    /// <summary>Adds and initializes the primary component for <typeparamref name="T"/> on every eligible entity.</summary>
+    /// <summary>Adds the primary component for <typeparamref name="T"/> to each entity that does not already have it.</summary>
+    /// <returns>The number of entities whose composition changed.</returns>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
         return _layouts.IsTag(componentId)
             ? Add(entities, [componentId])
             : AddComponentBatch(entities, componentId, in value);
+    }
+
+    /// <summary>Sets the primary component value when the entity already has the component.</summary>
+    /// <returns><see langword="true"/> when the value was set.</returns>
+    public bool Set<T>(Entity entity, in T value) => Set(entity, GetPrimaryComponentId<T>(), in value);
+
+    /// <summary>Sets the selected component value when the entity already has the component.</summary>
+    /// <remarks>For a tag, records a change when the tag is present; tag values are not stored.</remarks>
+    /// <returns><see langword="true"/> when the value was set; otherwise, <see langword="false"/>.</returns>
+    public bool Set<T>(Entity entity, ComponentId componentId, in T value)
+    {
+        EnsureExecutionAccess();
+        return IsRegisteredType<T>(componentId) && SetCore(entity, componentId, in value);
+    }
+
+    /// <summary>Sets the primary component on entities that already have it.</summary>
+    /// <returns>The number of entities whose value or tag change was applied.</returns>
+    public int Set<T>(ReadOnlySpan<Entity> entities, in T value)
+        => Set(entities, GetPrimaryComponentId<T>(), in value);
+
+    /// <summary>Sets the selected component on entities that already have it.</summary>
+    /// <returns>The number of entities whose value or tag change was applied.</returns>
+    public int Set<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
+    {
+        EnsureExecutionAccess();
+        if (!IsRegisteredType<T>(componentId))
+        {
+            return 0;
+        }
+
+        int changed = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            changed += SetCore(entities.RefAt(index), componentId, in value) ? 1 : 0;
+        }
+
+        return changed;
+    }
+
+    /// <summary>Adds or sets the primary component value on one entity.</summary>
+    public void AddOrSet<T>(Entity entity, in T value)
+        => AddOrSet(entity, GetPrimaryComponentId<T>(), in value);
+
+    /// <summary>Adds or sets the selected component value on one entity.</summary>
+    public void AddOrSet<T>(Entity entity, ComponentId componentId, in T value)
+    {
+        EnsureNoActiveLease("add or set components");
+        if (!IsRegisteredType<T>(componentId))
+        {
+            return;
+        }
+
+        AddOrSetCore(entity, componentId, in value);
+    }
+
+    /// <summary>Adds or sets the primary component value on each entity.</summary>
+    public void AddOrSet<T>(ReadOnlySpan<Entity> entities, in T value)
+        => AddOrSet(entities, GetPrimaryComponentId<T>(), in value);
+
+    /// <summary>Adds or sets the selected component value on each entity.</summary>
+    public void AddOrSet<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
+    {
+        EnsureNoActiveLease("add or set components");
+        if (!IsRegisteredType<T>(componentId))
+        {
+            return;
+        }
+
+        for (int index = 0; index < entities.Length; index++)
+        {
+            AddOrSetCore(entities.RefAt(index), componentId, in value);
+        }
     }
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from one entity.</summary>
@@ -449,6 +521,18 @@ public sealed partial class World
         initializer.Initialize(ref writer);
     }
 
+    internal void AddOrSetGeneratedComponentValues<TInitializer>(
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        for (int index = 0; index < entities.Length; index++)
+        {
+            AddOrSetGeneratedComponentValues(entities.RefAt(index), componentIds, ref initializer);
+        }
+    }
+
     internal bool SetGeneratedComponentValues<TInitializer>(
         Entity entity,
         ReadOnlySpan<ComponentId> componentIds,
@@ -478,6 +562,21 @@ public sealed partial class World
             initializeExisting: true);
         initializer.Initialize(ref writer);
         return true;
+    }
+
+    internal int SetGeneratedComponentValues<TInitializer>(
+        ReadOnlySpan<Entity> entities,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        int changed = 0;
+        for (int index = 0; index < entities.Length; index++)
+        {
+            changed += SetGeneratedComponentValues(entities.RefAt(index), componentIds, ref initializer) ? 1 : 0;
+        }
+
+        return changed;
     }
 
     internal int AddGeneratedComponentValues<TInitializer>(
@@ -603,6 +702,91 @@ public sealed partial class World
 
     internal bool IsGeneratedComponentType<T>(ComponentId componentId) => IsRegisteredType<T>(componentId);
 
+    internal void RecordExistingGeneratedComponentChanges(
+        Chunk chunk,
+        int slotIndex,
+        Archetype archetype,
+        ReadOnlySpan<ComponentId> componentIds)
+    {
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds.RefAt(index);
+            bool present = _layouts.TryGetTagIndex(componentId, out int tagIndex)
+                ? chunk.HasTag(tagIndex, slotIndex)
+                : archetype.Contains(componentId);
+            if (present)
+            {
+                RecordComponentChange(chunk, slotIndex, componentId);
+            }
+        }
+    }
+
+    internal void RecordExistingGeneratedComponentChanges(
+        Chunk chunk,
+        int slotIndex,
+        int count,
+        Archetype archetype,
+        ReadOnlySpan<ComponentId> componentIds)
+    {
+        for (int index = 0; index < count; index++)
+        {
+            RecordExistingGeneratedComponentChanges(chunk, slotIndex + index, archetype, componentIds);
+        }
+    }
+
+    internal void InitializeGeneratedWhereRun<TInitializer>(
+        Chunk chunk,
+        int slotIndex,
+        int count,
+        Archetype archetype,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        var writer = new GeneratedComponentValueWriter(
+            _layouts,
+            chunk,
+            archetype,
+            slotIndex,
+            default,
+            count,
+            initializeExisting: true);
+        initializer.Initialize(ref writer);
+    }
+
+    internal int SetGeneratedWhereRun<TInitializer>(
+        Chunk chunk,
+        int slotIndex,
+        int count,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        Archetype archetype = Archetypes[chunk.ArchetypeId];
+        int changed = 0;
+        for (int index = 0; index < count; index++)
+        {
+            int currentSlot = slotIndex + index;
+            if (!HasAllGeneratedComponents(chunk, currentSlot, archetype, componentIds))
+            {
+                continue;
+            }
+
+            RecordExistingGeneratedComponentChanges(chunk, currentSlot, archetype, componentIds);
+            var writer = new GeneratedComponentValueWriter(
+                _layouts,
+                chunk,
+                archetype,
+                currentSlot,
+                default,
+                initializeExisting: true);
+            initializer.Initialize(ref writer);
+            changed++;
+        }
+
+        return changed;
+    }
+
     private static void InitializeGeneratedComponentRange<TInitializer>(
         Chunk? chunk,
         Archetype? archetype,
@@ -632,6 +816,67 @@ public sealed partial class World
         chunk.GetComponentRow<T>(componentIndex).Slice(slotIndex, count).Fill(value);
     }
 
+    private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)
+    {
+        if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
+        {
+            return false;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (!chunk.HasTag(tagIndex, slotIndex))
+            {
+                return false;
+            }
+
+            RecordComponentChange(chunk, slotIndex, componentId);
+            return true;
+        }
+
+        var archetype = Archetypes[chunk.ArchetypeId];
+        if (!archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            return false;
+        }
+
+        RecordComponentChange(chunk, slotIndex, componentId);
+        chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex) = value;
+        return true;
+    }
+
+    private void AddOrSetCore<T>(Entity entity, ComponentId componentId, in T value)
+    {
+        if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
+        {
+            return;
+        }
+
+        if (_layouts.TryGetTagIndex(componentId, out int tagIndex))
+        {
+            if (chunk.HasTag(tagIndex, slotIndex))
+            {
+                RecordComponentChange(chunk, slotIndex, componentId);
+            }
+            else
+            {
+                Add(entity, componentId);
+            }
+
+            return;
+        }
+
+        var archetype = Archetypes[chunk.ArchetypeId];
+        if (archetype.TryGetComponentIndex(componentId, out int componentIndex))
+        {
+            RecordComponentChange(chunk, slotIndex, componentId);
+            chunk.GetComponentRow<T>(componentIndex).RefAt(slotIndex) = value;
+            return;
+        }
+
+        AddComponentBatch([entity], componentId, in value);
+    }
+
     private bool HasAllGeneratedComponents(
         Chunk chunk,
         int slotIndex,
@@ -650,25 +895,6 @@ public sealed partial class World
         }
 
         return true;
-    }
-
-    internal void RecordExistingGeneratedComponentChanges(
-        Chunk chunk,
-        int slotIndex,
-        Archetype archetype,
-        ReadOnlySpan<ComponentId> componentIds)
-    {
-        for (int index = 0; index < componentIds.Length; index++)
-        {
-            ComponentId componentId = componentIds.RefAt(index);
-            bool present = _layouts.TryGetTagIndex(componentId, out int tagIndex)
-                ? chunk.HasTag(tagIndex, slotIndex)
-                : archetype.Contains(componentId);
-            if (present)
-            {
-                RecordComponentChange(chunk, slotIndex, componentId);
-            }
-        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
