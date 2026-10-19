@@ -4,15 +4,18 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World
 {
+    private readonly ConditionalWeakTable<EntityData, EntityDataPlan> _entityDataPlans = new();
+    private readonly object _entityDataPlanGate = new();
+
     /// <summary>Creates one entity with the component values and tags stored in <paramref name="data"/>.</summary>
     /// <exception cref="ArgumentException">The data is empty or contains registrations incompatible with this world.</exception>
     public Entity Create(EntityData data)
     {
         ThrowHelper.ThrowIfNull(data, nameof(data));
         EnsureNoActiveLease("create entities");
-        data.Validate(_layouts);
+        EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: true);
-        return CreateGeneratedComponentValues(data.ComponentIds, ref initializer);
+        return CreateGeneratedComponentValues(data.ComponentIds, ref initializer, plan);
     }
 
     /// <summary>Creates one entity with the primary component for <typeparamref name="T"/>.</summary>
@@ -25,15 +28,16 @@ public sealed partial class World
     public int Create<T>(int count) => Create(GetPrimaryComponentId<T>(), count);
 
     /// <summary>Adds the component values and tags stored in <paramref name="data"/> to one entity.</summary>
-    /// <returns><see langword="true"/> when the entity's composition changed.</returns>
+    /// <returns>The number of components and tags added to the entity.</returns>
     /// <exception cref="ArgumentException">The data contains registrations incompatible with this world.</exception>
-    public bool Add(Entity entity, EntityData data)
+    public int Add(Entity entity, EntityData data)
     {
         ThrowHelper.ThrowIfNull(data, nameof(data));
         EnsureNoActiveLease("add components");
-        data.Validate(_layouts);
+        EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: false);
-        return AddGeneratedComponentValues(entity, data.ComponentIds, ref initializer);
+        AddGeneratedComponentValues(entity, data.ComponentIds, ref initializer, out int addedCount, plan);
+        return addedCount;
     }
 
     /// <summary>Adds or replaces the component values and tags stored in <paramref name="data"/> on one entity.</summary>
@@ -41,20 +45,21 @@ public sealed partial class World
     {
         ThrowHelper.ThrowIfNull(data, nameof(data));
         EnsureNoActiveLease("add or set components");
-        data.Validate(_layouts);
+        EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: false);
-        AddOrSetGeneratedComponentValues(entity, data.ComponentIds, ref initializer);
+        AddOrSetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, plan);
     }
 
     /// <summary>Replaces the component values and tags stored in <paramref name="data"/> when all are present on one entity.</summary>
-    /// <returns><see langword="true"/> when all stored components and tags were present and processed.</returns>
-    public bool Set(Entity entity, EntityData data)
+    /// <returns>The number of entries applied when all are present, or zero if any are missing.</returns>
+    public int Set(Entity entity, EntityData data)
     {
         ThrowHelper.ThrowIfNull(data, nameof(data));
         EnsureExecutionAccess();
-        data.Validate(_layouts);
+        EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: false);
-        return SetGeneratedComponentValues(entity, data.ComponentIds, ref initializer);
+        SetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, out int appliedCount, plan);
+        return appliedCount;
     }
 
     /// <summary>Tries to add the primary component for <typeparamref name="T"/> without replacing an existing value.</summary>
@@ -441,19 +446,30 @@ public sealed partial class World
         ReadOnlySpan<ComponentId> componentIds,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
+        => AddGeneratedComponentValues(entity, componentIds, ref initializer, out _);
+
+    internal bool AddGeneratedComponentValues<TInitializer>(
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer,
+        out int addedCount,
+        EntityDataPlan? entityDataPlan = null)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add components");
         if (componentIds.Length == 0 || !TryResolve(entity, out int recordIndex, out Chunk sourceChunk, out int sourceSlotIndex))
         {
+            addedCount = 0;
             return false;
         }
 
         Archetype sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
-        ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
+        ComponentSet changeSet = entityDataPlan?.ComponentSet ?? GetOrCreateComponentSet(componentIds);
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
         bool archetypeChanged = !edge.IsNoOp;
         if (!archetypeChanged && changeSet.TagIndices.Length == 0)
         {
+            addedCount = 0;
             return false;
         }
 
@@ -464,6 +480,15 @@ public sealed partial class World
             MoveEntity(recordIndex, edge, out targetChunk, out targetSlotIndex);
         }
 
+        addedCount = edge.AddedTargetRowIndices.Length;
+        for (int index = 0; index < changeSet.TagIndices.Length; index++)
+        {
+            if (!targetChunk.HasTag(changeSet.TagIndices[index], targetSlotIndex))
+            {
+                addedCount++;
+            }
+        }
+
         bool tagsChanged = ApplyTags(targetChunk, targetSlotIndex, changeSet.TagIndices, isAdd: true);
         if (tagsChanged)
         {
@@ -471,20 +496,30 @@ public sealed partial class World
         }
 
         Archetype targetArchetype = Archetypes[targetChunk.ArchetypeId];
+        ReadOnlySpan<int> componentRows = entityDataPlan is null
+            ? default
+            : entityDataPlan.GetComponentRows(
+                _layouts,
+                targetArchetype,
+                componentIds,
+                sourceArchetype.Id,
+                edge.AddedTargetRowIndices);
         var writer = new GeneratedComponentValueWriter(
             _layouts,
             targetChunk,
             targetArchetype,
             targetSlotIndex,
-            edge.AddedTargetRowIndices);
+            edge.AddedTargetRowIndices,
+            componentRowRoutes: componentRows);
         initializer.Initialize(ref writer);
-        return archetypeChanged || tagsChanged;
+        return addedCount != 0;
     }
 
     internal void AddOrSetGeneratedComponentValues<TInitializer>(
         Entity entity,
         ReadOnlySpan<ComponentId> componentIds,
-        ref TInitializer initializer)
+        ref TInitializer initializer,
+        EntityDataPlan? entityDataPlan = null)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add or set components");
@@ -493,9 +528,20 @@ public sealed partial class World
             return;
         }
 
-        ComponentSet changeSet = GetOrCreateComponentSet(componentIds);
+        ComponentSet changeSet = entityDataPlan?.ComponentSet ?? GetOrCreateComponentSet(componentIds);
         Archetype sourceArchetype = Archetypes[sourceChunk.ArchetypeId];
-        RecordExistingGeneratedComponentChanges(sourceChunk, sourceSlotIndex, sourceArchetype, componentIds);
+        ReadOnlySpan<int> sourceComponentRows = entityDataPlan is null
+            ? default
+            : entityDataPlan.GetComponentRows(_layouts, sourceArchetype, componentIds, allowMissing: true);
+        if (entityDataPlan is null)
+        {
+            RecordExistingGeneratedComponentChanges(sourceChunk, sourceSlotIndex, sourceArchetype, componentIds);
+        }
+        else
+        {
+            RecordEntityDataChanges(sourceChunk, sourceSlotIndex, componentIds, sourceComponentRows);
+        }
+
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
         Chunk targetChunk = sourceChunk;
         int targetSlotIndex = sourceSlotIndex;
@@ -511,13 +557,17 @@ public sealed partial class World
         }
 
         Archetype targetArchetype = Archetypes[targetChunk.ArchetypeId];
+        ReadOnlySpan<int> componentRows = entityDataPlan is null
+            ? default
+            : entityDataPlan.GetComponentRows(_layouts, targetArchetype, componentIds);
         var writer = new GeneratedComponentValueWriter(
             _layouts,
             targetChunk,
             targetArchetype,
             targetSlotIndex,
             edge.AddedTargetRowIndices,
-            initializeExisting: true);
+            initializeExisting: true,
+            componentRowRoutes: componentRows);
         initializer.Initialize(ref writer);
     }
 
@@ -538,29 +588,55 @@ public sealed partial class World
         ReadOnlySpan<ComponentId> componentIds,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
+        => SetGeneratedComponentValues(entity, componentIds, ref initializer, out _);
+
+    internal bool SetGeneratedComponentValues<TInitializer>(
+        Entity entity,
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer,
+        out int appliedCount,
+        EntityDataPlan? entityDataPlan = null)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureExecutionAccess();
         if (componentIds.IsEmpty
             || !TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
+            appliedCount = 0;
             return false;
         }
 
         Archetype archetype = Archetypes[chunk.ArchetypeId];
-        if (!HasAllGeneratedComponents(chunk, slotIndex, archetype, componentIds))
+        ReadOnlySpan<int> componentRows = entityDataPlan is null
+            ? default
+            : entityDataPlan.GetComponentRows(_layouts, archetype, componentIds, allowMissing: true);
+        if (entityDataPlan is null
+            ? !HasAllGeneratedComponents(chunk, slotIndex, archetype, componentIds)
+            : !EntityDataPlan.HasAll(chunk, slotIndex, componentRows))
         {
+            appliedCount = 0;
             return false;
         }
 
-        RecordExistingGeneratedComponentChanges(chunk, slotIndex, archetype, componentIds);
+        if (entityDataPlan is null)
+        {
+            RecordExistingGeneratedComponentChanges(chunk, slotIndex, archetype, componentIds);
+        }
+        else
+        {
+            RecordEntityDataChanges(chunk, slotIndex, componentIds, componentRows);
+        }
+
         var writer = new GeneratedComponentValueWriter(
             _layouts,
             chunk,
             archetype,
             slotIndex,
             default,
-            initializeExisting: true);
+            initializeExisting: true,
+            componentRowRoutes: componentRows);
         initializer.Initialize(ref writer);
+        appliedCount = componentIds.Length;
         return true;
     }
 
@@ -684,16 +760,50 @@ public sealed partial class World
         ReadOnlySpan<ComponentId> componentIds,
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
+        => CreateGeneratedComponentValues(componentIds, ref initializer, null);
+
+    private Entity CreateGeneratedComponentValues<TInitializer>(
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer,
+        EntityDataPlan? entityDataPlan)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("create entities");
-        Entity entity = Create(componentIds);
+        Entity entity;
+        if (entityDataPlan is null)
+        {
+            entity = Create(componentIds);
+        }
+        else
+        {
+            if (componentIds.IsEmpty)
+            {
+                ThrowHelper.ThrowInvalidComponentList();
+            }
+
+            Archetype cachedArchetype = entityDataPlan.TargetArchetype
+                ??= GetOrCreateArchetype(entityDataPlan.ComponentSet.Mask);
+            Span<Entity> entities = stackalloc Entity[1];
+            CreateBatch(cachedArchetype, entities, entityDataPlan.ComponentSet.TagIndices);
+            entity = entities.GetRefAtZero();
+        }
+
         if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
         {
             ThrowHelper.ThrowStructuralCreateFailed();
         }
 
         Archetype archetype = chunk.Archetype;
-        var writer = new GeneratedComponentValueWriter(_layouts, chunk, archetype, slotIndex);
+        ReadOnlySpan<int> componentRows = entityDataPlan is null
+            ? default
+            : entityDataPlan.GetComponentRows(_layouts, archetype, componentIds);
+        var writer = new GeneratedComponentValueWriter(
+            _layouts,
+            chunk,
+            archetype,
+            slotIndex,
+            default,
+            componentRowRoutes: componentRows);
         initializer.Initialize(ref writer);
         return entity;
     }
@@ -717,6 +827,27 @@ public sealed partial class World
             if (present)
             {
                 RecordComponentChange(chunk, slotIndex, componentId);
+            }
+        }
+    }
+
+    private void RecordEntityDataChanges(
+        Chunk chunk,
+        int slotIndex,
+        ReadOnlySpan<ComponentId> componentIds,
+        ReadOnlySpan<int> componentRows)
+    {
+        for (int index = 0; index < componentRows.Length; index++)
+        {
+            int componentRow = componentRows.RefAt(index);
+            if (componentRow == EntityDataPlan.SkippedComponentRow)
+            {
+                continue;
+            }
+
+            if (componentRow >= 0 || chunk.HasTag(-componentRow - 1, slotIndex))
+            {
+                RecordComponentChange(chunk, slotIndex, componentIds.RefAt(index));
             }
         }
     }
@@ -1164,6 +1295,30 @@ public sealed partial class World
         chunk.GetComponentRef<T>(componentIndex, slotIndex) = value;
     }
 
+    private EntityDataPlan GetEntityDataPlan(EntityData data)
+    {
+        if (_entityDataPlans.TryGetValue(data, out EntityDataPlan? plan)
+            && plan.ShapeVersion == data.ShapeVersion)
+        {
+            return plan;
+        }
+
+        lock (_entityDataPlanGate)
+        {
+            if (_entityDataPlans.TryGetValue(data, out plan)
+                && plan.ShapeVersion == data.ShapeVersion)
+            {
+                return plan;
+            }
+
+            data.Validate(_layouts);
+            plan = new EntityDataPlan(data.ShapeVersion, GetOrCreateComponentSet(data.ComponentIds));
+            _entityDataPlans.Remove(data);
+            _entityDataPlans.Add(data, plan);
+            return plan;
+        }
+    }
+
     private readonly struct EntityDataInitializer(EntityData data, bool isCreate)
         : IGeneratedComponentValueInitializer
     {
@@ -1171,11 +1326,11 @@ public sealed partial class World
         {
             if (isCreate)
             {
-                data.InitializeCreated(ref writer);
+                data.InitializeCreated(writer.ComponentRowRoutes, ref writer);
                 return;
             }
 
-            data.InitializeAdded(ref writer);
+            data.InitializeAdded(writer.ComponentRowRoutes, ref writer);
         }
     }
 }

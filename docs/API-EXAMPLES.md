@@ -221,15 +221,17 @@ world.AddOrSet(spawned, movementData);
 
 var positionUpdate = new EntityData();
 positionUpdate.Add(positionId, new Position(new Vector2(20, 8)));
-bool updated = world.Set(spawned, positionUpdate); // true: Position is present
+int updated = world.Set(spawned, positionUpdate); // 1: Position was applied
 ```
 
 `EntityData.Add` returns `false` for an ID already in the set and leaves its
 value unchanged. `AddOrSet` replaces a value already in the set. When applying
 data to a world, `Add` initializes only missing components, `AddOrSet` also
 replaces values already present, and `Set` writes only if every entry is
-already present. Use `AddTag` for tags; they carry no value. The same data set
-can be reused for later entities, and the world checks registrations and CLR
+already present. `World.Add` returns the number of newly added components and
+tags. `World.Set` returns the number of entries applied, or zero if any entry
+is missing. Use `AddTag` for tags; they carry no value. The same data set can
+be reused for later entities, and the world checks registrations and CLR
 types when each operation is invoked.
 
 ## Change an explicit batch

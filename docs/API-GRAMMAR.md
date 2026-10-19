@@ -561,21 +561,22 @@ data.Remove(I) -> bool
 data.Clear()
 
 world.Create(data) -> Entity
-world.Add(e, data) -> bool
+world.Add(e, data) -> int
 world.AddOrSet(e, data) -> void
-world.Set(e, data) -> bool
+world.Set(e, data) -> int
 ```
 
 `Add` preserves an existing entry and returns `false`; `AddOrSet` inserts or
 replaces it and returns `void`; `Set` replaces only an existing entry and
 returns `false` if it is missing. On `World`, `Add` adds only missing
-components and tags, leaving existing component values untouched; its result
-reports whether composition changed. `AddOrSet` adds missing entries and writes
-values for entries already present. `Set` writes only when the entity already
-contains every entry in the data; it returns `false` without writing any values
-when one is missing. Tags contribute membership but no payload. An empty set
-cannot create an entity; adding it returns `false`, `AddOrSet` does nothing, and
-`Set` returns `false`.
+components and tags, leaving existing component values untouched; it returns
+the number of entries added. `AddOrSet` adds missing entries and writes values
+for entries already present. `Set` writes only when the entity already
+contains every entry in the data; it returns the number of entries applied,
+or zero without writing any values when one is missing. Tags count as entries
+for both counts and contribute membership but no payload. An empty set cannot
+create an entity; adding it returns zero, `AddOrSet` does nothing, and `Set`
+returns zero.
 
 `EntityData` can be reused as input for multiple single-entity operations. Its
 values are applied to the world at each call; subsequent changes to the data

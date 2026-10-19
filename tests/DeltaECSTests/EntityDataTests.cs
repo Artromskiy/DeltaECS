@@ -145,23 +145,26 @@ internal sealed class EntityDataTests
         var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(91_011));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91_012));
+        ComponentId aliveId = layouts.Register<Alive>(new SchemaId(91_017));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
         world.GetRef<Position>(entity, positionId).Value = 5;
         var data = new EntityData();
         data.Add(positionId, new Position { Value = 99 });
         data.Add(velocityId, new Velocity { Value = 7 });
+        data.AddTag(aliveId);
 
-        Assert.That(world.Add(entity, data), Is.True);
+        Assert.That(world.Add(entity, data), Is.EqualTo(2));
 
         Assert.Multiple(() =>
         {
             Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(5));
             Assert.That(world.Get<Velocity>(entity, velocityId).Value, Is.EqualTo(7));
+            Assert.That(world.Has(entity, aliveId), Is.True);
         });
 
         world.GetRef<Velocity>(entity, velocityId).Value = 11;
-        Assert.That(world.Add(entity, data), Is.False);
+        Assert.That(world.Add(entity, data), Is.Zero);
         Assert.That(world.Get<Velocity>(entity, velocityId).Value, Is.EqualTo(11));
     }
 
@@ -193,20 +196,88 @@ internal sealed class EntityDataTests
         var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(91_015));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91_016));
+        ComponentId aliveId = layouts.Register<Alive>(new SchemaId(91_018));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
+        world.Add(entity, aliveId);
         world.GetRef<Position>(entity, positionId).Value = 5;
         var data = new EntityData();
         data.Add(positionId, new Position { Value = 9 });
         data.Add(velocityId, new Velocity { Value = 12 });
+        data.AddTag(aliveId);
 
-        Assert.That(world.Set(entity, data), Is.False);
+        Assert.That(world.Set(entity, data), Is.Zero);
         Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(5));
 
-        data.Remove(velocityId);
+        world.Add(entity, velocityId);
 
-        Assert.That(world.Set(entity, data), Is.True);
-        Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(9));
+        Assert.That(world.Set(entity, data), Is.EqualTo(data.Count));
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(9));
+            Assert.That(world.Get<Velocity>(entity, velocityId).Value, Is.EqualTo(12));
+        });
+    }
+
+    [Test]
+    public void WorldCachesEntityDataRoutesPerSourceArchetypeAndRefreshesAfterShapeChanges()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(91_031));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91_032));
+        ComponentId aliveId = layouts.Register<Alive>(new SchemaId(91_033));
+        using var world = new World(layouts);
+        var data = new EntityData();
+        data.Add(positionId, new Position { Value = 7 });
+        data.Add(velocityId, new Velocity { Value = 11 });
+
+        Entity positionEntity = world.Create(positionId);
+        Entity velocityEntity = world.Create(velocityId);
+        Assert.That(world.Add(positionEntity, data), Is.EqualTo(1));
+        Assert.That(world.Add(velocityEntity, data), Is.EqualTo(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Position>(positionEntity, positionId).Value, Is.Zero);
+            Assert.That(world.Get<Velocity>(positionEntity, velocityId).Value, Is.EqualTo(11));
+            Assert.That(world.Get<Position>(velocityEntity, positionId).Value, Is.EqualTo(7));
+            Assert.That(world.Get<Velocity>(velocityEntity, velocityId).Value, Is.Zero);
+        });
+
+        data.Set(positionId, new Position { Value = 17 });
+        Entity createdEntity = world.Create(data);
+        Assert.That(world.Get<Position>(createdEntity, positionId).Value, Is.EqualTo(17));
+
+        data.AddTag(aliveId);
+        Entity taggedEntity = world.Create(data);
+        Assert.That(world.Has(taggedEntity, aliveId), Is.True);
+
+        data.Remove(positionId);
+        Entity reducedEntity = world.Create(data);
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Has(reducedEntity, positionId), Is.False);
+            Assert.That(world.Get<Velocity>(reducedEntity, velocityId).Value, Is.EqualTo(11));
+            Assert.That(world.Has(reducedEntity, aliveId), Is.True);
+        });
+
+        data.Clear();
+        data.Add(velocityId, new Velocity { Value = 23 });
+        Entity clearedEntity = world.Create(data);
+        Assert.Multiple(() =>
+        {
+            Assert.That(world.Get<Velocity>(clearedEntity, velocityId).Value, Is.EqualTo(23));
+            Assert.That(world.Has(clearedEntity, positionId), Is.False);
+            Assert.That(world.Has(clearedEntity, aliveId), Is.False);
+        });
+
+        var otherLayouts = new ComponentRegistry();
+        ComponentId conflictingId = otherLayouts.Register<Velocity>(new SchemaId(91_034));
+        Assert.That(conflictingId, Is.EqualTo(positionId));
+        using var otherWorld = new World(otherLayouts);
+        var positionData = new EntityData();
+        positionData.Add(positionId, new Position { Value = 1 });
+        Assert.Throws<System.ArgumentException>(() => otherWorld.Create(positionData));
     }
 
     [Test]

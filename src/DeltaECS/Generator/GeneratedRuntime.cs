@@ -265,6 +265,7 @@ public readonly ref struct GeneratedComponentValueWriter
     private readonly ReadOnlySpan<int> _addedTargetRows;
     private readonly int _targetCount;
     private readonly bool _initializeExisting;
+    private readonly ReadOnlySpan<int> _componentRowRoutes;
 
     internal GeneratedComponentValueWriter(
         ComponentRegistry layouts,
@@ -273,7 +274,8 @@ public readonly ref struct GeneratedComponentValueWriter
         int targetSlotIndex,
         ReadOnlySpan<int> addedTargetRows,
         int targetCount = 1,
-        bool initializeExisting = false)
+        bool initializeExisting = false,
+        ReadOnlySpan<int> componentRowRoutes = default)
     {
         _layouts = layouts;
         _targetChunk = targetChunk;
@@ -282,6 +284,7 @@ public readonly ref struct GeneratedComponentValueWriter
         _addedTargetRows = addedTargetRows;
         _targetCount = targetCount;
         _initializeExisting = initializeExisting;
+        _componentRowRoutes = componentRowRoutes;
     }
 
     internal GeneratedComponentValueWriter(
@@ -291,6 +294,30 @@ public readonly ref struct GeneratedComponentValueWriter
         int targetSlotIndex)
         : this(layouts, targetChunk, targetArchetype, targetSlotIndex, default)
     {
+    }
+
+    internal ReadOnlySpan<int> ComponentRowRoutes => _componentRowRoutes;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void InitializeAdded<T>(int componentRow, in T value)
+    {
+        if (componentRow < 0)
+        {
+            return;
+        }
+
+        _targetChunk.GetComponentRow<T>(componentRow).Slice(_targetSlotIndex, _targetCount).Fill(value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void InitializeCreated<T>(int componentRow, in T value)
+    {
+        if (componentRow < 0)
+        {
+            return;
+        }
+
+        _targetChunk.GetComponentRef<T>(componentRow, _targetSlotIndex) = value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 /// <summary>Stores typed component values and tags under explicit component IDs.</summary>
@@ -10,11 +11,14 @@ public sealed class EntityData
     private static readonly TagEntry Tag = new();
     private readonly Dictionary<ComponentId, IEntry> _components = new();
     private readonly List<ComponentId> _componentIds = new();
+    private int _shapeVersion;
 
     /// <summary>Gets the number of components and tags stored in this data.</summary>
     public int Count => _components.Count;
 
     internal ReadOnlySpan<ComponentId> ComponentIds => ArrayAccess.AsSpan(_componentIds);
+
+    internal int ShapeVersion => _shapeVersion;
 
     /// <summary>Tries to add a component value without replacing an existing value.</summary>
     /// <param name="componentId">The explicit component registration ID.</param>
@@ -176,14 +180,21 @@ public sealed class EntityData
             }
         }
 
+        _shapeVersion++;
         return true;
     }
 
     /// <summary>Removes all stored component values and tags.</summary>
     public void Clear()
     {
+        if (_componentIds.Count == 0)
+        {
+            return;
+        }
+
         _components.Clear();
         _componentIds.Clear();
+        _shapeVersion++;
     }
 
     internal void Validate(ComponentRegistry layouts)
@@ -210,21 +221,21 @@ public sealed class EntityData
         }
     }
 
-    internal void InitializeAdded(ref GeneratedComponentValueWriter writer)
+    internal void InitializeAdded(ReadOnlySpan<int> componentRows, ref GeneratedComponentValueWriter writer)
     {
         for (int index = 0; index < _componentIds.Count; index++)
         {
             ComponentId componentId = _componentIds[index];
-            _components[componentId].InitializeAdded(componentId, ref writer);
+            _components[componentId].InitializeAdded(componentRows.RefAt(index), ref writer);
         }
     }
 
-    internal void InitializeCreated(ref GeneratedComponentValueWriter writer)
+    internal void InitializeCreated(ReadOnlySpan<int> componentRows, ref GeneratedComponentValueWriter writer)
     {
         for (int index = 0; index < _componentIds.Count; index++)
         {
             ComponentId componentId = _componentIds[index];
-            _components[componentId].InitializeCreated(componentId, ref writer);
+            _components[componentId].InitializeCreated(componentRows.RefAt(index), ref writer);
         }
     }
 
@@ -240,6 +251,7 @@ public sealed class EntityData
     {
         _components.Add(componentId, entry);
         _componentIds.Add(componentId);
+        _shapeVersion++;
     }
 
     private interface IEntry
@@ -247,9 +259,9 @@ public sealed class EntityData
         Type? ComponentType { get; }
         bool IsTag { get; }
 
-        void InitializeAdded(ComponentId componentId, ref GeneratedComponentValueWriter writer);
+        void InitializeAdded(int componentRow, ref GeneratedComponentValueWriter writer);
 
-        void InitializeCreated(ComponentId componentId, ref GeneratedComponentValueWriter writer);
+        void InitializeCreated(int componentRow, ref GeneratedComponentValueWriter writer);
     }
 
     private sealed class TagEntry : IEntry
@@ -257,9 +269,9 @@ public sealed class EntityData
         Type? IEntry.ComponentType => null;
         bool IEntry.IsTag => true;
 
-        void IEntry.InitializeAdded(ComponentId componentId, ref GeneratedComponentValueWriter writer) { }
+        void IEntry.InitializeAdded(int componentRow, ref GeneratedComponentValueWriter writer) { }
 
-        void IEntry.InitializeCreated(ComponentId componentId, ref GeneratedComponentValueWriter writer) { }
+        void IEntry.InitializeCreated(int componentRow, ref GeneratedComponentValueWriter writer) { }
     }
 
     private sealed class ComponentEntry<T>(T value) : IEntry
@@ -269,10 +281,124 @@ public sealed class EntityData
         Type? IEntry.ComponentType => typeof(T);
         bool IEntry.IsTag => false;
 
-        void IEntry.InitializeAdded(ComponentId componentId, ref GeneratedComponentValueWriter writer)
-            => writer.InitializeAdded(componentId, in Value);
+        void IEntry.InitializeAdded(int componentRow, ref GeneratedComponentValueWriter writer)
+            => writer.InitializeAdded(componentRow, in Value);
 
-        void IEntry.InitializeCreated(ComponentId componentId, ref GeneratedComponentValueWriter writer)
-            => writer.InitializeCreated(componentId, in Value);
+        void IEntry.InitializeCreated(int componentRow, ref GeneratedComponentValueWriter writer)
+            => writer.InitializeCreated(componentRow, in Value);
     }
+}
+
+internal sealed class EntityDataPlan
+{
+    internal const int SkippedComponentRow = int.MinValue;
+
+    private readonly ConcurrentDictionary<EntityDataRouteKey, int[]> _componentRows = new();
+
+    internal EntityDataPlan(int shapeVersion, ComponentSet componentSet)
+    {
+        ShapeVersion = shapeVersion;
+        ComponentSet = componentSet;
+    }
+
+    internal ComponentSet ComponentSet { get; }
+
+    internal Archetype? TargetArchetype { get; set; }
+
+    internal int ShapeVersion { get; }
+
+    internal int[] GetComponentRows(
+        ComponentRegistry layouts,
+        Archetype targetArchetype,
+        ReadOnlySpan<ComponentId> componentIds,
+        int sourceArchetypeId = -1,
+        ReadOnlySpan<int> addedTargetRows = default,
+        bool allowMissing = false)
+    {
+        var key = new EntityDataRouteKey(targetArchetype.Id, sourceArchetypeId, allowMissing);
+        if (_componentRows.TryGetValue(key, out int[]? componentRows))
+        {
+            return componentRows;
+        }
+
+        componentRows = BuildComponentRows(
+            layouts,
+            targetArchetype,
+            componentIds,
+            sourceArchetypeId >= 0,
+            addedTargetRows,
+            allowMissing);
+        return _componentRows.GetOrAdd(key, componentRows);
+    }
+
+    private static int[] BuildComponentRows(
+        ComponentRegistry layouts,
+        Archetype targetArchetype,
+        ReadOnlySpan<ComponentId> componentIds,
+        bool skipExistingRows,
+        ReadOnlySpan<int> addedTargetRows,
+        bool allowMissing)
+    {
+        var componentRows = new int[componentIds.Length];
+        for (int index = 0; index < componentIds.Length; index++)
+        {
+            ComponentId componentId = componentIds.RefAt(index);
+            if (layouts.TryGetTagIndex(componentId, out int tagIndex))
+            {
+                componentRows[index] = -tagIndex - 1;
+                continue;
+            }
+
+            if (!targetArchetype.TryGetComponentIndex(componentId, out int componentRow))
+            {
+                if (!allowMissing)
+                {
+                    ThrowHelper.ThrowStructuralComponentMissing();
+                }
+
+                componentRows[index] = SkippedComponentRow;
+                continue;
+            }
+
+            if (skipExistingRows && !Contains(addedTargetRows, componentRow))
+            {
+                componentRows[index] = SkippedComponentRow;
+                continue;
+            }
+
+            componentRows[index] = componentRow;
+        }
+
+        return componentRows;
+    }
+
+    internal static bool HasAll(Chunk chunk, int slotIndex, ReadOnlySpan<int> componentRows)
+    {
+        for (int index = 0; index < componentRows.Length; index++)
+        {
+            int componentRow = componentRows.RefAt(index);
+            if (componentRow == SkippedComponentRow
+                || (componentRow < 0 && !chunk.HasTag(-componentRow - 1, slotIndex)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool Contains(ReadOnlySpan<int> rows, int componentRow)
+    {
+        for (int index = 0; index < rows.Length; index++)
+        {
+            if (rows[index] == componentRow)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private readonly record struct EntityDataRouteKey(int TargetArchetypeId, int SourceArchetypeId, bool AllowMissing);
 }
