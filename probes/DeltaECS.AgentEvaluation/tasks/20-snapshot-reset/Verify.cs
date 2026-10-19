@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+
 using ApiChoiceProbe;
+
 using Delta.ECS;
 using var s = new SnapshotScenario();
 var solution = new Solution(s);

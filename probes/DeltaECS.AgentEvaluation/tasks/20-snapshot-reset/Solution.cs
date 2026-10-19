@@ -1,5 +1,6 @@
 using Delta.ECS;
 namespace ApiChoiceProbe;
+
 public sealed class Solution
 {
     public SnapshotSink Sink { get; } = new();
