@@ -231,6 +231,7 @@ public readonly ref struct GeneratedComponentValueWriter
     private readonly int _targetSlotIndex;
     private readonly ReadOnlySpan<int> _addedTargetRows;
     private readonly int _targetCount;
+    private readonly bool _initializeExisting;
 
     internal GeneratedComponentValueWriter(
         ComponentRegistry layouts,
@@ -238,7 +239,8 @@ public readonly ref struct GeneratedComponentValueWriter
         Archetype targetArchetype,
         int targetSlotIndex,
         ReadOnlySpan<int> addedTargetRows,
-        int targetCount = 1)
+        int targetCount = 1,
+        bool initializeExisting = false)
     {
         _layouts = layouts;
         _targetChunk = targetChunk;
@@ -246,6 +248,7 @@ public readonly ref struct GeneratedComponentValueWriter
         _targetSlotIndex = targetSlotIndex;
         _addedTargetRows = addedTargetRows;
         _targetCount = targetCount;
+        _initializeExisting = initializeExisting;
     }
 
     internal GeneratedComponentValueWriter(
@@ -266,6 +269,12 @@ public readonly ref struct GeneratedComponentValueWriter
         }
 
         _targetArchetype.TryGetComponentIndex(componentId, out int componentIndex);
+        if (_initializeExisting)
+        {
+            _targetChunk.GetComponentRow<T>(componentIndex).Slice(_targetSlotIndex, _targetCount).Fill(value);
+            return;
+        }
+
         for (int index = 0; index < _addedTargetRows.Length; index++)
         {
             if (_addedTargetRows[index] != componentIndex)

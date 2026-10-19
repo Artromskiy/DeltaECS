@@ -517,6 +517,49 @@ structural calls cannot run from an active traversal callback. A structural
 terminal on a generated `Where` view instead returns a deferred operation that
 runs on `Invoke()`.
 
+## Entity data
+
+`EntityData` is a mutable, world-independent set of typed values and tags keyed
+by explicit `ComponentId` values. Build it once and pass it to a single-entity
+`World` operation. The world validates that every ID is registered there and
+that each stored CLR type matches its registration. Use `AddTag` for tag
+registrations; tags have no stored value.
+
+```text
+new EntityData() -> EntityData
+data.Add<T>(I, V) -> bool
+data.AddOrSet<T>(I, V) -> void
+data.AddTag(I) -> bool
+data.Set<T>(I, V) -> bool
+data.Has(I) -> bool
+data.TryGet<T>(I, out T) -> bool
+data.Get<T>(I) -> T
+data.GetRef<T>(I) -> ref T
+data.GetReadRef<T>(I) -> ref readonly T
+data.Remove(I) -> bool
+data.Clear()
+
+world.Create(data) -> Entity
+world.Add(e, data) -> bool
+world.AddOrSet(e, data) -> void
+world.Set(e, data) -> bool
+```
+
+On `EntityData`, `Add` preserves an existing entry and returns `false`,
+`AddOrSet` inserts or replaces it, and `Set` replaces only an existing entry.
+For `World`, `Add` adds only missing components and tags, leaving existing
+component values untouched; its result reports whether composition changed.
+`AddOrSet` adds missing entries and writes values for entries already present.
+`Set` writes only when the entity already contains every entry in the data; it
+returns `false` without writing any values when one is missing. Tags contribute
+membership but no payload. An empty set cannot create an entity; adding it
+returns `false`, `AddOrSet` does nothing, and `Set` returns `false`.
+
+`EntityData` can be reused as input for multiple single-entity operations. Its
+values are applied to the world at each call; subsequent changes to the data
+affect only later calls. These APIs accept one `Entity` at a time and do not
+provide batch overloads.
+
 ## Single-entity typed access
 
 Typed accessors use the primary registration unless an explicit ID is supplied.

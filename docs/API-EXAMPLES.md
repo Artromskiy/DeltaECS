@@ -41,6 +41,7 @@ ComponentId positionId = layouts.GetPrimary<Position>();
 ComponentId velocityId = layouts.GetPrimary<Velocity>();
 ComponentId healthId = layouts.GetPrimary<Health>();
 ComponentId deadId = layouts.GetPrimary<Dead>();
+ComponentId aliveId = layouts.GetPrimary<Alive>();
 ComponentId armedId = layouts.GetPrimary<Armed>();
 ComponentId berserkId = layouts.GetPrimary<Berserk>();
 Entity entity = player;
@@ -201,6 +202,35 @@ access must refer to the same registrations.
 `GetRef<T>` returns a writable reference to an existing row and throws when the
 entity is stale or does not contain `T`. Use `TryGet` when the component may be
 absent; `Add<T>` is the operation that creates a missing row.
+
+## Build entity data and apply it
+
+`EntityData` collects values and tags without holding a `World`. Use explicit
+component IDs when building the set, then pass it to a single-entity operation:
+
+```csharp
+var initialData = new EntityData();
+initialData.Add(positionId, new Position(new Vector2(4, 8)));
+initialData.AddTag(aliveId);
+Entity spawned = world.Create(initialData);
+
+var movementData = new EntityData();
+movementData.Add(positionId, new Position(new Vector2(12, 8)));
+movementData.Add(velocityId, new Velocity(new Vector2(2, 0)));
+world.AddOrSet(spawned, movementData);
+
+var positionUpdate = new EntityData();
+positionUpdate.Add(positionId, new Position(new Vector2(20, 8)));
+bool updated = world.Set(spawned, positionUpdate); // true: Position is present
+```
+
+`EntityData.Add` returns `false` for an ID already in the set and leaves its
+value unchanged. `AddOrSet` replaces a value already in the set. When applying
+data to a world, `Add` initializes only missing components, `AddOrSet` also
+replaces values already present, and `Set` writes only if every entry is
+already present. Use `AddTag` for tags; they carry no value. The same data set
+can be reused for later entities, and the world checks registrations and CLR
+types when each operation is invoked.
 
 ## Change an explicit batch
 
