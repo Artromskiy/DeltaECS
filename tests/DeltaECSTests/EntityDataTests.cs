@@ -27,6 +27,26 @@ internal sealed class EntityDataTests
     }
 
     [Test]
+    public void ExposesStoredComponentIdsInInsertionOrder()
+    {
+        var data = new EntityData();
+        ComponentId firstId = new(1);
+        ComponentId tagId = new(2);
+        ComponentId lastId = new(3);
+
+        data.Add(firstId, 10);
+        data.AddTag(tagId);
+        data.Add(lastId, 30);
+
+        ReadOnlySpan<ComponentId> componentIds = data.ComponentIds;
+
+        Assert.That(componentIds.Length, Is.EqualTo(3));
+        Assert.That(componentIds[0], Is.EqualTo(firstId));
+        Assert.That(componentIds[1], Is.EqualTo(tagId));
+        Assert.That(componentIds[2], Is.EqualTo(lastId));
+    }
+
+    [Test]
     public void DuplicateAddPreservesTheExistingValue()
     {
         var data = new EntityData();

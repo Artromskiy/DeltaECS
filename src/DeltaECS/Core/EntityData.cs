@@ -16,7 +16,9 @@ public sealed class EntityData
     /// <summary>Gets the number of components and tags stored in this data.</summary>
     public int Count => _components.Count;
 
-    internal ReadOnlySpan<ComponentId> ComponentIds => ArrayAccess.AsSpan(_componentIds);
+    /// <summary>Gets the IDs of the stored component values and tags in insertion order.</summary>
+    /// <remarks>The span borrows this instance's storage and must not be retained across modifications.</remarks>
+    public ReadOnlySpan<ComponentId> ComponentIds => ArrayAccess.AsSpan(_componentIds);
 
     internal int ShapeVersion => _shapeVersion;
 
