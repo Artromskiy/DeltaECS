@@ -297,17 +297,32 @@ internal sealed class EntityDataPlan
 
     private readonly ConcurrentDictionary<EntityDataRouteKey, int[]> _componentRows = new();
 
+    internal ComponentSet ComponentSet { get; }
+
+    internal Archetype? TargetArchetype { get; set; }
+
+    internal int ShapeVersion { get; }
+
     internal EntityDataPlan(int shapeVersion, ComponentSet componentSet)
     {
         ShapeVersion = shapeVersion;
         ComponentSet = componentSet;
     }
 
-    internal ComponentSet ComponentSet { get; }
+    internal static bool HasAll(Chunk chunk, int slotIndex, ReadOnlySpan<int> componentRows)
+    {
+        for (int index = 0; index < componentRows.Length; index++)
+        {
+            int componentRow = componentRows.RefAt(index);
+            if (componentRow == SkippedComponentRow
+                || (componentRow < 0 && !chunk.HasTag(-componentRow - 1, slotIndex)))
+            {
+                return false;
+            }
+        }
 
-    internal Archetype? TargetArchetype { get; set; }
-
-    internal int ShapeVersion { get; }
+        return true;
+    }
 
     internal int[] GetComponentRows(
         ComponentRegistry layouts,
@@ -372,21 +387,6 @@ internal sealed class EntityDataPlan
         }
 
         return componentRows;
-    }
-
-    internal static bool HasAll(Chunk chunk, int slotIndex, ReadOnlySpan<int> componentRows)
-    {
-        for (int index = 0; index < componentRows.Length; index++)
-        {
-            int componentRow = componentRows.RefAt(index);
-            if (componentRow == SkippedComponentRow
-                || (componentRow < 0 && !chunk.HasTag(-componentRow - 1, slotIndex)))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static bool Contains(ReadOnlySpan<int> rows, int componentRow)

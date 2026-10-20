@@ -762,52 +762,6 @@ public sealed partial class World
         where TInitializer : struct, IGeneratedComponentValueInitializer
         => CreateGeneratedComponentValues(componentIds, ref initializer, null);
 
-    private Entity CreateGeneratedComponentValues<TInitializer>(
-        ReadOnlySpan<ComponentId> componentIds,
-        ref TInitializer initializer,
-        EntityDataPlan? entityDataPlan)
-        where TInitializer : struct, IGeneratedComponentValueInitializer
-    {
-        EnsureNoActiveLease("create entities");
-        Entity entity;
-        if (entityDataPlan is null)
-        {
-            entity = Create(componentIds);
-        }
-        else
-        {
-            if (componentIds.IsEmpty)
-            {
-                ThrowHelper.ThrowInvalidComponentList();
-            }
-
-            Archetype cachedArchetype = entityDataPlan.TargetArchetype
-                ??= GetOrCreateArchetype(entityDataPlan.ComponentSet.Mask);
-            Span<Entity> entities = stackalloc Entity[1];
-            CreateBatch(cachedArchetype, entities, entityDataPlan.ComponentSet.TagIndices);
-            entity = entities.GetRefAtZero();
-        }
-
-        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
-        {
-            ThrowHelper.ThrowStructuralCreateFailed();
-        }
-
-        Archetype archetype = chunk.Archetype;
-        ReadOnlySpan<int> componentRows = entityDataPlan is null
-            ? default
-            : entityDataPlan.GetComponentRows(_layouts, archetype, componentIds);
-        var writer = new GeneratedComponentValueWriter(
-            _layouts,
-            chunk,
-            archetype,
-            slotIndex,
-            default,
-            componentRowRoutes: componentRows);
-        initializer.Initialize(ref writer);
-        return entity;
-    }
-
     internal void ValidateGeneratedComponentType<T>(ComponentId componentId) => EnsureRegisteredType<T>(componentId);
 
     internal bool IsGeneratedComponentType<T>(ComponentId componentId) => IsRegisteredType<T>(componentId);
@@ -827,27 +781,6 @@ public sealed partial class World
             if (present)
             {
                 RecordComponentChange(chunk, slotIndex, componentId);
-            }
-        }
-    }
-
-    private void RecordEntityDataChanges(
-        Chunk chunk,
-        int slotIndex,
-        ReadOnlySpan<ComponentId> componentIds,
-        ReadOnlySpan<int> componentRows)
-    {
-        for (int index = 0; index < componentRows.Length; index++)
-        {
-            int componentRow = componentRows.RefAt(index);
-            if (componentRow == EntityDataPlan.SkippedComponentRow)
-            {
-                continue;
-            }
-
-            if (componentRow >= 0 || chunk.HasTag(-componentRow - 1, slotIndex))
-            {
-                RecordComponentChange(chunk, slotIndex, componentIds.RefAt(index));
             }
         }
     }
@@ -945,6 +878,73 @@ public sealed partial class World
         }
 
         chunk.GetComponentRow<T>(componentIndex).Slice(slotIndex, count).Fill(value);
+    }
+
+    private Entity CreateGeneratedComponentValues<TInitializer>(
+        ReadOnlySpan<ComponentId> componentIds,
+        ref TInitializer initializer,
+        EntityDataPlan? entityDataPlan)
+        where TInitializer : struct, IGeneratedComponentValueInitializer
+    {
+        EnsureNoActiveLease("create entities");
+        Entity entity;
+        if (entityDataPlan is null)
+        {
+            entity = Create(componentIds);
+        }
+        else
+        {
+            if (componentIds.IsEmpty)
+            {
+                ThrowHelper.ThrowInvalidComponentList();
+            }
+
+            Archetype cachedArchetype = entityDataPlan.TargetArchetype
+                ??= GetOrCreateArchetype(entityDataPlan.ComponentSet.Mask);
+            Span<Entity> entities = stackalloc Entity[1];
+            CreateBatch(cachedArchetype, entities, entityDataPlan.ComponentSet.TagIndices);
+            entity = entities.GetRefAtZero();
+        }
+
+        if (!TryResolve(entity, out _, out Chunk chunk, out int slotIndex))
+        {
+            ThrowHelper.ThrowStructuralCreateFailed();
+        }
+
+        Archetype archetype = chunk.Archetype;
+        ReadOnlySpan<int> componentRows = entityDataPlan is null
+            ? default
+            : entityDataPlan.GetComponentRows(_layouts, archetype, componentIds);
+        var writer = new GeneratedComponentValueWriter(
+            _layouts,
+            chunk,
+            archetype,
+            slotIndex,
+            default,
+            componentRowRoutes: componentRows);
+        initializer.Initialize(ref writer);
+        return entity;
+    }
+
+    private void RecordEntityDataChanges(
+        Chunk chunk,
+        int slotIndex,
+        ReadOnlySpan<ComponentId> componentIds,
+        ReadOnlySpan<int> componentRows)
+    {
+        for (int index = 0; index < componentRows.Length; index++)
+        {
+            int componentRow = componentRows.RefAt(index);
+            if (componentRow == EntityDataPlan.SkippedComponentRow)
+            {
+                continue;
+            }
+
+            if (componentRow >= 0 || chunk.HasTag(-componentRow - 1, slotIndex))
+            {
+                RecordComponentChange(chunk, slotIndex, componentIds.RefAt(index));
+            }
+        }
     }
 
     private bool SetCore<T>(Entity entity, ComponentId componentId, in T value)

@@ -33,7 +33,6 @@ namespace Delta.ECS.Unity
         private bool _disposed;
 
         public World World => _world;
-        internal ComponentId HiddenEntityHierarchyComponentId => _hiddenEntityHierarchyComponentId;
 
         public Entity[] AuthoredEntities
         {
@@ -44,6 +43,7 @@ namespace Delta.ECS.Unity
                 return entities;
             }
         }
+        internal ComponentId HiddenEntityHierarchyComponentId => _hiddenEntityHierarchyComponentId;
         internal IEcsWorld Integration => _integration;
         internal SceneData SceneData => _sceneData;
         internal Scene UnityScene => _authoring != null ? _authoring.gameObject.scene : default;

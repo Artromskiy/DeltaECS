@@ -2,12 +2,6 @@ using Delta.ECS;
 
 namespace Delta.ECS.Unity
 {
-    internal static class ViewComponentSchemaIds
-    {
-        internal const ulong ViewToken = 0x405B11F5A17E14A1UL;
-        internal const ulong ViewBound = 0xB31CB42A81D3B164UL;
-        internal const ulong HideFromEntityHierarchy = 0x8C13A2E9764DB501UL;
-    }
 
     /// <summary>Receives the entity context after a Unity view is bound to an entity.</summary>
     public interface IEntityView
@@ -38,5 +32,11 @@ namespace Delta.ECS.Unity
     [ComponentSchema(ViewComponentSchemaIds.HideFromEntityHierarchy)]
     public readonly struct HideFromEntityHierarchy
     {
+    }
+    internal static class ViewComponentSchemaIds
+    {
+        internal const ulong ViewToken = 0x405B11F5A17E14A1UL;
+        internal const ulong ViewBound = 0xB31CB42A81D3B164UL;
+        internal const ulong HideFromEntityHierarchy = 0x8C13A2E9764DB501UL;
     }
 }

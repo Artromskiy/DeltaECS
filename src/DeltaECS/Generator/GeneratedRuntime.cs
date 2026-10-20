@@ -267,6 +267,8 @@ public readonly ref struct GeneratedComponentValueWriter
     private readonly bool _initializeExisting;
     private readonly ReadOnlySpan<int> _componentRowRoutes;
 
+    internal ReadOnlySpan<int> ComponentRowRoutes => _componentRowRoutes;
+
     internal GeneratedComponentValueWriter(
         ComponentRegistry layouts,
         Chunk targetChunk,
@@ -294,30 +296,6 @@ public readonly ref struct GeneratedComponentValueWriter
         int targetSlotIndex)
         : this(layouts, targetChunk, targetArchetype, targetSlotIndex, default)
     {
-    }
-
-    internal ReadOnlySpan<int> ComponentRowRoutes => _componentRowRoutes;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void InitializeAdded<T>(int componentRow, in T value)
-    {
-        if (componentRow < 0)
-        {
-            return;
-        }
-
-        _targetChunk.GetComponentRow<T>(componentRow).Slice(_targetSlotIndex, _targetCount).Fill(value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void InitializeCreated<T>(int componentRow, in T value)
-    {
-        if (componentRow < 0)
-        {
-            return;
-        }
-
-        _targetChunk.GetComponentRef<T>(componentRow, _targetSlotIndex) = value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -361,6 +339,28 @@ public readonly ref struct GeneratedComponentValueWriter
 
         _targetArchetype.TryGetComponentIndex(componentId, out int componentIndex);
         _targetChunk.GetComponentRef<T>(componentIndex, _targetSlotIndex) = value;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void InitializeAdded<T>(int componentRow, in T value)
+    {
+        if (componentRow < 0)
+        {
+            return;
+        }
+
+        _targetChunk.GetComponentRow<T>(componentRow).Slice(_targetSlotIndex, _targetCount).Fill(value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void InitializeCreated<T>(int componentRow, in T value)
+    {
+        if (componentRow < 0)
+        {
+            return;
+        }
+
+        _targetChunk.GetComponentRef<T>(componentRow, _targetSlotIndex) = value;
     }
 
 }
