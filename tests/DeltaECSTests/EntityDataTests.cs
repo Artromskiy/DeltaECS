@@ -313,6 +313,80 @@ internal sealed class EntityDataTests
         Assert.That(world.AliveEntityCount, Is.Zero);
     }
 
+    [TestCase("Add", 2, 5, 4)]
+    [TestCase("Set", 1, 10, 2)]
+    [TestCase("AddOrSet", 0, 10, 4)]
+    public void CopiesEntityValuesAndTagsWithTheSelectedMergeMode(string mode, int expectedCount, int expectedValue, int expectedSize)
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId first = layouts.Register<int>(new SchemaId(92_001));
+        ComponentId second = layouts.Register<int>(new SchemaId(92_002));
+        ComponentId tag = layouts.Register<Alive>(new SchemaId(92_003));
+        ComponentId extra = layouts.Register<int>(new SchemaId(92_004));
+        using var world = new World(layouts);
+        Entity entity = world.Create<int>(first, 10);
+        world.Add(entity, second, 20);
+        world.Add(entity, tag);
+        var data = new EntityData();
+        data.Add(first, 5);
+        data.Add(extra, 30);
+
+        int count = 0;
+        switch (mode)
+        {
+            case "Add":
+                count = data.Add(world, entity);
+                break;
+            case "Set":
+                count = data.Set(world, entity);
+                break;
+            default:
+                data.AddOrSet(world, entity);
+                break;
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(count, Is.EqualTo(expectedCount));
+            Assert.That(data.Count, Is.EqualTo(expectedSize));
+            Assert.That(data.Get<int>(first), Is.EqualTo(expectedValue));
+            Assert.That(data.Get<int>(extra), Is.EqualTo(30));
+            Assert.That(data.Has(tag), Is.EqualTo(mode != "Set"));
+            Assert.That(data.Has(second), Is.EqualTo(mode != "Set"));
+        });
+    }
+
+    [Test]
+    public void CopiesPresentTagsAndReferenceValuesAndCanReplaceAfterClear()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId valueId = layouts.Register<object>(new SchemaId(92_011));
+        ComponentId tagId = layouts.Register<Alive>(new SchemaId(92_012));
+        using var world = new World(layouts);
+        object value = new();
+        Entity entity = world.Create(valueId, value);
+        world.Add(entity, tagId);
+        var data = new EntityData();
+        data.AddTag(tagId);
+        Assert.That(data.Set(world, entity), Is.EqualTo(1));
+        Assert.That(data.Add(world, entity), Is.EqualTo(1));
+        Assert.That(data.Add(world, entity), Is.Zero);
+        Assert.That(data.Set(world, entity), Is.EqualTo(2));
+        Assert.That(data.Get<object>(valueId), Is.SameAs(value));
+
+        world.Remove(entity, tagId);
+        data.Clear();
+        data.AddOrSet(world, entity);
+        Assert.That(data.Count, Is.EqualTo(1));
+        Assert.That(data.Has(tagId), Is.False);
+
+        world.Destroy(entity);
+        Assert.That(data.Add(world, entity), Is.Zero);
+        Assert.That(data.Set(world, entity), Is.Zero);
+        data.AddOrSet(world, entity);
+        Assert.That(data.Count, Is.EqualTo(1));
+    }
+
     private struct Alive { }
 
     private struct Position

@@ -219,6 +219,9 @@ CLR type is known only at runtime:
 
 ```text
 layouts.GetComponentType(I) -> Type
+layouts.GetSchemaId(I) -> SchemaId
+layouts.IsTag(I) -> bool
+layouts.GetComponentIds() -> ReadOnlySpan<ComponentId>
 layouts.TryGetComponentId(SchemaId, out ComponentId) -> bool
 layouts.GetPrimary<T>() -> ComponentId
 layouts.TryGetPrimary<T>(out ComponentId) -> bool
@@ -344,16 +347,15 @@ to that same operation a second time.
 
 ## Runtime integration contract
 
-`World` implements `IEcsWorld` explicitly. Cast it to this neutral contract
-when a tooling or runtime bridge needs registration IDs and object-based
-component access:
+`World` implements the obsolete `IEcsWorld` contract explicitly for compatibility.
+New tooling uses `world.Components` for registration IDs and metadata, and
+`world.TryRead(entity, id, out object? value)` / `world.TryWrite(entity, id, value)`
+for object-based component access. The compatibility catalog contains only IDs:
 
 ```text
 IEcsWorld integration = world
 integration.Catalog -> RuntimeComponentCatalog
-catalog.Components -> ReadOnlyMemory<ComponentDescriptor>
-descriptor.Id / Schema / Name / ValueType / Capabilities / AllowsNull / IsTag
-ComponentCapabilities = None | Read | Write
+catalog.Components -> ReadOnlyMemory<ComponentId>
 integration.Initialize() / Update() / Shutdown()
 integration.IsAlive(e) -> bool
 integration.Create(D) -> Entity
@@ -548,6 +550,9 @@ registrations; tags have no stored value.
 
 ```text
 new EntityData() -> EntityData
+data.Add(world, entity) -> int // Adds missing entries; returns additions.
+data.Set(world, entity) -> int // Updates matching entries; returns applications, including tags.
+data.AddOrSet(world, entity) -> void // Adds or updates; preserves entries absent from the entity.
 data.Add<T>(I, V) -> bool
 data.AddOrSet<T>(I, V) -> void
 data.AddTag(I) -> bool

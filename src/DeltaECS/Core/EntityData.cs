@@ -22,6 +22,18 @@ public sealed class EntityData
 
     internal int ShapeVersion => _shapeVersion;
 
+    /// <summary>Copies missing component values and tags from an entity, preserving existing entries.</summary>
+    /// <returns>The number of entries added.</returns>
+    public int Add(World world, Entity entity) => CopyFrom(world, entity, add: true, set: false);
+
+    /// <summary>Copies component values and tags from an entity into existing entries only.</summary>
+    /// <returns>The number of matching entries applied, including present tags.</returns>
+    public int Set(World world, Entity entity) => CopyFrom(world, entity, add: false, set: true);
+
+    /// <summary>Copies all component values and tags from an entity, adding or updating entries.</summary>
+    /// <remarks>Entries absent from the entity are preserved. Values are shallow copies.</remarks>
+    public void AddOrSet(World world, Entity entity) => CopyFrom(world, entity, add: true, set: true);
+
     /// <summary>Tries to add a component value without replacing an existing value.</summary>
     /// <param name="componentId">The explicit component registration ID.</param>
     /// <param name="value">The component value to store.</param>
@@ -241,6 +253,21 @@ public sealed class EntityData
         }
     }
 
+    private int CopyFrom(World world, Entity entity, bool add, bool set)
+    {
+        ThrowHelper.ThrowIfNull(world, nameof(world));
+        var visitor = new CopyVisitor(this, world, entity, add, set);
+        foreach (ComponentId componentId in world.Components.GetComponentIds())
+        {
+            if ((set && Has(componentId)) || (add && !Has(componentId)))
+            {
+                world.Components.Visit(componentId, visitor);
+            }
+        }
+
+        return visitor.AppliedCount;
+    }
+
     private static void EnsureValid(ComponentId componentId)
     {
         if (!componentId.IsValid)
@@ -254,6 +281,39 @@ public sealed class EntityData
         _components.Add(componentId, entry);
         _componentIds.Add(componentId);
         _shapeVersion++;
+    }
+
+    private sealed class CopyVisitor(EntityData destination, World world, Entity entity, bool add, bool set)
+        : IUnconstrainedComponentVisitor
+    {
+        internal int AppliedCount { get; private set; }
+
+        public void Visit<T>(ComponentId componentId)
+        {
+            if (!world.TryGet(entity, componentId, out T value))
+            {
+                return;
+            }
+
+            if (world.Components.IsTag(componentId))
+            {
+                destination.AddTag(componentId);
+            }
+            else if (add && set)
+            {
+                destination.AddOrSet(componentId, in value);
+            }
+            else if (add)
+            {
+                destination.Add(componentId, in value);
+            }
+            else
+            {
+                destination.Set(componentId, in value);
+            }
+
+            AppliedCount++;
+        }
     }
 
     private interface IEntry
