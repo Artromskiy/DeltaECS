@@ -20,6 +20,7 @@ public sealed partial class ComponentRegistry
     private readonly Dictionary<(RuntimeTypeHandle ComponentType, RuntimeTypeHandle InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
     private readonly Dictionary<(RuntimeTypeHandle EnumType, ulong GroupId), ComponentGroupMembers> _componentGroups = new();
     private readonly Dictionary<string, ComponentId> _componentIdsByAlias = new(StringComparer.Ordinal);
+    private readonly Dictionary<ComponentId, List<string>> _aliasesByComponentId = new();
     private int[] _tagIndices = [];
     private readonly Dictionary<Type, List<GenericRegistration>> _genericRegistrations = new();
 
@@ -106,7 +107,21 @@ public sealed partial class ComponentRegistry
         }
 
         _componentIdsByAlias.Add(alias, componentId);
+        if (!_aliasesByComponentId.TryGetValue(componentId, out List<string>? aliases))
+        {
+            aliases = new List<string>();
+            _aliasesByComponentId.Add(componentId, aliases);
+        }
+
+        aliases.Add(alias);
     }
+
+    /// <summary>Gets a component's aliases in insertion order, or an empty span when none are registered.</summary>
+    /// <remarks>The span borrows registry storage and must not be retained across alias additions for this component.</remarks>
+    public ReadOnlySpan<string> GetAliases(ComponentId componentId)
+        => _aliasesByComponentId.TryGetValue(componentId, out List<string>? aliases)
+            ? ArrayAccess.AsSpan(aliases)
+            : [];
 
     /// <summary>Tries to get the component registered under an alias in this catalog.</summary>
     public bool TryGetAlias(string alias, out ComponentId componentId)

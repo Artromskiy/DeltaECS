@@ -290,7 +290,10 @@ public struct Health { public int Value; }
 `TryGetComponentId` returns `false` and `ComponentId.Invalid` when a schema is
 unknown. `AddAlias` accepts repeated registration of the same alias/ID pair and
 rejects an alias mapped to another component. `TryGetAlias` returns `false` for
-an unknown alias, while `GetAlias` throws. Group membership is deduplicated.
+an unknown alias, while `GetAlias` throws. `GetAliases(id)` returns aliases in
+insertion order without copying, or an empty span when none are registered.
+The borrowed span must not be retained across alias additions for that component.
+Group membership is deduplicated.
 `GetGroup` accepts exactly one enum value as its lookup key; it does not combine
 multiple group values. Runtime `AddGroup` also adds one exact enum value at a
 time, so call it once per desired flag when adding a flags-based component
@@ -308,6 +311,7 @@ layouts.GetComponentType(ComponentId) -> Type
 layouts.AddAlias(string, ComponentId)
 layouts.TryGetAlias(string, out ComponentId) -> bool
 layouts.GetAlias(string) -> ComponentId
+layouts.GetAliases(ComponentId) -> ReadOnlySpan<string>
 layouts.AddGroup<TEnum>(TEnum, ComponentId)
 layouts.GetGroup<TEnum>(TEnum) -> ReadOnlySpan<ComponentId>
 world.TryGetAlias(string, out ComponentId) -> bool

@@ -92,6 +92,28 @@ internal sealed class ComponentRegistryTests
     }
 
     [Test]
+    public void GetAliasesReturnsDistinctAliasesInInsertionOrder()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId positionId = layouts.Register<Position>(new SchemaId(70_020));
+        ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_021));
+        using var world = new World(layouts);
+
+        Assert.That(world.Components.GetAliases(positionId).IsEmpty, Is.True);
+        Assert.That(layouts.GetAliases(ComponentId.Invalid).IsEmpty, Is.True);
+        layouts.AddAlias("position", positionId);
+        layouts.AddAlias("location", positionId);
+        layouts.AddAlias("position", positionId);
+        Assert.Throws<InvalidOperationException>(() => layouts.AddAlias("position", velocityId));
+
+        Assert.That(world.Components.GetAliases(positionId).ToArray(), Is.EqualTo(new[] { "position", "location" }));
+        Assert.That(layouts.GetAliases(velocityId).IsEmpty, Is.True);
+        layouts.AddAlias("velocity", velocityId);
+        Assert.That(layouts.GetAliases(velocityId).ToArray(), Is.EqualTo(new[] { "velocity" }));
+        Assert.That(layouts.GetAliases(positionId).Length, Is.EqualTo(2));
+    }
+
+    [Test]
     public void UnknownSchemaIdDoesNotResolve()
     {
         var layouts = new ComponentRegistry();
