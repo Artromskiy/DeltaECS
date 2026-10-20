@@ -10,7 +10,7 @@
     <AssemblyName>DeltaECS</AssemblyName>
     <ArtifactsProjectName>$(AssemblyName)</ArtifactsProjectName>
     <PackageId>DeltaECS</PackageId>
-    <Version>0.0.61</Version>
+    <Version>0.0.62</Version>
     <Authors>Artromskiy</Authors>
     <Description>High-performance archetype-based entity component system for .NET.</Description>
     <PackageTags>ecs;entity-component-system;game-development;archetype;dotnet</PackageTags>
