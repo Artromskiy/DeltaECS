@@ -21,7 +21,7 @@
   change-width fixtures must represent their declared width exactly. Create and
   ordered/list destroy now have block kernels; add/remove still lack a general
   measured improvement beyond the existing archetype-transition paths.
-- [x] Standardize structural APIs without expanding `IEcsWorld`: preserve the
+- [x] Standardize structural APIs: preserve the
   stable non-generic iteration path, complete the generic single-entity
   boundary and keep generic types out of storage and query plans.
 - [x] Replace the producer-owned callback matrix with a demand-driven

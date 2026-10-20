@@ -255,21 +255,6 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowIntegrationAlreadyInitialized()
-        => throw new InvalidOperationException("The ECS world can be initialized exactly once.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowIntegrationComponentNotRegistered(int component, string parameterName)
-        => throw new ArgumentException($"Component {component} is not registered in this world.", parameterName);
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowIntegrationNotInitialized()
-        => throw new InvalidOperationException("The ECS integration world is not initialized or has already shut down.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static T ThrowMissingComponent<T>(Entity entity, ComponentId componentId)
         => throw new InvalidOperationException(
             $"Entity {entity} does not contain a component of type {typeof(T)} for {componentId}.");

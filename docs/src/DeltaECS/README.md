@@ -11,7 +11,6 @@ on implementation. They do not create separate storage models or namespaces.
 | `Delegate` | Delegate callback contracts and zero-component callbacks | [Delegate API](Delegate/README.md) |
 | `Functor` | Struct-functor marker contracts | [Functor API](Functor/README.md) |
 | `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](Parallel/README.md) |
-| `API` | Neutral engine/editor integration contract | [Integration API](API/README.md) |
 
 `Properties` contains assembly metadata and has no user-facing API.
 

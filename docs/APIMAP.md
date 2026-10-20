@@ -31,7 +31,6 @@ rg -n "<relevant API or invariant>" tests/DeltaECSTests
 | `Delegate` | Delegate callback contracts and zero-component compiler anchors | [Delegate API](src/DeltaECS/Delegate/README.md) |
 | `Functor` | Marker contracts for generated struct-functor callbacks | [Functor API](src/DeltaECS/Functor/README.md) |
 | `Parallel` | Chunk-disjoint multi-threaded query execution | [Parallel API](src/DeltaECS/Parallel/README.md) |
-| `API` | Neutral integration contract implemented by `World` | [Integration API](src/DeltaECS/API/README.md) |
 | `Properties` | Assembly metadata; no consumer API | — |
 
 The consumer source generator is documented in
@@ -55,7 +54,6 @@ The consumer source generator is documented in
 | `World.ForEach`, `ForEachEntity` | Delegate callback entry points; entity-aware iteration may omit component rows, while component-only zero-arity calls remain throwing anchors | `src/DeltaECS/Delegate/ForEachZeroArity.cs` |
 | `IForEach*` | Stable functor marker contracts | `src/DeltaECS/Functor/ForEachFunctorContracts.cs` |
 | `World.ForEachParallel` | Generated typed parallel query callback entry point | `src/DeltaECS/Parallel/World.Parallel.cs` |
-| `IEcsWorld` | Neutral lifecycle, structural and object-value integration contract | `src/DeltaECS/API/IntegrationContracts.cs` |
 
 ## Query execution boundary
 
@@ -115,11 +113,8 @@ work, inspect the focused test class after locating the source method.
 - Read and write access intent is declared before row traversal.
 - `Entity` and `ComponentId` are compact world-local core values. `SchemaId`
   is the stable cross-world identity used by integration consumers.
-- `IEcsWorld` (`Delta.ECS.Integration`) is a neutral local .NET boundary. It uses the core `Entity` and
-  `ComponentId` types and exposes object snapshots only for integration work.
-
-See the [integration README](src/DeltaECS/API/README.md) for its complete
-contract.
+- Tooling reads and writes dynamic component values through `World.TryRead` and
+  `World.TryWrite`; registration metadata comes from `world.Components`.
 
 ## Focused test map
 

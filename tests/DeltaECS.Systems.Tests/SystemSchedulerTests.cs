@@ -3,7 +3,6 @@ namespace Delta.ECS.Systems.Tests;
 using System.Collections.Concurrent;
 
 using Delta.ECS;
-using Delta.ECS.Integration;
 using Delta.ECS.Systems;
 
 using NUnit.Framework;
@@ -354,14 +353,6 @@ public sealed class SystemSchedulerTests
             () => Task.Run(() => GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<GeneratedSetKey>(
                 world,
                 static _ => [Position]).Length).GetAwaiter().GetResult(),
-            Throws.TypeOf<InvalidOperationException>());
-
-        var integration = (IEcsWorld)world;
-        Assert.That(
-            () => Task.Run(() => integration.Catalog).GetAwaiter().GetResult(),
-            Throws.TypeOf<InvalidOperationException>());
-        Assert.That(
-            () => Task.Run(integration.Initialize).GetAwaiter().GetResult(),
             Throws.TypeOf<InvalidOperationException>());
 
         release.Set();

@@ -345,36 +345,23 @@ which may be stale. Tags have no stored payload, but writable tag access still
 reports a change. Writes made by an operation's own callback are not reported
 to that same operation a second time.
 
-## Runtime integration contract
+## Object-based component access
 
-`World` implements the obsolete `IEcsWorld` contract explicitly for compatibility.
-New tooling uses `world.Components` for registration IDs and metadata, and
-`world.TryRead(entity, id, out object? value)` / `world.TryWrite(entity, id, value)`
-for object-based component access. The compatibility catalog contains only IDs:
+Tooling uses the ordinary `World` and its component registry:
 
 ```text
-IEcsWorld integration = world
-integration.Catalog -> RuntimeComponentCatalog
-catalog.Components -> ReadOnlyMemory<ComponentId>
-integration.Initialize() / Update() / Shutdown()
-integration.IsAlive(e) -> bool
-integration.Create(D) -> Entity
-integration.Destroy(e) -> bool
-integration.Add(e, D) / Remove(e, D) -> bool
-integration.TryGetComponents(e, Span<ComponentId>, out totalCount) -> bool
-integration.TryRead(e, I, out ComponentSnapshot, out EcsReadError) -> bool
-integration.TryWrite(e, I, object?, out EcsWriteError) -> bool
-snapshot.Value
-EcsReadErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | Unsupported
-EcsWriteErrorCode = None | EntityNotAlive | ComponentUnknown | ComponentMissing | InvalidValue | Unsupported
+world.Components.GetComponentIds() -> ReadOnlySpan<ComponentId>
+world.Components.GetSchemaId(I) -> SchemaId
+world.Components.GetComponentType(I) -> Type
+world.Components.IsTag(I) -> bool
+world.TryRead(e, I, out object? value) -> bool
+world.TryWrite(e, I, object? value) -> bool
 ```
 
-`TryGetComponents` writes the ascending prefix that fits in the destination
-and reports the full count. `TryWrite` writes the supplied value without a
-version check. The error enums distinguish missing entities or components,
-unsupported object access, and invalid values. This contract works without
-generated consumer code; the component catalog itself is produced by the
-registration generator.
+`TryRead` returns a shallow copy of a component value or the default tag value.
+`TryWrite` adds or replaces a value of the exact registered CLR type. A null
+write value is rejected by an exception. Struct values are boxed; prefer typed
+access in hot code. Neither method requires generated consumer code.
 
 ## Generated iteration forms
 
