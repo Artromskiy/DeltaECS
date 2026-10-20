@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 using Delta;
 using Delta.ECS;
-using Delta.ECS.Integration;
 using Delta.ECS.Unity;
 
 using Unity.Properties;
@@ -19,7 +18,7 @@ namespace Delta.ECS.Unity.Editor
 
     internal static class ComponentPropertyBagFields
     {
-        internal static ComponentPropertyBinding[] Build(VisualElement parent, ComponentDescriptor descriptor,
+        internal static ComponentPropertyBinding[] Build(VisualElement parent, Type componentType,
             object value, bool canWrite, Action<string[], object> onChanged,
             Func<string, Entity, Action<object>, VisualElement> createEntityField)
         {
@@ -28,7 +27,7 @@ namespace Delta.ECS.Unity.Editor
                 return Array.Empty<ComponentPropertyBinding>();
             }
 
-            IPropertyBag propertyBag = PropertyBag.GetPropertyBag(descriptor.ValueType);
+            IPropertyBag propertyBag = PropertyBag.GetPropertyBag(componentType);
             if (propertyBag == null)
             {
                 return Array.Empty<ComponentPropertyBinding>();

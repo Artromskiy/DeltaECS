@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
 using Delta.ECS;
-using Delta.ECS.Integration;
 
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -25,7 +24,6 @@ namespace Delta.ECS.Unity
         private readonly Dictionary<Entity, GameObject> _viewsByEntity = new();
         private readonly Dictionary<UnityEngine.EntityId, Entity> _entitiesByView = new();
         private readonly World _world;
-        private readonly IEcsWorld _integration;
         private readonly SceneData _sceneData;
         private readonly SceneAuthoring _authoring;
         private readonly bool _ownsWorld;
@@ -44,28 +42,20 @@ namespace Delta.ECS.Unity
             }
         }
         internal ComponentId HiddenEntityHierarchyComponentId => _hiddenEntityHierarchyComponentId;
-        internal IEcsWorld Integration => _integration;
         internal SceneData SceneData => _sceneData;
         internal Scene UnityScene => _authoring != null ? _authoring.gameObject.scene : default;
         internal bool IsBound => !_disposed;
 
-        internal SceneWorld(World world, SceneData sceneData)
-            : this(world, sceneData, null, ownsWorld: false, registerLiveWorld: true)
-        {
-        }
-
-        private SceneWorld(World world, SceneData sceneData,
-            SceneAuthoring authoring, bool ownsWorld, bool registerLiveWorld)
+        private SceneWorld(World world,
+            SceneData sceneData, SceneAuthoring authoring, bool ownsWorld, bool registerLiveWorld)
         {
             _world = world ?? UnityThrowHelpers.ThrowArgumentNull<World>(nameof(world));
             _sceneData = sceneData ?? UnityThrowHelpers.ThrowArgumentNull<SceneData>(nameof(sceneData));
             _authoring = authoring;
-            _integration = world;
             _ownsWorld = ownsWorld;
             _hiddenEntityHierarchyComponentId = world.Components.GetPrimary<HideFromEntityHierarchy>();
 
             _sceneData.EnsureStableIds();
-            _integration.Initialize();
             RebuildAuthoringEntities();
             if (registerLiveWorld)
             {
@@ -73,7 +63,7 @@ namespace Delta.ECS.Unity
             }
         }
 
-        /// <summary>Returns the integration-owned runtime context for a loaded Unity scene.</summary>
+        /// <summary>Returns the runtime context for a loaded Unity scene.</summary>
         public static SceneWorld GetForScene(Scene scene) => SceneWorldRuntime.GetForScene(scene);
 
         /// <summary>Resolves the live ECS world and entity currently associated with a Unity view.</summary>
@@ -93,7 +83,7 @@ namespace Delta.ECS.Unity
         /// <summary>Registers a transient runtime association; it is not written into scene data.</summary>
         public bool BindView(Entity entity, GameObject view)
         {
-            if (view == null || !_integration.IsAlive(entity))
+            if (view == null || !_world.IsAlive(entity))
             {
                 return false;
             }
@@ -128,7 +118,7 @@ namespace Delta.ECS.Unity
             {
                 foreach (Entity candidate in _entitiesByStableId.Values)
                 {
-                    if (_integration.IsAlive(candidate) && _world.Has(candidate, componentId))
+                    if (_world.IsAlive(candidate) && _world.Has(candidate, componentId))
                     {
                         entity = candidate;
                         return true;
@@ -159,7 +149,6 @@ namespace Delta.ECS.Unity
             _stableIdsByEntity.Clear();
             _viewsByEntity.Clear();
             _entitiesByView.Clear();
-            _integration.Shutdown();
 
             if (_ownsWorld)
             {
@@ -220,7 +209,7 @@ namespace Delta.ECS.Unity
 
         internal static SceneWorld CreatePreview(SceneData sceneData)
         {
-            var world = CreateWorld(DefaultEntityCapacity);
+            World world = CreateWorld(DefaultEntityCapacity);
             try
             {
                 return new SceneWorld(world, sceneData, null,
@@ -240,7 +229,7 @@ namespace Delta.ECS.Unity
                 UnityThrowHelpers.ThrowArgumentNull(nameof(authoring));
             }
 
-            var world = CreateWorld(DefaultEntityCapacity);
+            World world = CreateWorld(DefaultEntityCapacity);
             try
             {
                 return new SceneWorld(world, authoring.SceneData, authoring,
@@ -260,7 +249,7 @@ namespace Delta.ECS.Unity
                 UnityThrowHelpers.ThrowArgumentNull(nameof(authoring));
             }
 
-            var world = CreateWorld(RuntimeEntityCapacity);
+            World world = CreateWorld(RuntimeEntityCapacity);
             try
             {
                 return new SceneWorld(world, authoring.SceneData, authoring,
@@ -295,10 +284,10 @@ namespace Delta.ECS.Unity
                 for (int componentIndex = 0; componentIndex < authoring.Components.Count; componentIndex++)
                 {
                     ComponentData data = authoring.Components[componentIndex];
-                    if (TryGetDescriptor(data, out ComponentDescriptor descriptor)
-                        && seenSchemas.Add(descriptor.Schema.Value))
+                    if (TryGetComponentId(data, out ComponentId componentId)
+                        && seenSchemas.Add(_world.Components.GetSchemaId(componentId).Value))
                     {
-                        componentIds.Add(descriptor.Id);
+                        componentIds.Add(componentId);
                     }
                     else
                     {
@@ -306,7 +295,7 @@ namespace Delta.ECS.Unity
                     }
                 }
 
-                Entity entity = _integration.Create(componentIds.ToArray());
+                Entity entity = _world.Create(componentIds.ToArray());
                 _entitiesByStableId.Add(authoring.StableId, entity);
                 _stableIdsByEntity.Add(entity, authoring.StableId);
             }
@@ -323,21 +312,21 @@ namespace Delta.ECS.Unity
                 for (int componentIndex = 0; componentIndex < authoring.Components.Count; componentIndex++)
                 {
                     ComponentData data = authoring.Components[componentIndex];
-                    if (!TryGetDescriptor(data, out ComponentDescriptor descriptor))
+                    if (!TryGetComponentId(data, out ComponentId componentId))
                     {
                         continue;
                     }
 
-                    if (descriptor.IsTag)
+                    if (_world.Components.IsTag(componentId))
                     {
                         continue;
                     }
 
-                    object value = data.CreateValue(descriptor.ValueType, ResolveEntity);
-                    if (_integration.TryRead(entity, descriptor.Id, out _, out _)
-                        && !_integration.TryWrite(entity, descriptor.Id, value, out EcsWriteError error))
+                    object value = data.CreateValue(_world.Components.GetComponentType(componentId), ResolveEntity);
+                    if (TryRead(entity, componentId, out _)
+                        && !_world.TryWrite(entity, componentId, value))
                     {
-                        Debug.LogError($"Failed to load {descriptor.Name} on '{authoring.Name}': {error.Code}.");
+                        Debug.LogError($"Failed to load {_world.Components.GetComponentType(componentId).FullName ?? _world.Components.GetComponentType(componentId).Name} on '{authoring.Name}'.");
                     }
                 }
             }
@@ -369,7 +358,7 @@ namespace Delta.ECS.Unity
         internal bool TryGetEntity(GameObject view, out Entity entity)
         {
             if (view != null && _entitiesByView.TryGetValue(view.GetEntityId(), out entity)
-                && _integration.IsAlive(entity))
+                && _world.IsAlive(entity))
             {
                 return true;
             }
@@ -377,7 +366,7 @@ namespace Delta.ECS.Unity
             if (view != null && _authoring != null
                 && _authoring.TryGetStableId(view, out string stableId)
                 && _entitiesByStableId.TryGetValue(stableId, out entity)
-                && _integration.IsAlive(entity))
+                && _world.IsAlive(entity))
             {
                 return true;
             }
@@ -386,56 +375,42 @@ namespace Delta.ECS.Unity
             return false;
         }
 
-        internal bool TryGetDescriptor(ComponentData data, out ComponentDescriptor descriptor)
+        internal bool TryGetComponentId(ComponentData data, out ComponentId componentId)
         {
-            descriptor = default;
-            if (data == null || !data.TryGetSchemaId(out SchemaId schema))
-            {
-                return false;
-            }
-
-            ReadOnlyMemory<ComponentDescriptor> catalog = _integration.Catalog.Components;
-            for (int i = 0; i < catalog.Length; i++)
-            {
-                if (catalog.Span[i].Schema == schema)
-                {
-                    descriptor = catalog.Span[i];
-                    return true;
-                }
-            }
-
-            return false;
+            componentId = ComponentId.Invalid;
+            return data != null && data.TryGetSchemaId(out SchemaId schema)
+                && _world.Components.TryGetComponentId(schema, out componentId);
         }
 
-        internal bool TryRead(EntityAuthoring authoring, ComponentDescriptor descriptor,
-            out ComponentSnapshot snapshot, out EcsReadError error)
+        internal bool TryRead(EntityAuthoring authoring, ComponentId componentId, out object? value)
         {
             if (TryGetEntity(authoring, out Entity entity))
             {
-                return TryRead(entity, descriptor, out snapshot, out error);
+                return TryRead(entity, componentId, out value);
             }
 
-            snapshot = default;
-            error = default;
+            value = null;
             return false;
         }
 
-        internal bool TryRead(Entity entity, ComponentDescriptor descriptor,
-            out ComponentSnapshot snapshot, out EcsReadError error)
-            => _integration.TryRead(entity, descriptor.Id, out snapshot, out error);
+        internal bool TryRead(Entity entity, ComponentId componentId, out object? value)
+            => _world.TryRead(entity, componentId, out value);
+
+        internal bool TryWrite(Entity entity, ComponentId componentId, object value)
+            => _world.TryWrite(entity, componentId, value);
 
         internal bool TryGetComponents(Entity entity, Span<ComponentId> destination, out int totalCount)
         {
             totalCount = 0;
-            if (!_integration.IsAlive(entity))
+            if (!_world.IsAlive(entity))
             {
                 return false;
             }
 
-            ReadOnlyMemory<ComponentDescriptor> components = _integration.Catalog.Components;
+            ReadOnlySpan<ComponentId> components = _world.Components.GetComponentIds();
             for (int index = 0; index < components.Length; index++)
             {
-                ComponentId component = components.Span[index].Id;
+                ComponentId component = components[index];
                 if (!_world.Has(entity, component))
                 {
                     continue;
@@ -453,26 +428,14 @@ namespace Delta.ECS.Unity
         }
 
         internal bool TryWrite(EntityAuthoring authoring, ComponentData data,
-            ComponentDescriptor descriptor, object value, out EcsWriteError error)
+            ComponentId componentId, object value)
         {
-            if (!TryGetEntity(authoring, out Entity entity) || !_integration.IsAlive(entity))
-            {
-                error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
-                return false;
-            }
-
-            if (!_integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out _))
-            {
-                error = new EcsWriteError(EcsWriteErrorCode.ComponentMissing);
-                return false;
-            }
-
-            if (!_integration.TryWrite(entity, descriptor.Id, value, out error))
+            if (!TryGetEntity(authoring, out Entity entity) || !_world.TryWrite(entity, componentId, value))
             {
                 return false;
             }
 
-            if (descriptor.IsTag)
+            if (_world.Components.IsTag(componentId))
             {
                 data.StoreDefaultTag();
             }
@@ -484,60 +447,41 @@ namespace Delta.ECS.Unity
             return true;
         }
 
-        internal bool AddComponent(EntityAuthoring authoring, ComponentDescriptor descriptor,
-            ComponentData data, out EcsWriteError error, out string failureReason)
+        internal bool AddComponent(EntityAuthoring authoring, ComponentId componentId,
+            ComponentData data, out string failureReason)
         {
             failureReason = null;
             if (!TryGetEntity(authoring, out Entity entity))
             {
-                error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
                 failureReason = "The authored entity is not bound to the preview world. Rebuild the preview and try again.";
                 return false;
             }
 
-            if (!_integration.IsAlive(entity))
+            if (!_world.IsAlive(entity))
             {
-                error = new EcsWriteError(EcsWriteErrorCode.EntityNotAlive);
                 failureReason = "The entity is no longer alive in the preview world.";
                 return false;
             }
 
-            if (!_integration.Add(entity, new[] { descriptor.Id }))
+            if (!_world.Add(entity, componentId))
             {
-                error = default;
-                failureReason = _world.Has(entity, descriptor.Id)
+                failureReason = _world.Has(entity, componentId)
                     ? "The component is already present in the preview world."
                     : "DeltaECS rejected the structural add without reporting a write error.";
                 return false;
             }
 
-            if (descriptor.IsTag)
+            if (_world.Components.IsTag(componentId))
             {
                 data.StoreDefaultTag();
-                error = default;
                 return true;
             }
 
-            object value = data.CreateValue(descriptor.ValueType, ResolveEntity);
-            if (!_integration.TryRead(entity, descriptor.Id, out ComponentSnapshot snapshot, out EcsReadError readError))
+            object value = data.CreateValue(_world.Components.GetComponentType(componentId), ResolveEntity);
+            if (!_world.TryWrite(entity, componentId, value))
             {
-                _integration.Remove(entity, new[] { descriptor.Id });
-                error = new EcsWriteError(readError.Code switch
-                {
-                    EcsReadErrorCode.EntityNotAlive => EcsWriteErrorCode.EntityNotAlive,
-                    EcsReadErrorCode.ComponentUnknown => EcsWriteErrorCode.ComponentUnknown,
-                    EcsReadErrorCode.ComponentMissing => EcsWriteErrorCode.ComponentMissing,
-                    EcsReadErrorCode.Unsupported => EcsWriteErrorCode.Unsupported,
-                    _ => EcsWriteErrorCode.None
-                });
-                failureReason = $"The new component could not be read from the preview world ({readError.Code}).";
-                return false;
-            }
-
-            if (!_integration.TryWrite(entity, descriptor.Id, value, out error))
-            {
-                _integration.Remove(entity, new[] { descriptor.Id });
-                failureReason = $"The default component value could not be written ({error.Code}).";
+                _world.Remove(entity, componentId);
+                failureReason = "The default component value could not be written.";
                 return false;
             }
 
@@ -545,13 +489,8 @@ namespace Delta.ECS.Unity
             return true;
         }
 
-        internal bool RemoveComponent(EntityAuthoring authoring, ComponentDescriptor descriptor,
-            out EcsWriteError error)
-        {
-            error = default;
-            return TryGetEntity(authoring, out Entity entity)
-                && _integration.Remove(entity, new[] { descriptor.Id });
-        }
+        internal bool RemoveComponent(EntityAuthoring authoring, ComponentId componentId)
+            => TryGetEntity(authoring, out Entity entity) && _world.Remove(entity, componentId);
 
         internal bool TryGetAuthoring(string stableId, out EntityAuthoring authoring)
         {
@@ -586,9 +525,9 @@ namespace Delta.ECS.Unity
         {
             foreach (Entity entity in _entitiesByStableId.Values)
             {
-                if (_integration.IsAlive(entity))
+                if (_world.IsAlive(entity))
                 {
-                    _integration.Destroy(entity);
+                    _world.Destroy(entity);
                 }
             }
         }

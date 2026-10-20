@@ -86,16 +86,14 @@ internal sealed class IntegrationWorldTests
         Assert.Multiple(() =>
         {
             Assert.That(first.Components.Length, Is.EqualTo(1));
-            Assert.That(first.Components.Span[0].Id, Is.EqualTo(positionId));
-            Assert.That(first.Components.Span[0].Schema, Is.EqualTo(new SchemaId(50_001)));
-            Assert.That(first.Components.Span[0].ValueType, Is.EqualTo(typeof(Position)));
-            Assert.That(first.Components.Span[0].Capabilities, Is.EqualTo(ComponentCapabilities.Read | ComponentCapabilities.Write));
+            Assert.That(first.Components.Span[0], Is.EqualTo(positionId));
+            Assert.That(layouts.GetSchemaId(first.Components.Span[0]), Is.EqualTo(new SchemaId(50_001)));
+            Assert.That(layouts.GetComponentType(first.Components.Span[0]), Is.EqualTo(typeof(Position)));
             Assert.That(second.Components.Length, Is.EqualTo(2));
-            Assert.That(second.Components.Span[0].Id.Value, Is.LessThan(second.Components.Span[1].Id.Value));
-            Assert.That(second.Components.Span[1].Id, Is.EqualTo(velocityId));
-            Assert.That(second.Components.Span[1].Schema, Is.EqualTo(new SchemaId(50_002)));
-            Assert.That(second.Components.Span[1].ValueType, Is.EqualTo(typeof(Velocity)));
-            Assert.That(second.Components.Span[1].Capabilities, Is.EqualTo(ComponentCapabilities.Read | ComponentCapabilities.Write));
+            Assert.That(second.Components.Span[0].Value, Is.LessThan(second.Components.Span[1].Value));
+            Assert.That(second.Components.Span[1], Is.EqualTo(velocityId));
+            Assert.That(layouts.GetSchemaId(second.Components.Span[1]), Is.EqualTo(new SchemaId(50_002)));
+            Assert.That(layouts.GetComponentType(second.Components.Span[1]), Is.EqualTo(typeof(Velocity)));
         });
 
         world.Initialize();
@@ -252,9 +250,8 @@ internal sealed class IntegrationWorldTests
         RuntimeComponentCatalog catalog = world.Catalog;
         Assert.Multiple(() =>
         {
-            Assert.That(catalog.Components.Span[0].IsTag, Is.False);
-            Assert.That(catalog.Components.Span[1].IsTag, Is.True);
-            Assert.That(catalog.Components.Span[1].Capabilities, Is.EqualTo(ComponentCapabilities.Read | ComponentCapabilities.Write));
+            Assert.That(layouts.IsTag(catalog.Components.Span[0]), Is.False);
+            Assert.That(layouts.IsTag(catalog.Components.Span[1]), Is.True);
         });
 
         Entity tagged = world.Create([positionId, tagId]);

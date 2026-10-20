@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 
 using Delta.ECS;
-using Delta.ECS.Integration;
 
 using UnityEngine;
 
@@ -28,15 +27,15 @@ namespace Delta.ECS.Unity
             _json = json;
         }
 
-        public static ComponentData CreateDefault(ComponentDescriptor descriptor)
+        public static ComponentData CreateDefault(ComponentRegistry components, ComponentId componentId)
         {
-            if (descriptor.IsTag)
+            if (components.IsTag(componentId))
             {
-                return new ComponentData(descriptor.Schema.Value, "{}");
+                return new ComponentData(components.GetSchemaId(componentId).Value, "{}");
             }
 
-            object value = Activator.CreateInstance(descriptor.ValueType);
-            return new ComponentData(descriptor.Schema.Value, JsonUtility.ToJson(value));
+            object value = Activator.CreateInstance(components.GetComponentType(componentId));
+            return new ComponentData(components.GetSchemaId(componentId).Value, JsonUtility.ToJson(value));
         }
 
         public bool TryGetSchemaId(out SchemaId schemaId)

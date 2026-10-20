@@ -27,18 +27,6 @@ internal sealed class IntegrationApiContractTests
     }
 
     [Test]
-    public void ComponentCapabilitiesComposeReadAndWrite()
-    {
-        ComponentCapabilities capabilities = ComponentCapabilities.Read | ComponentCapabilities.Write;
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(capabilities.HasFlag(ComponentCapabilities.Read), Is.True);
-            Assert.That(capabilities.HasFlag(ComponentCapabilities.Write), Is.True);
-        });
-    }
-
-    [Test]
     public void ReadAndWriteErrorsExposeDetailedSymmetricFailures()
     {
         string[] commonReadErrors =

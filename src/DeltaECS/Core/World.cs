@@ -479,6 +479,32 @@ public sealed partial class World : IDisposable
     public int Remove(in Query query, ComponentId componentId)
         => Remove(in query, [componentId]);
 
+    /// <summary>Attempts to read a registered component value by ID as a boxed object.</summary>
+    /// <remarks>Returns the default value for a present tag and false when the entity, component, or value is unavailable.</remarks>
+    public bool TryRead(Entity entity, ComponentId componentId, out object? value)
+    {
+        EnsureExecutionAccess();
+        var visitor = new ComponentReadVisitor(this, entity);
+        _layouts.Visit(componentId, visitor);
+        value = visitor.Value;
+        return visitor.Succeeded;
+    }
+
+    /// <summary>Attempts to add or set a boxed component value by ID.</summary>
+    /// <remarks>Returns false when the entity is not alive, the component ID is unknown, or the value type does not match.</remarks>
+    public bool TryWrite(Entity entity, ComponentId componentId, object? value)
+    {
+        EnsureExecutionAccess();
+        if (!IsAlive(entity))
+        {
+            return false;
+        }
+
+        var visitor = new ComponentWriteVisitor(this, entity, value);
+        _layouts.Visit(componentId, visitor);
+        return visitor.Succeeded;
+    }
+
     /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
     public int Destroy(in Query query)
     {
@@ -2847,6 +2873,40 @@ public sealed partial class World : IDisposable
         if (required > _destroyScratch.Length)
         {
             _destroyScratch.Resize(Math.Max(required, _destroyScratch.Length * 2));
+        }
+    }
+
+    private sealed class ComponentReadVisitor(World world, Entity entity) : IUnconstrainedComponentVisitor
+    {
+        internal bool Succeeded { get; private set; }
+        internal object? Value { get; private set; }
+
+        public void Visit<T>(ComponentId componentId)
+        {
+            if (!world.TryGet(entity, componentId, out T value))
+            {
+                return;
+            }
+
+            Value = value;
+            Succeeded = true;
+        }
+    }
+
+    private sealed class ComponentWriteVisitor(World world, Entity entity, object? value) : IUnconstrainedComponentVisitor
+    {
+        internal bool Succeeded { get; private set; }
+
+        public void Visit<T>(ComponentId componentId)
+        {
+            if (value.GetType() != typeof(T))
+            {
+                return;
+            }
+
+            T componentValue = (T)value!;
+            world.AddOrSet(entity, componentId, in componentValue);
+            Succeeded = true;
         }
     }
 

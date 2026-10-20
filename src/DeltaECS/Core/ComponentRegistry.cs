@@ -13,6 +13,7 @@ public sealed partial class ComponentRegistry
     private readonly Dictionary<Type, ComponentId> _primaryIdsByType = new();
     private readonly Dictionary<Type, ComponentTypeMembers> _componentIdsByType = new();
     private readonly List<ComponentLayout> _layouts = new();
+    private readonly List<ComponentId> _componentIds = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
     private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
     private readonly List<IComponentRegistrationToken> _componentVisitorTokens = new();
@@ -161,6 +162,15 @@ public sealed partial class ComponentRegistry
         SchemaId schemaId)
         => RegisterGeneric(genericTypeDefinition, schemaId, componentArguments);
 
+    /// <summary>Gets all registered IDs in registration order. The view is invalidated by a new registration.</summary>
+    public ReadOnlySpan<ComponentId> GetComponentIds() => ArrayAccess.AsSpan(_componentIds);
+
+    /// <summary>Gets the stable schema identity of a registered component.</summary>
+    public SchemaId GetSchemaId(ComponentId componentId) => Get(componentId).SchemaId;
+
+    /// <summary>Gets whether a registered component stores tag membership.</summary>
+    public bool IsTag(ComponentId id) => TryGetTagIndex(id, out _);
+
     /// <summary>Gets the CLR type of a registered component.</summary>
     public Type GetComponentType(ComponentId componentId) => Get(componentId).RuntimeType;
 
@@ -264,8 +274,6 @@ public sealed partial class ComponentRegistry
         RegisterGenericMapping(typeof(T), componentId, componentArguments);
         return componentId;
     }
-
-    internal bool IsTag(ComponentId id) => TryGetTagIndex(id, out _);
 
     internal bool TryGetTagIndex(ComponentId id, out int tagIndex)
     {
@@ -442,6 +450,7 @@ public sealed partial class ComponentRegistry
         }
 
         _layouts.Add(layout);
+        _componentIds.Add(id);
         _rowOperations.Add(rowOperations);
         _componentTypeTokens.Add(typeToken);
         _componentVisitorTokens.Add(componentRegistrationToken);

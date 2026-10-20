@@ -4,6 +4,8 @@ using System;
 
 using Delta.ECS.Integration;
 
+#pragma warning disable CS0618 // This file implements the obsolete integration contract for compatibility.
+
 /// <summary>Implements the object-based tooling integration contract for a world.</summary>
 public sealed partial class World : IEcsWorld
 {
@@ -255,29 +257,7 @@ public sealed partial class World : IEcsWorld
             return;
         }
 
-        var descriptors = new ComponentDescriptor[layoutCount];
-        for (int index = 0; index < layoutCount; index++)
-        {
-            var id = new ComponentId(index);
-            var layout = _layouts.Get(id);
-            Type runtimeType = layout.RuntimeType;
-            bool isTag = _layouts.IsTag(id);
-            ComponentCapabilities capabilities = isTag || SupportsObjectAccess(layout)
-                ? ComponentCapabilities.Read | ComponentCapabilities.Write
-                : ComponentCapabilities.None;
-            descriptors.RefAt(index) = new ComponentDescriptor(
-                id,
-                layout.SchemaId,
-                runtimeType.FullName ?? runtimeType.Name,
-                runtimeType,
-                capabilities,
-                AllowsNull(runtimeType))
-            {
-                IsTag = isTag
-            };
-        }
-
-        _integrationCatalog = new RuntimeComponentCatalog(descriptors);
+        _integrationCatalog = new RuntimeComponentCatalog(_layouts.GetComponentIds().ToArray());
         _integrationCatalogLayoutCount = layoutCount;
     }
 
@@ -312,3 +292,5 @@ public sealed partial class World : IEcsWorld
         Shutdown
     }
 }
+
+#pragma warning restore CS0618

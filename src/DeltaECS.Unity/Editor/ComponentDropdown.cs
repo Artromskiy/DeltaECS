@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
-using Delta.ECS.Integration;
 
 using UnityEditor.IMGUI.Controls;
 
@@ -13,13 +12,13 @@ namespace Delta.ECS.Unity.Editor
 {
     internal sealed class ComponentDropdown : AdvancedDropdown
     {
-        private readonly ComponentDescriptor[] _components;
-        private readonly Func<ComponentDescriptor, string> _getMenuPath;
-        private readonly Action<ComponentDescriptor> _add;
-        private readonly Dictionary<int, ComponentDescriptor> _items = new();
+        private readonly ComponentId[] _components;
+        private readonly Func<ComponentId, string> _getMenuPath;
+        private readonly Action<ComponentId> _add;
+        private readonly Dictionary<int, ComponentId> _items = new();
 
-        public ComponentDropdown(ComponentDescriptor[] components,
-            Func<ComponentDescriptor, string> getMenuPath, Action<ComponentDescriptor> add)
+        public ComponentDropdown(ComponentId[] components,
+            Func<ComponentId, string> getMenuPath, Action<ComponentId> add)
             : base(new AdvancedDropdownState())
         {
             _components = components;
@@ -67,9 +66,9 @@ namespace Delta.ECS.Unity.Editor
 
         protected override void ItemSelected(AdvancedDropdownItem item)
         {
-            if (_items.TryGetValue(item.id, out ComponentDescriptor descriptor))
+            if (_items.TryGetValue(item.id, out ComponentId componentId))
             {
-                _add(descriptor);
+                _add(componentId);
             }
         }
     }

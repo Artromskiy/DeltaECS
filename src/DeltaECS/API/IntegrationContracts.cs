@@ -2,45 +2,16 @@ namespace Delta.ECS.Integration;
 
 using System;
 
-/// <summary>Capabilities available for object-based component tooling.</summary>
-[Flags]
-public enum ComponentCapabilities
-{
-    /// <summary>No object-based read or write is supported.</summary>
-    None = 0,
-    /// <summary>The component value can be read as an object.</summary>
-    Read = 1,
-    /// <summary>The component value can be written as an object.</summary>
-    Write = 2
-}
-
-/// <summary>Describes one component registration exposed to tooling.</summary>
-/// <param name="Id">The runtime identifier used to address this registration.</param>
-/// <param name="Schema">The stable schema identifier assigned during registration.</param>
-/// <param name="Name">The display name of the registered CLR type.</param>
-/// <param name="ValueType">The CLR type of values stored for this registration.</param>
-/// <param name="Capabilities">The object-based operations supported by the registration.</param>
-/// <param name="AllowsNull">Whether null is a valid component value.</param>
-public readonly record struct ComponentDescriptor(
-    ComponentId Id,
-    SchemaId Schema,
-    string Name,
-    Type ValueType,
-    ComponentCapabilities Capabilities,
-    bool AllowsNull)
-{
-    /// <summary>Gets whether this registration represents membership without component data.</summary>
-    public bool IsTag { get; init; }
-}
-
 /// <summary>Represents a component value observed by a tooling read.</summary>
+[Obsolete("Use World and typed component APIs; remove during the DeltaECS 1.0 integration API migration.")]
 public readonly record struct ComponentSnapshot(object? Value);
 
 /// <summary>A snapshot of component registrations exposed by a world.</summary>
-/// <param name="Components">The descriptors in component-id order.</param>
-public readonly record struct RuntimeComponentCatalog(ReadOnlyMemory<ComponentDescriptor> Components);
+/// <param name="Components">The registered IDs in component-id order.</param>
+public readonly record struct RuntimeComponentCatalog(ReadOnlyMemory<ComponentId> Components);
 
 /// <summary>Identifies why a tooling component read failed.</summary>
+[Obsolete("Use World and typed component APIs; remove during the DeltaECS 1.0 integration API migration.")]
 public enum EcsReadErrorCode
 {
     /// <summary>The read succeeded.</summary>
@@ -57,10 +28,12 @@ public enum EcsReadErrorCode
 
 /// <summary>Describes the result of a tooling component read.</summary>
 /// <param name="Code">The read result code.</param>
+[Obsolete("Use World and typed component APIs; remove during the DeltaECS 1.0 integration API migration.")]
 public readonly record struct EcsReadError(
     EcsReadErrorCode Code);
 
 /// <summary>Identifies why a tooling component write failed.</summary>
+[Obsolete("Use World and typed component APIs; remove during the DeltaECS 1.0 integration API migration.")]
 public enum EcsWriteErrorCode
 {
     /// <summary>The write succeeded.</summary>
@@ -79,6 +52,7 @@ public enum EcsWriteErrorCode
 
 /// <summary>Describes the result of a tooling component write.</summary>
 /// <param name="Code">The write result code.</param>
+[Obsolete("Use World and typed component APIs; remove during the DeltaECS 1.0 integration API migration.")]
 public readonly record struct EcsWriteError(
     EcsWriteErrorCode Code);
 
@@ -86,6 +60,7 @@ public readonly record struct EcsWriteError(
 /// Defines the neutral local-world boundary used by runtime, structural and
 /// object-based tooling integrations.
 /// </summary>
+[Obsolete("Use World and typed component APIs; remove during the DeltaECS 1.0 integration API migration.")]
 public interface IEcsWorld
 {
     /// <summary>Gets the current catalog of component registrations.</summary>
