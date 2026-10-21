@@ -772,10 +772,10 @@ public sealed partial class World : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void BeginQueryLease() => _activeChunkLeases++;
+    internal void BeginQueryLease() => Interlocked.Increment(ref _activeChunkLeases);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void EndQueryLease() => _activeChunkLeases--;
+    internal void EndQueryLease() => Interlocked.Decrement(ref _activeChunkLeases);
 
     internal bool BeginGeneratedWhereStructural(
         in Query query,
