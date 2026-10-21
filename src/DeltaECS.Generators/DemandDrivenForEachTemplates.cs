@@ -1783,6 +1783,7 @@ internal static partial class DemandDrivenForEachTemplates
             "_query = query;"
         };
         AppendOperationInvokerMembers(shape, fields, constructorParameters, constructorAssignments);
+        constructorAssignments.AddRange(CachedAccessInitializers(shape));
         if (hasInterceptedExecution)
         {
             fields.Add($"private readonly {InterceptedExecutionName(shape)}? _interceptedExecution;");
@@ -1800,6 +1801,7 @@ internal static partial class DemandDrivenForEachTemplates
                     _query = query;
                     _action = null!;
                     _interceptedExecution = interceptedExecution;
+                    {{GeneratorTemplates.Indent(string.Join("\n", CachedAccessInitializers(shape)), "            ")}}
                 }
 
             {{methods}}
@@ -1849,6 +1851,19 @@ internal static partial class DemandDrivenForEachTemplates
         fields.Add("private bool _cachedAccessPrepared;");
         fields.AddRange(GeneratorTemplates.Indexed(shape.ComponentModels.Length, index =>
             $"private {(shape.ComponentModels[index].IsWrite ? "WriteAccess" : "ReadAccess")} _access{index};"));
+    }
+
+    private static string[] CachedAccessInitializers(IterationModel shape)
+    {
+        if (!CachesPreparedAccess(shape))
+        {
+            return [];
+        }
+
+        return [
+            "_cachedAccessPrepared = false;",
+            ..GeneratorTemplates.Indexed(shape.ComponentModels.Length, index => $"_access{index} = default;")
+        ];
     }
 
     private static string RenderOperationInvokerMethods(

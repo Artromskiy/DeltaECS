@@ -2311,6 +2311,12 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("if (_interceptedExecution is { } interceptedExecution)"));
         Assert.That(generated, Does.Contain("interceptedExecution(_world, in _query);"));
         Assert.That(generated, Does.Contain("InterceptedExecution_"));
+        int interceptedConstructor = generated.IndexOf("_interceptedExecution = interceptedExecution;", StringComparison.Ordinal);
+        Assert.That(interceptedConstructor, Is.GreaterThanOrEqualTo(0));
+        Assert.That(generated.IndexOf("_cachedAccessPrepared = false;", interceptedConstructor, StringComparison.Ordinal),
+            Is.GreaterThan(interceptedConstructor));
+        Assert.That(generated.IndexOf("_access0 = default;", interceptedConstructor, StringComparison.Ordinal),
+            Is.GreaterThan(interceptedConstructor));
         Assert.That(generated, Does.Contain("ForEachAction<global::Delta.ECS.T1> _"));
         Assert.That(generated, Does.Not.Contain("InterceptedFunctor_"));
         Assert.That(generated, Does.Not.Contain("ref functor"));
@@ -2422,6 +2428,34 @@ public sealed class DemandDrivenForEachGeneratorTests
             .Select(tree => CSharpSyntaxTree.ParseText(tree.GetText(), new CSharpParseOptions(LanguageVersion.CSharp9), tree.FilePath))
             .SelectMany(static tree => tree.GetDiagnostics())
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+    }
+
+    [Test]
+    public void CachedReadAccessOperationCompilesWithCSharp10()
+    {
+        const string source = """
+            namespace Delta.ECS
+            {
+                struct Position { public int Value; }
+                struct Velocity { public int Value; }
+
+                static class Consumer
+                {
+                    public static void Use(World world, Query query)
+                    {
+                        world.ForEach<Position, Velocity>(in query,
+                            static (in Position position, in Velocity velocity) => _ = position.Value + velocity.Value);
+                    }
+                }
+            }
+            """;
+
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp10);
+
+        AssertCompiles(
+            new[] { RuntimeStubFor(LanguageVersion.CSharp10), source },
+            run.GeneratedTrees,
+            LanguageVersion.CSharp10);
     }
 
     [Test]
