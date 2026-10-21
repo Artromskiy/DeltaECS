@@ -109,18 +109,8 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowEntityDataTagValueMismatch(ComponentId componentId)
-        => throw new InvalidOperationException($"Component ID {componentId} already stores a component value.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowEntityDataMissingValue(ComponentId componentId)
         => throw new KeyNotFoundException($"No component data is stored for component ID {componentId}.");
-
-    [DoesNotReturn]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static void ThrowEntityDataUnregisteredTag(ComponentId componentId)
-        => throw new InvalidOperationException($"Component ID {componentId} is not registered as a tag.");
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]

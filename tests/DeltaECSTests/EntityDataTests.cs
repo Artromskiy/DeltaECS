@@ -35,7 +35,7 @@ internal sealed class EntityDataTests
         ComponentId lastId = new(3);
 
         data.Add(firstId, 10);
-        data.AddTag(tagId);
+        data.Add(tagId);
         data.Add(lastId, 30);
 
         ReadOnlySpan<ComponentId> componentIds = data.ComponentIds;
@@ -90,18 +90,20 @@ internal sealed class EntityDataTests
     }
 
     [Test]
-    public void RejectsReusingAnIdWithAnotherEntryKindOrType()
+    public void DefersTypeResolutionForPresenceOnlyEntries()
     {
         var data = new EntityData();
         ComponentId componentId = new(1);
         data.Add(componentId, 10);
 
         Assert.Throws<System.InvalidOperationException>(() => data.Add(componentId, "wrong type"));
-        Assert.Throws<System.InvalidOperationException>(() => data.AddTag(componentId));
+        Assert.That(data.Add(componentId), Is.False);
 
-        var tagData = new EntityData();
-        tagData.AddTag(componentId);
-        Assert.Throws<System.InvalidOperationException>(() => tagData.Add(componentId, 10));
+        var untypedData = new EntityData();
+        Assert.That(untypedData.Add(componentId), Is.True);
+        Assert.That(untypedData.Add(componentId, 10), Is.False);
+        untypedData.AddOrSet(componentId, 10);
+        Assert.That(untypedData.Get<int>(componentId), Is.EqualTo(10));
     }
 
     [Test]
@@ -110,9 +112,10 @@ internal sealed class EntityDataTests
         var data = new EntityData();
         ComponentId tagId = new(1);
 
-        Assert.That(data.AddTag(tagId), Is.True);
-        Assert.That(data.AddTag(tagId), Is.False);
+        Assert.That(data.Add(tagId, default(Alive)), Is.True);
+        Assert.That(data.Add(tagId, default(Alive)), Is.False);
         Assert.That(data.Has(tagId), Is.True);
+        Assert.That(data.TryGet<Alive>(tagId, out _), Is.False);
         Assert.That(data.TryGet<int>(tagId, out _), Is.False);
         Assert.Throws<System.InvalidOperationException>(() => data.GetRef<int>(tagId));
     }
@@ -124,7 +127,7 @@ internal sealed class EntityDataTests
         ComponentId componentId = new(1);
         ComponentId tagId = new(2);
         data.Add(componentId, 10);
-        data.AddTag(tagId);
+        data.Add(tagId);
 
         Assert.That(data.Remove(componentId), Is.True);
         Assert.That(data.Remove(componentId), Is.False);
@@ -140,7 +143,7 @@ internal sealed class EntityDataTests
     }
 
     [Test]
-    public void WorldCreateInitializesStoredValuesAndTags()
+    public void WorldResolvesUntypedIdsAndInitializesDefaultValues()
     {
         var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(91_001));
@@ -148,7 +151,9 @@ internal sealed class EntityDataTests
         using var world = new World(layouts);
         var data = new EntityData();
         data.Add(positionId, new Position { Value = 17 });
-        data.AddTag(aliveId);
+        data.Add(aliveId, default(Alive));
+        ComponentId defaultValueId = layouts.Register<int>(new SchemaId(91_003));
+        data.Add(defaultValueId);
 
         Entity entity = world.Create(data);
 
@@ -156,6 +161,7 @@ internal sealed class EntityDataTests
         {
             Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(17));
             Assert.That(world.Has(entity, aliveId), Is.True);
+            Assert.That(world.Get<int>(entity, defaultValueId), Is.Zero);
         });
     }
 
@@ -166,21 +172,24 @@ internal sealed class EntityDataTests
         ComponentId positionId = layouts.Register<Position>(new SchemaId(91_011));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(91_012));
         ComponentId aliveId = layouts.Register<Alive>(new SchemaId(91_017));
+        ComponentId defaultValueId = layouts.Register<int>(new SchemaId(91_019));
         using var world = new World(layouts);
         Entity entity = world.Create(positionId);
         world.GetRef<Position>(entity, positionId).Value = 5;
         var data = new EntityData();
         data.Add(positionId, new Position { Value = 99 });
         data.Add(velocityId, new Velocity { Value = 7 });
-        data.AddTag(aliveId);
+        data.Add(aliveId);
+        data.Add(defaultValueId);
 
-        Assert.That(world.Add(entity, data), Is.EqualTo(2));
+        Assert.That(world.Add(entity, data), Is.EqualTo(3));
 
         Assert.Multiple(() =>
         {
             Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(5));
             Assert.That(world.Get<Velocity>(entity, velocityId).Value, Is.EqualTo(7));
             Assert.That(world.Has(entity, aliveId), Is.True);
+            Assert.That(world.Get<int>(entity, defaultValueId), Is.Zero);
         });
 
         world.GetRef<Velocity>(entity, velocityId).Value = 11;
@@ -224,7 +233,7 @@ internal sealed class EntityDataTests
         var data = new EntityData();
         data.Add(positionId, new Position { Value = 9 });
         data.Add(velocityId, new Velocity { Value = 12 });
-        data.AddTag(aliveId);
+        data.Add(aliveId);
 
         Assert.That(world.Set(entity, data), Is.Zero);
         Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(5));
@@ -237,6 +246,14 @@ internal sealed class EntityDataTests
             Assert.That(world.Get<Position>(entity, positionId).Value, Is.EqualTo(9));
             Assert.That(world.Get<Velocity>(entity, velocityId).Value, Is.EqualTo(12));
         });
+
+        ref Velocity velocity = ref world.GetRef<Velocity>(entity, velocityId);
+        velocity.Value = 19;
+        var presenceOnly = new EntityData();
+        presenceOnly.Add(velocityId);
+        Assert.That(world.Set(entity, presenceOnly), Is.EqualTo(1));
+        world.AddOrSet(entity, presenceOnly);
+        Assert.That(world.Get<Velocity>(entity, velocityId).Value, Is.EqualTo(19));
     }
 
     [Test]
@@ -268,7 +285,7 @@ internal sealed class EntityDataTests
         Entity createdEntity = world.Create(data);
         Assert.That(world.Get<Position>(createdEntity, positionId).Value, Is.EqualTo(17));
 
-        data.AddTag(aliveId);
+        data.Add(aliveId);
         Entity taggedEntity = world.Create(data);
         Assert.That(world.Has(taggedEntity, aliveId), Is.True);
 
@@ -310,6 +327,17 @@ internal sealed class EntityDataTests
         data.Add(positionId, new Velocity { Value = 7 });
 
         Assert.Throws<System.ArgumentException>(() => world.Create(data));
+        Assert.That(world.AliveEntityCount, Is.Zero);
+    }
+
+    [Test]
+    public void WorldRejectsAnUntypedIdThatIsNotRegistered()
+    {
+        using var world = new World();
+        var data = new EntityData();
+        data.Add(new ComponentId(91_099));
+
+        Assert.Throws<System.ArgumentOutOfRangeException>(() => world.Create(data));
         Assert.That(world.AliveEntityCount, Is.Zero);
     }
 
@@ -367,7 +395,7 @@ internal sealed class EntityDataTests
         Entity entity = world.Create(valueId, value);
         world.Add(entity, tagId);
         var data = new EntityData();
-        data.AddTag(tagId);
+        data.Add(tagId);
         Assert.That(data.Set(world, entity), Is.EqualTo(1));
         Assert.That(data.Add(world, entity), Is.EqualTo(1));
         Assert.That(data.Add(world, entity), Is.Zero);

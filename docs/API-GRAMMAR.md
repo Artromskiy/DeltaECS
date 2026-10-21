@@ -557,11 +557,14 @@ runs on `Invoke()`.
 
 ## Entity data
 
-`EntityData` is a mutable, world-independent set of typed values and tags keyed
+`EntityData` is a mutable, world-independent set of optional typed values keyed
 by explicit `ComponentId` values. Build it once and pass it to a single-entity
 `World` operation. The world validates that every ID is registered there and
-that each stored CLR type matches its registration. Use `AddTag` for tag
-registrations; tags have no stored value.
+that each stored CLR type matches its registration. `Add(I)` stores an ID
+without knowing its CLR type; the world resolves the registration when the data
+is applied. A data component without a stored value starts with its default
+value when structurally added, while a tag contributes membership only. The
+typed `Add<T>(I, V)` form automatically stores only presence when `T` is a tag.
 
 ```text
 new EntityData() -> EntityData
@@ -570,9 +573,9 @@ data.ComponentIds -> ReadOnlySpan<ComponentId>
 data.Add(world, entity) -> int // Adds missing entries; returns additions.
 data.Set(world, entity) -> int // Updates matching entries; returns applications, including tags.
 data.AddOrSet(world, entity) -> void // Adds or updates; preserves entries absent from the entity.
-data.Add<T>(I, V) -> bool
+data.Add(I) -> bool // Stores an ID; the world resolves its registration.
+data.Add<T>(I, V) -> bool // Stores a value, or presence when T is a tag.
 data.AddOrSet<T>(I, V) -> void
-data.AddTag(I) -> bool
 data.Set<T>(I, V) -> bool
 data.Has(I) -> bool
 data.TryGet<T>(I, out T) -> bool
@@ -588,22 +591,26 @@ world.AddOrSet(e, data) -> void
 world.Set(e, data) -> int
 ```
 
-`ComponentIds` enumerates stored value and tag IDs in insertion order. Its span
+`ComponentIds` enumerates stored IDs in insertion order. Its span
 borrows the data's storage and must not be retained across changes to that
-`EntityData`. `EntityData.Add/Set/AddOrSet(World, Entity)` copy component values
-and tags from an existing entity into the data; they do not modify the entity.
+`EntityData`. `EntityData.Add/Set/AddOrSet(World, Entity)` copy values and
+component presence from an existing entity into the data; they do not modify
+the entity.
 
 `Add` preserves an existing entry and returns `false`; `AddOrSet` inserts or
-replaces it and returns `void`; `Set` replaces only an existing entry and
-returns `false` if it is missing. On `World`, `Add` adds only missing
+replaces a typed value and returns `void`; `Set` updates only an existing entry
+and returns `false` if it is missing. Adding an ID without a value defers type
+resolution until a world consumes the data. On `World`, `Add` adds only missing
 components and tags, leaving existing component values untouched; it returns
-the number of entries added. `AddOrSet` adds missing entries and writes values
-for entries already present. `Set` writes only when the entity already
-contains every entry in the data; it returns the number of entries applied,
-or zero without writing any values when one is missing. Tags count as entries
-for both counts and contribute membership but no payload. An empty set cannot
-create an entity; adding it returns zero, `AddOrSet` does nothing, and `Set`
-returns zero.
+the number of entries added. A presence-only data component starts with its
+default value when structurally added. `AddOrSet` adds missing entries and
+writes stored values for entries already present; a presence-only entry leaves
+an existing value untouched. `Set` writes stored values only when the entity
+already contains every entry in the data; it returns the number of entries
+applied, or zero without writing any values when one is missing. Presence-only
+entries count when present but do not write a value. An empty set cannot create
+an entity; adding it returns zero, `AddOrSet` does nothing, and `Set` returns
+zero.
 
 `EntityData` can be reused as input for multiple single-entity operations. Its
 values are applied to the world at each call; subsequent changes to the data

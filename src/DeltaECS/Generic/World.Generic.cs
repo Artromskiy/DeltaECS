@@ -47,7 +47,7 @@ public sealed partial class World
         EnsureNoActiveLease("add or set components");
         EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: false);
-        AddOrSetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, plan);
+        AddOrSetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, plan, data);
     }
 
     /// <summary>Replaces the component values and tags stored in <paramref name="data"/> when all are present on one entity.</summary>
@@ -58,7 +58,7 @@ public sealed partial class World
         EnsureExecutionAccess();
         EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: false);
-        SetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, out int appliedCount, plan);
+        SetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, out int appliedCount, plan, data);
         return appliedCount;
     }
 
@@ -519,7 +519,8 @@ public sealed partial class World
         Entity entity,
         ReadOnlySpan<ComponentId> componentIds,
         ref TInitializer initializer,
-        EntityDataPlan? entityDataPlan = null)
+        EntityDataPlan? entityDataPlan = null,
+        EntityData? entityData = null)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add or set components");
@@ -539,7 +540,7 @@ public sealed partial class World
         }
         else
         {
-            RecordEntityDataChanges(sourceChunk, sourceSlotIndex, componentIds, sourceComponentRows);
+            RecordEntityDataChanges(entityData, sourceChunk, sourceSlotIndex, componentIds, sourceComponentRows);
         }
 
         TransitionEdge edge = GetTransitionEdge(sourceArchetype.Id, changeSet, true);
@@ -595,7 +596,8 @@ public sealed partial class World
         ReadOnlySpan<ComponentId> componentIds,
         ref TInitializer initializer,
         out int appliedCount,
-        EntityDataPlan? entityDataPlan = null)
+        EntityDataPlan? entityDataPlan = null,
+        EntityData? entityData = null)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureExecutionAccess();
@@ -624,7 +626,7 @@ public sealed partial class World
         }
         else
         {
-            RecordEntityDataChanges(chunk, slotIndex, componentIds, componentRows);
+            RecordEntityDataChanges(entityData, chunk, slotIndex, componentIds, componentRows);
         }
 
         var writer = new GeneratedComponentValueWriter(
@@ -927,6 +929,7 @@ public sealed partial class World
     }
 
     private void RecordEntityDataChanges(
+        EntityData? data,
         Chunk chunk,
         int slotIndex,
         ReadOnlySpan<ComponentId> componentIds,
@@ -940,9 +943,13 @@ public sealed partial class World
                 continue;
             }
 
-            if (componentRow >= 0 || chunk.HasTag(-componentRow - 1, slotIndex))
+            ComponentId componentId = componentIds.RefAt(index);
+            bool changed = componentRow >= 0
+                ? data?.HasValue(componentId) ?? true
+                : chunk.HasTag(-componentRow - 1, slotIndex);
+            if (changed)
             {
-                RecordComponentChange(chunk, slotIndex, componentIds.RefAt(index));
+                RecordComponentChange(chunk, slotIndex, componentId);
             }
         }
     }

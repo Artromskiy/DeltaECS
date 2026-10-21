@@ -4,52 +4,68 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-/// <summary>Stores typed component values and tags under explicit component IDs.</summary>
+/// <summary>Stores component values and component IDs under explicit component IDs.</summary>
 /// <remarks>This data is independent of a world. Component IDs are validated when a world consumes it.</remarks>
 public sealed class EntityData
 {
-    private static readonly TagEntry Tag = new();
     private readonly Dictionary<ComponentId, IEntry> _components = new();
     private readonly List<ComponentId> _componentIds = new();
     private int _shapeVersion;
 
-    /// <summary>Gets the number of components and tags stored in this data.</summary>
+    /// <summary>Gets the number of component IDs stored in this data.</summary>
     public int Count => _components.Count;
 
-    /// <summary>Gets the IDs of the stored component values and tags in insertion order.</summary>
+    /// <summary>Gets the stored component IDs in insertion order.</summary>
     /// <remarks>The span borrows this instance's storage and must not be retained across modifications.</remarks>
     public ReadOnlySpan<ComponentId> ComponentIds => ArrayAccess.AsSpan(_componentIds);
 
     internal int ShapeVersion => _shapeVersion;
 
-    /// <summary>Copies missing component values and tags from an entity, preserving existing entries.</summary>
+    /// <summary>Copies missing component values and IDs from an entity, preserving existing entries.</summary>
     /// <returns>The number of entries added.</returns>
     public int Add(World world, Entity entity) => CopyFrom(world, entity, add: true, set: false);
 
-    /// <summary>Copies component values and tags from an entity into existing entries only.</summary>
-    /// <returns>The number of matching entries applied, including present tags.</returns>
+    /// <summary>Copies component values and IDs from an entity into existing entries only.</summary>
+    /// <returns>The number of matching entries applied.</returns>
     public int Set(World world, Entity entity) => CopyFrom(world, entity, add: false, set: true);
 
-    /// <summary>Copies all component values and tags from an entity, adding or updating entries.</summary>
+    /// <summary>Copies component values and IDs from an entity, adding or updating entries.</summary>
     /// <remarks>Entries absent from the entity are preserved. Values are shallow copies.</remarks>
     public void AddOrSet(World world, Entity entity) => CopyFrom(world, entity, add: true, set: true);
 
-    /// <summary>Tries to add a component value without replacing an existing value.</summary>
+    /// <summary>Adds a component ID without a CLR type or value.</summary>
+    /// <remarks>The consuming world resolves the ID; data components receive their default value when added, and tags receive membership.</remarks>
+    /// <returns><see langword="true"/> when the ID was added; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="componentId"/> is invalid.</exception>
+    public bool Add(ComponentId componentId)
+    {
+        EnsureValid(componentId);
+        if (_components.ContainsKey(componentId))
+        {
+            return false;
+        }
+
+        AddEntry(componentId, new ComponentPresenceEntry(null));
+        return true;
+    }
+
+    /// <summary>Adds a component value, or only presence when <typeparamref name="T"/> is a tag, without replacing an existing entry.</summary>
     /// <param name="componentId">The explicit component registration ID.</param>
     /// <param name="value">The component value to store.</param>
     /// <returns><see langword="true"/> when the value was added; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="componentId"/> is invalid.</exception>
-    /// <exception cref="InvalidOperationException">The ID is already stored with a different type or as a tag.</exception>
+    /// <exception cref="InvalidOperationException">The ID is already stored with a different CLR type.</exception>
     public bool Add<T>(ComponentId componentId, in T value)
     {
         EnsureValid(componentId);
+        if (ComponentType<T>.IsTag)
+        {
+            return AddTypedPresence<T>(componentId);
+        }
+
         if (_components.TryGetValue(componentId, out IEntry? existing))
         {
-            if (existing is not ComponentEntry<T>)
-            {
-                ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
-            }
-
+            EnsureType<T>(componentId, existing);
             return false;
         }
 
@@ -57,55 +73,41 @@ public sealed class EntityData
         return true;
     }
 
-    /// <summary>Adds a component value or replaces the value stored under its ID.</summary>
+    /// <summary>Adds a component value or presence, or replaces the stored value under its ID.</summary>
     /// <param name="componentId">The explicit component registration ID.</param>
     /// <param name="value">The component value to store.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="componentId"/> is invalid.</exception>
-    /// <exception cref="InvalidOperationException">The ID is already stored with a different type or as a tag.</exception>
+    /// <exception cref="InvalidOperationException">The ID is already stored with a different CLR type.</exception>
     public void AddOrSet<T>(ComponentId componentId, in T value)
     {
         EnsureValid(componentId);
+        if (ComponentType<T>.IsTag)
+        {
+            AddOrSetTypedPresence<T>(componentId);
+            return;
+        }
+
         if (_components.TryGetValue(componentId, out IEntry? existing))
         {
+            EnsureType<T>(componentId, existing);
             if (existing is ComponentEntry<T> component)
             {
                 component.Value = value;
                 return;
             }
 
-            ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
+            _components[componentId] = new ComponentEntry<T>(value);
+            return;
         }
 
         AddEntry(componentId, new ComponentEntry<T>(value));
     }
 
-    /// <summary>Adds a tag and returns whether its ID was new.</summary>
-    /// <param name="componentId">The explicit tag registration ID.</param>
-    /// <returns><see langword="true"/> when the tag was added; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="componentId"/> is invalid.</exception>
-    /// <exception cref="InvalidOperationException">The ID is already stored as a component value.</exception>
-    public bool AddTag(ComponentId componentId)
-    {
-        EnsureValid(componentId);
-        if (_components.TryGetValue(componentId, out IEntry? existing))
-        {
-            if (existing is not TagEntry)
-            {
-                ThrowHelper.ThrowEntityDataTagValueMismatch(componentId);
-            }
-
-            return false;
-        }
-
-        AddEntry(componentId, Tag);
-        return true;
-    }
-
-    /// <summary>Reports whether a component value or tag is stored under the ID.</summary>
+    /// <summary>Reports whether the component ID is stored.</summary>
     public bool Has(ComponentId componentId) => _components.ContainsKey(componentId);
 
     /// <summary>Tries to copy a stored component value of the requested CLR type.</summary>
-    /// <remarks>Tags have no value and return <see langword="false"/>.</remarks>
+    /// <remarks>Entries without a stored value return <see langword="false"/>.</remarks>
     public bool TryGet<T>(ComponentId componentId, out T value)
     {
         if (_components.TryGetValue(componentId, out IEntry? entry) && entry is ComponentEntry<T> component)
@@ -120,7 +122,7 @@ public sealed class EntityData
 
     /// <summary>Gets a stored component value of the requested CLR type.</summary>
     /// <exception cref="KeyNotFoundException">No component value is stored under the ID.</exception>
-    /// <exception cref="InvalidOperationException">The stored value has a different CLR type or is a tag.</exception>
+    /// <exception cref="InvalidOperationException">No value of the requested CLR type is stored under the ID.</exception>
     public T Get<T>(ComponentId componentId)
     {
         if (!_components.TryGetValue(componentId, out IEntry? entry))
@@ -138,12 +140,19 @@ public sealed class EntityData
 
     /// <summary>Tries to replace a stored component value without adding a new entry.</summary>
     /// <returns><see langword="true"/> when the value was replaced; otherwise, <see langword="false"/>.</returns>
-    /// <exception cref="InvalidOperationException">The ID is stored with a different type or as a tag.</exception>
+    /// <exception cref="InvalidOperationException">The ID is stored with a different CLR type.</exception>
     public bool Set<T>(ComponentId componentId, in T value)
     {
         if (!_components.TryGetValue(componentId, out IEntry? entry))
         {
             return false;
+        }
+
+        EnsureType<T>(componentId, entry);
+        if (ComponentType<T>.IsTag)
+        {
+            _components[componentId] = new ComponentPresenceEntry(typeof(T));
+            return true;
         }
 
         if (entry is ComponentEntry<T> component)
@@ -152,7 +161,8 @@ public sealed class EntityData
             return true;
         }
 
-        return ThrowHelper.ThrowEntityDataTypeMismatch<bool>(componentId);
+        _components[componentId] = new ComponentEntry<T>(value);
+        return true;
     }
 
     /// <summary>Gets a writable reference to a stored component value.</summary>
@@ -176,7 +186,7 @@ public sealed class EntityData
     /// <summary>Gets a read-only reference to a stored component value.</summary>
     public ref readonly T GetReadRef<T>(ComponentId componentId) => ref GetRef<T>(componentId);
 
-    /// <summary>Removes a stored component value or tag.</summary>
+    /// <summary>Removes a stored component ID.</summary>
     /// <returns><see langword="true"/> when an entry was removed.</returns>
     public bool Remove(ComponentId componentId)
     {
@@ -198,7 +208,7 @@ public sealed class EntityData
         return true;
     }
 
-    /// <summary>Removes all stored component values and tags.</summary>
+    /// <summary>Removes all stored component IDs and values.</summary>
     public void Clear()
     {
         if (_componentIds.Count == 0)
@@ -211,6 +221,8 @@ public sealed class EntityData
         _shapeVersion++;
     }
 
+    internal bool HasValue(ComponentId componentId) => _components[componentId].HasValue;
+
     internal void Validate(ComponentRegistry layouts)
     {
         for (int index = 0; index < _componentIds.Count; index++)
@@ -218,19 +230,9 @@ public sealed class EntityData
             ComponentId componentId = _componentIds[index];
             Type registeredType = layouts.GetComponentType(componentId);
             IEntry entry = _components[componentId];
-            if (entry.IsTag)
+            if (entry.ComponentType is Type componentType && componentType != registeredType)
             {
-                if (!layouts.IsTag(componentId))
-                {
-                    ThrowHelper.ThrowEntityDataUnregisteredTag(componentId);
-                }
-
-                continue;
-            }
-
-            if (entry.ComponentType != registeredType)
-            {
-                ThrowHelper.ThrowComponentTypeMismatch(componentId, entry.ComponentType!);
+                ThrowHelper.ThrowComponentTypeMismatch(componentId, componentType);
             }
         }
     }
@@ -253,6 +255,22 @@ public sealed class EntityData
         }
     }
 
+    private static void EnsureValid(ComponentId componentId)
+    {
+        if (!componentId.IsValid)
+        {
+            ThrowHelper.ThrowComponentIdOutOfRange();
+        }
+    }
+
+    private static void EnsureType<T>(ComponentId componentId, IEntry entry)
+    {
+        if (entry.ComponentType is Type componentType && componentType != typeof(T))
+        {
+            ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
+        }
+    }
+
     private int CopyFrom(World world, Entity entity, bool add, bool set)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
@@ -268,12 +286,28 @@ public sealed class EntityData
         return visitor.AppliedCount;
     }
 
-    private static void EnsureValid(ComponentId componentId)
+    private bool AddTypedPresence<T>(ComponentId componentId)
     {
-        if (!componentId.IsValid)
+        if (_components.TryGetValue(componentId, out IEntry? existing))
         {
-            ThrowHelper.ThrowComponentIdOutOfRange();
+            EnsureType<T>(componentId, existing);
+            return false;
         }
+
+        AddEntry(componentId, new ComponentPresenceEntry(typeof(T)));
+        return true;
+    }
+
+    private void AddOrSetTypedPresence<T>(ComponentId componentId)
+    {
+        if (_components.TryGetValue(componentId, out IEntry? existing))
+        {
+            EnsureType<T>(componentId, existing);
+            _components[componentId] = new ComponentPresenceEntry(typeof(T));
+            return;
+        }
+
+        AddEntry(componentId, new ComponentPresenceEntry(typeof(T)));
     }
 
     private void AddEntry(ComponentId componentId, IEntry entry)
@@ -281,6 +315,11 @@ public sealed class EntityData
         _components.Add(componentId, entry);
         _componentIds.Add(componentId);
         _shapeVersion++;
+    }
+
+    private static class ComponentType<T>
+    {
+        internal static readonly bool IsTag = ComponentRegistry.IsTagType(typeof(T));
     }
 
     private sealed class CopyVisitor(EntityData destination, World world, Entity entity, bool add, bool set)
@@ -295,11 +334,7 @@ public sealed class EntityData
                 return;
             }
 
-            if (world.Components.IsTag(componentId))
-            {
-                destination.AddTag(componentId);
-            }
-            else if (add && set)
+            if (add && set)
             {
                 destination.AddOrSet(componentId, in value);
             }
@@ -319,17 +354,17 @@ public sealed class EntityData
     private interface IEntry
     {
         Type? ComponentType { get; }
-        bool IsTag { get; }
+        bool HasValue { get; }
 
         void InitializeAdded(int componentRow, ref GeneratedComponentValueWriter writer);
 
         void InitializeCreated(int componentRow, ref GeneratedComponentValueWriter writer);
     }
 
-    private sealed class TagEntry : IEntry
+    private sealed class ComponentPresenceEntry(Type? componentType) : IEntry
     {
-        Type? IEntry.ComponentType => null;
-        bool IEntry.IsTag => true;
+        Type? IEntry.ComponentType => componentType;
+        bool IEntry.HasValue => false;
 
         void IEntry.InitializeAdded(int componentRow, ref GeneratedComponentValueWriter writer) { }
 
@@ -341,7 +376,7 @@ public sealed class EntityData
         internal T Value = value;
 
         Type? IEntry.ComponentType => typeof(T);
-        bool IEntry.IsTag => false;
+        bool IEntry.HasValue => true;
 
         void IEntry.InitializeAdded(int componentRow, ref GeneratedComponentValueWriter writer)
             => writer.InitializeAdded(componentRow, in Value);

@@ -22,7 +22,7 @@ public static partial class RuntimeApiGrammarProof
         Require(readPosition.Value == 20);
         Require(data.TryGet<Position>(positionId, out Position copiedPosition));
         Require(copiedPosition.Value == 20 && data.Get<Position>(positionId).Value == 20);
-        Require(data.AddTag(markerId));
+        Require(data.Add(markerId));
         ReadOnlySpan<ComponentId> dataIds = data.ComponentIds;
         Require(dataIds.Length == 2 && dataIds[0] == positionId && dataIds[1] == markerId);
 
@@ -35,7 +35,7 @@ public static partial class RuntimeApiGrammarProof
         Velocity velocity = new() { Value = 4 };
         additions.Add(positionId, in ignoredPosition);
         additions.Add(velocityId, in velocity);
-        additions.AddTag(markerId);
+        additions.Add(markerId);
         Require(world.Add(entity, additions) == 1);
         Require(world.Get<Position>(entity, positionId).Value == 20);
 
