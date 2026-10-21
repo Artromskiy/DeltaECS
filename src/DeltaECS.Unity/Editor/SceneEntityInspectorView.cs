@@ -34,6 +34,8 @@ namespace Delta.ECS.Unity.Editor
         internal int ComponentCount => _componentEntries.Count;
         private SceneAuthoring Authoring => _target.Authoring;
 
+        private ComponentRegistry Components => (_target.IsRuntime ? _target.RuntimeWorld : _previewWorld).World.Components;
+
         public SceneEntityInspectorView(SelectionProxy proxy)
             : this(() => proxy != null ? proxy.Target : default)
         {
@@ -190,18 +192,6 @@ namespace Delta.ECS.Unity.Editor
 
         private static Label CreateEntityIcon() => CreateClassLabel("◆", "ecs-entity-icon");
 
-        private ComponentRegistry Components => (_target.IsRuntime ? _target.RuntimeWorld : _previewWorld).World.Components;
-
-        private ComponentId? TryGetComponentId(ComponentData data)
-            => _previewWorld.TryGetComponentId(data, out ComponentId componentId) ? componentId : null;
-
-        private string GetComponentMenuPath(ComponentId componentId)
-        {
-            string namespacePath = Components.GetComponentType(componentId).Namespace?.Replace('.', '/') ?? string.Empty;
-            string shortName = GetShortTypeName(Components.GetComponentType(componentId));
-            return string.IsNullOrEmpty(namespacePath) ? shortName : $"{namespacePath}/{shortName}";
-        }
-
         private static string GetShortTypeName(Type type)
         {
             string name = type.Name;
@@ -222,6 +212,16 @@ namespace Delta.ECS.Unity.Editor
 
         private static int GetComponentOrder(ulong schema) =>
             InspectorState.instance.GetComponentOrder(schema);
+
+        private ComponentId? TryGetComponentId(ComponentData data)
+            => _previewWorld.TryGetComponentId(data, out ComponentId componentId) ? componentId : null;
+
+        private string GetComponentMenuPath(ComponentId componentId)
+        {
+            string namespacePath = Components.GetComponentType(componentId).Namespace?.Replace('.', '/') ?? string.Empty;
+            string shortName = GetShortTypeName(Components.GetComponentType(componentId));
+            return string.IsNullOrEmpty(namespacePath) ? shortName : $"{namespacePath}/{shortName}";
+        }
 
         private void OnEntitySelectionChanged()
         {
