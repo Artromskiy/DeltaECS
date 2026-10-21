@@ -25,6 +25,8 @@ public static partial class RuntimeApiGrammarProof
         VerifyEntityIteration();
         VerifyEntityRefAccess();
         VerifyObjectAccess();
+        VerifyEntityData();
+        VerifyComponentChanges();
     }
 
     private static void VerifyRegistrationAndVisitors()
@@ -53,6 +55,14 @@ public static partial class RuntimeApiGrammarProof
         Require(layouts.TryGetPrimary<Position>(out ComponentId primaryPositionId));
         Require(primaryPositionId == firstPositionId);
         Require(layouts.GetPrimary<Position>() == firstPositionId);
+        ReadOnlySpan<ComponentId> positionIds = layouts.GetComponentIds<Position>();
+        Require(positionIds.Length == 2);
+        Require(positionIds[0] == firstPositionId && positionIds[1] == secondPositionId);
+        Require(layouts.GetComponentIds<UnknownComponent>().IsEmpty);
+        Require(layouts.TryGetComponentId(new SchemaId(930_002), out ComponentId schemaPositionId));
+        Require(schemaPositionId == secondPositionId);
+        Require(!layouts.TryGetComponentId(new SchemaId(930_099), out ComponentId missingSchemaId));
+        Require(missingSchemaId == ComponentId.Invalid);
 #pragma warning disable CA2263 // Exercise the explicit CLR-Type lookup overloads.
         Require(layouts.TryGetPrimary(typeof(Position), out ComponentId runtimePrimaryPositionId));
         Require(runtimePrimaryPositionId == firstPositionId);

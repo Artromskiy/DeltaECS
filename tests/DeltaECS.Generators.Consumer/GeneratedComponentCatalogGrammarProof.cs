@@ -63,9 +63,14 @@ internal static class GeneratedComponentCatalogGrammarProof
         }
 
         layouts.AddAlias("catalog.component.manual", componentId);
+        ReadOnlySpan<string> aliases = world.Components.GetAliases(componentId);
         if (clientGroup.Length != 1 || !clientGroup.Contains(componentId)
             || !world.TryGetAlias("catalog.component.manual", out ComponentId manualAlias)
-            || manualAlias != componentId)
+            || manualAlias != componentId
+            || aliases.Length != 2
+            || aliases[0] != "catalog.component"
+            || aliases[1] != "catalog.component.manual"
+            || !world.Components.GetAliases(tagId).IsEmpty)
         {
             throw new InvalidOperationException("The world component alias or group APIs returned unexpected values.");
         }

@@ -222,6 +222,7 @@ layouts.GetComponentType(I) -> Type
 layouts.GetSchemaId(I) -> SchemaId
 layouts.IsTag(I) -> bool
 layouts.GetComponentIds() -> ReadOnlySpan<ComponentId>
+layouts.GetComponentIds<T>() -> ReadOnlySpan<ComponentId>
 layouts.TryGetComponentId(SchemaId, out ComponentId) -> bool
 layouts.GetPrimary<T>() -> ComponentId
 layouts.TryGetPrimary<T>(out ComponentId) -> bool
@@ -287,10 +288,14 @@ public enum WorldComponentGroup
 public struct Health { public int Value; }
 ```
 
-`TryGetComponentId` returns `false` and `ComponentId.Invalid` when a schema is
-unknown. `AddAlias` accepts repeated registration of the same alias/ID pair and
-rejects an alias mapped to another component. `TryGetAlias` returns `false` for
-an unknown alias, while `GetAlias` throws. `GetAliases(id)` returns aliases in
+`GetComponentIds<T>()` returns all registrations for the exact CLR type in
+registration order, or an empty span when none exist. `TryGetComponentId`
+resolves the exact registration associated with a stable `SchemaId`; it returns
+`false` and `ComponentId.Invalid` when that schema is unknown. This is a
+registry lookup, not a check for a component on an entity. `AddAlias` accepts
+repeated registration of the same alias/ID pair and rejects an alias mapped to
+another component. `TryGetAlias` returns `false` for an unknown alias, while
+`GetAlias` throws. `GetAliases(id)` returns aliases in
 insertion order without copying, or an empty span when none are registered.
 The borrowed span must not be retained across alias additions for that component.
 Group membership is deduplicated.
@@ -335,6 +340,25 @@ world.ForEachChange<T>(ComponentId, ComponentChangeAction<T>) -> ComponentChange
 ComponentChangeOperation<T> : IOperation
 ComponentChangeAction<T>(Entity, ChangeKind, ref T) -> void
 ChangeKind = Added | Modified | Removed
+```
+
+Keep the returned operation and invoke it when changes should be consumed:
+
+```csharp
+var healthChanges = world.ForEachChange<Health>(healthId,
+    static (Entity entity, ChangeKind kind, ref Health health) =>
+    {
+        if (kind == ChangeKind.Removed)
+        {
+            Console.WriteLine($"{entity}: removed");
+        }
+        else
+        {
+            Console.WriteLine($"{entity}: {kind}, health={health.Value}");
+        }
+    });
+
+healthChanges.Invoke();
 ```
 
 The first invocation reports existing instances as `Added`; later invocations
@@ -541,6 +565,8 @@ registrations; tags have no stored value.
 
 ```text
 new EntityData() -> EntityData
+data.Count -> int
+data.ComponentIds -> ReadOnlySpan<ComponentId>
 data.Add(world, entity) -> int // Adds missing entries; returns additions.
 data.Set(world, entity) -> int // Updates matching entries; returns applications, including tags.
 data.AddOrSet(world, entity) -> void // Adds or updates; preserves entries absent from the entity.
@@ -561,6 +587,11 @@ world.Add(e, data) -> int
 world.AddOrSet(e, data) -> void
 world.Set(e, data) -> int
 ```
+
+`ComponentIds` enumerates stored value and tag IDs in insertion order. Its span
+borrows the data's storage and must not be retained across changes to that
+`EntityData`. `EntityData.Add/Set/AddOrSet(World, Entity)` copy component values
+and tags from an existing entity into the data; they do not modify the entity.
 
 `Add` preserves an existing entry and returns `false`; `AddOrSet` inserts or
 replaces it and returns `void`; `Set` replaces only an existing entry and

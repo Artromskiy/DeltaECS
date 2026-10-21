@@ -15,6 +15,11 @@ public static partial class RuntimeApiGrammarProof
         Require(layouts.IsTag(markerId));
         Require(layouts.GetSchemaId(positionId) == new SchemaId(935_001));
         Require(layouts.GetComponentType(positionId) == typeof(Position));
+        layouts.AddAlias("runtime.position", positionId);
+        ReadOnlySpan<string> aliases = layouts.GetAliases(positionId);
+        Require(aliases.Length == 1);
+        Require(aliases[0] == "runtime.position");
+        Require(layouts.GetAliases(markerId).IsEmpty);
 
         Entity entity = world.Create(positionId);
         Require(world.TryRead(entity, positionId, out object? value));
