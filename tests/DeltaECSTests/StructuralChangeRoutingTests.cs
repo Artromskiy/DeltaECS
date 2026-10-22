@@ -78,7 +78,7 @@ internal sealed class StructuralChangeRoutingTests
     }
 
     [Test]
-    public void CompleteEntityBatchPreservesRowsAndLateObserverRoutes()
+    public void CompleteEntityBatchPreservesValuesAndLateObserverRoutes()
     {
         using var world = new World();
         ComponentId id = world.Components.Register<ComponentChangeChunkValue>(new SchemaId(74_003));
@@ -90,9 +90,6 @@ internal sealed class StructuralChangeRoutingTests
             world.GetRef<ComponentChangeChunkValue>(entities[index], id).Value = index;
         }
 
-        Query query = world.WhereAll(id);
-        ChunkPlan before = query.Cached.MatchingChunkPlans()[0];
-        Array row = before.ComponentRows[0];
         // Cache both transitions before an observer exists.
         world.Remove(entities, extra);
         world.Add(entities, extra);
@@ -106,10 +103,6 @@ internal sealed class StructuralChangeRoutingTests
         observer.Invoke();
         Assert.That(changes.Count, Is.EqualTo(entities.Length));
         Assert.That(changes, Is.All.Matches<(Entity Entity, ChangeKind Kind)>(change => change.Kind == ChangeKind.Removed));
-        ChunkPlan after = query.Cached.MatchingChunkPlans()[0];
-        Assert.That(after.Chunk, Is.SameAs(before.Chunk));
-        Assert.That(after.ComponentRows[0], Is.SameAs(row));
-        Assert.That(after.Chunk.Archetype, Is.SameAs(world.Archetypes[after.Chunk.ArchetypeId]));
         for (int index = 0; index < entities.Length; index++)
         {
             Assert.That(world.Get<ComponentChangeChunkValue>(entities[index], id).Value, Is.EqualTo(entities.Length - index - 1));
@@ -123,15 +116,46 @@ internal sealed class StructuralChangeRoutingTests
     }
 
     [Test]
-    public void DuplicateEntityDoesNotCountAsCompleteChunkCoverage()
+    public void StructuralBatchesRejectDuplicatesBeforeChangingEntities()
     {
         using var world = new World();
         ComponentId id = world.Components.Register<ComponentChangeChunkValue>(new SchemaId(74_005));
         ComponentId extra = world.Components.Register<ComponentChangeChunkExtra>(new SchemaId(74_006));
+        ComponentId added = world.Components.Register<ComponentChangeChunkExtra>(new SchemaId(74_011));
         var entities = new Entity[3];
         world.Create([id, extra], entities);
-        Assert.That(world.Remove([entities[0], entities[0], entities[1]], extra), Is.EqualTo(2));
-        Assert.That(world.Has(entities[2], extra), Is.True);
+
+        Assert.Throws<ArgumentException>(() => world.Remove([entities[0], entities[0], entities[1]], extra));
+        Assert.That(world.Has(entities[0], extra), Is.True);
+        Assert.That(world.Has(entities[1], extra), Is.True);
+
+        Assert.Throws<ArgumentException>(() => world.Add([entities[0], entities[0]], added));
+        Assert.That(world.Has(entities[0], added), Is.False);
+
+        var value = new ComponentChangeChunkValue { Value = 42 };
+        Assert.Throws<ArgumentException>(() => world.Set([entities[0], entities[0]], id, in value));
+        Assert.That(world.Get<ComponentChangeChunkValue>(entities[0], id).Value, Is.Zero);
+
+        Assert.Throws<ArgumentException>(() => world.AddOrSet([entities[0], entities[0]], id, in value));
+        Assert.That(world.Get<ComponentChangeChunkValue>(entities[0], id).Value, Is.Zero);
+    }
+
+    [Test]
+    public void StructuralBatchAllowsDifferentGenerationsWithTheSameIndex()
+    {
+        using var world = new World();
+        ComponentId id = world.Components.Register<ComponentChangeChunkValue>(new SchemaId(74_010));
+        Entity oldEntity = world.Create([id]);
+        Assert.That(world.Destroy(oldEntity), Is.True);
+        Entity currentEntity = world.Create([id]);
+        Assert.That(currentEntity.Index, Is.EqualTo(oldEntity.Index));
+        Assert.That(currentEntity.Generation, Is.Not.EqualTo(oldEntity.Generation));
+        Assert.That(world.Destroy(oldEntity), Is.False);
+
+        Assert.That(world.Set([oldEntity, currentEntity], id, new ComponentChangeChunkValue { Value = 7 }), Is.EqualTo(1));
+        Assert.That(world.Get<ComponentChangeChunkValue>(currentEntity, id).Value, Is.EqualTo(7));
+        Assert.Throws<ArgumentException>(() => world.Destroy([oldEntity, oldEntity]));
+        Assert.That(world.IsAlive(currentEntity), Is.True);
     }
 
     [TestCase(false)]

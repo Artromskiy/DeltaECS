@@ -86,6 +86,7 @@ public sealed partial class World
 
     /// <summary>Adds the primary component for <typeparamref name="T"/> to each entity that does not already have it.</summary>
     /// <returns>The number of entities whose composition changed.</returns>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
     {
         ComponentId componentId = GetPrimaryComponentId<T>();
@@ -109,14 +110,17 @@ public sealed partial class World
 
     /// <summary>Sets the primary component on entities that already have it.</summary>
     /// <returns>The number of entities whose value or tag change was applied.</returns>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Set<T>(ReadOnlySpan<Entity> entities, in T value)
         => Set(entities, GetPrimaryComponentId<T>(), in value);
 
     /// <summary>Sets the selected component on entities that already have it.</summary>
     /// <returns>The number of entities whose value or tag change was applied.</returns>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Set<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
         EnsureExecutionAccess();
+        EnsureUniqueEntityList(entities, nameof(entities));
         if (!IsRegisteredType<T>(componentId))
         {
             return 0;
@@ -148,13 +152,16 @@ public sealed partial class World
     }
 
     /// <summary>Adds or sets the primary component value on each entity.</summary>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public void AddOrSet<T>(ReadOnlySpan<Entity> entities, in T value)
         => AddOrSet(entities, GetPrimaryComponentId<T>(), in value);
 
     /// <summary>Adds or sets the selected component value on each entity.</summary>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public void AddOrSet<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
         EnsureNoActiveLease("add or set components");
+        EnsureUniqueEntityList(entities, nameof(entities));
         if (!IsRegisteredType<T>(componentId))
         {
             return;
@@ -578,6 +585,7 @@ public sealed partial class World
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
+        EnsureUniqueEntityList(entities, nameof(entities));
         for (int index = 0; index < entities.Length; index++)
         {
             AddOrSetGeneratedComponentValues(entities.RefAt(index), componentIds, ref initializer);
@@ -648,6 +656,7 @@ public sealed partial class World
         ref TInitializer initializer)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
+        EnsureUniqueEntityList(entities, nameof(entities));
         int changed = 0;
         for (int index = 0; index < entities.Length; index++)
         {
@@ -664,6 +673,7 @@ public sealed partial class World
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
         EnsureNoActiveLease("add components");
+        EnsureUniqueEntityList(entities, nameof(entities));
         if (componentIds.Length == 0)
         {
             ThrowHelper.ThrowInvalidComponentList();
@@ -1223,6 +1233,7 @@ public sealed partial class World
         }
 
         EnsureNoActiveLease("add components");
+        EnsureUniqueEntityList(entities, nameof(entities));
         ComponentSet changeSet = GetOrCreateComponentSet([componentId]);
         int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;

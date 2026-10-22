@@ -1,16 +1,16 @@
 using System.Runtime.CompilerServices;
 
-using BenchmarkDotNet.Attributes;
-
-using Friflo.Engine.ECS;
-
-using Leopotam.EcsLite;
-
 using ArchComponentType = Arch.Core.Utils.ComponentType;
+
+using BenchmarkDotNet.Attributes;
 using DefaultWorld = DefaultEcs.World;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaWorld = Delta.ECS.World;
+
+using Friflo.Engine.ECS;
 using FrifloEntity = Friflo.Engine.ECS.Entity;
+
+using Leopotam.EcsLite;
 
 namespace Delta.ECS.Benchmarks;
 

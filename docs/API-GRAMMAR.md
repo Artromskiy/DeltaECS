@@ -548,6 +548,11 @@ query-level `Add` without values remains the type-erased membership form. The
 runtime's primary-registration `Create<T>()` is the single-component
 convenience form.
 
+Structural `World` batch methods that accept an entity span require unique
+handles and throw `ArgumentException` for duplicates before changing the world.
+Uniqueness compares the full entity handle, including its generation; a stale
+handle and a different live generation with the same index are distinct inputs.
+
 `N` is the number of entities to create and `O` is optional caller-owned
 output storage. Without `O`, created handles are not retained. Single-entity
 `Create` returns its `Entity`; count forms return the number created. Direct

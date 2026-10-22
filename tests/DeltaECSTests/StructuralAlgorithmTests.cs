@@ -11,7 +11,7 @@ namespace Delta.ECS.Tests;
 internal sealed class StructuralAlgorithmTests
 {
     [Test]
-    public void DestroyBatchRandomContiguousDuplicateAndStaleHandlesPreservesSurvivors()
+    public void DestroyBatchRandomContiguousAndStaleHandlesPreservesSurvivors()
     {
         var layouts = new ComponentRegistry();
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_001));
@@ -38,16 +38,13 @@ internal sealed class StructuralAlgorithmTests
         for (int i = 0; i < 23; i++)
         {
             int index = random.Next(42, entities.Length);
-            requested.Add(entities[index]);
-            expectedDestroyed.Add(entities[index]);
-            if ((i & 3) == 0)
+            if (expectedDestroyed.Add(entities[index]))
             {
                 requested.Add(entities[index]);
             }
         }
 
-        // A stale handle and a duplicate must not affect the exact count.
-        requested.Add(stale);
+        // Stale handles remain harmless when each input handle is unique.
         requested.Add(stale);
         int destroyed = world.Destroy(CollectionsMarshalCompat.AsSpan(requested));
 
@@ -97,7 +94,7 @@ internal sealed class StructuralAlgorithmTests
     }
 
     [Test]
-    public void DestroyBatchDeduplicatesCompleteChunksBeforeRecyclingRecords()
+    public void DestroyBatchCompleteChunksBeforeRecyclingRecords()
     {
         var layouts = new ComponentRegistry();
         var valueId = layouts.Register<DestroyValue>(new SchemaId(30_004));
@@ -109,10 +106,6 @@ internal sealed class StructuralAlgorithmTests
         for (int index = entities.Length - 1; index >= 0; index--)
         {
             requested.Add(entities[index]);
-            if ((index & 7) == 0)
-            {
-                requested.Add(entities[index]);
-            }
         }
 
         Assert.That(world.Destroy(CollectionsMarshalCompat.AsSpan(requested)), Is.EqualTo(entities.Length));
@@ -145,10 +138,6 @@ internal sealed class StructuralAlgorithmTests
         {
             requested.Add(entities[i]);
             expected.Add(entities[i]);
-            if ((i % 10) == 0)
-            {
-                requested.Add(entities[i]);
-            }
         }
 
         Assert.That(world.Destroy(CollectionsMarshalCompat.AsSpan(requested)), Is.EqualTo(expected.Count));
@@ -157,6 +146,20 @@ internal sealed class StructuralAlgorithmTests
         {
             Assert.That(world.IsAlive(entity), Is.EqualTo(!expected.Contains(entity)));
         }
+    }
+
+    [Test]
+    public void DestroyBatchRejectsDuplicatesBeforeDestroyingEntities()
+    {
+        using var world = new World();
+        ComponentId marker = world.Components.Register<DestroyValue>(new SchemaId(30_005));
+        var entities = new Entity[2];
+        world.Create([marker], entities);
+
+        Assert.Throws<ArgumentException>(() => world.Destroy([entities[0], entities[0], entities[1]]));
+
+        Assert.That(world.IsAlive(entities[0]), Is.True);
+        Assert.That(world.IsAlive(entities[1]), Is.True);
     }
 
     [Test]

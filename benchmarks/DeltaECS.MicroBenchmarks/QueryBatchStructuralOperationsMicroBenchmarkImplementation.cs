@@ -1,6 +1,5 @@
-using BenchmarkDotNet.Attributes;
-
 using ArchComponentType = Arch.Core.Utils.ComponentType;
+using BenchmarkDotNet.Attributes;
 using DeltaWorld = Delta.ECS.World;
 
 namespace Delta.ECS.MicroBenchmarks;

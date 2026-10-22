@@ -45,6 +45,7 @@ public sealed partial class World : IDisposable
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
     private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = [];
     private readonly List<Entity> _queryEntityScratch = new();
+    private readonly HashSet<Entity> _structuralEntityScratch = new();
     private int _queryCacheSweepCountdown = QueryCacheSweepInterval;
     private NativeMemory<DestroyEntry> _destroyScratch = new(InitialDestroyScratchCapacity);
     private readonly List<Archetype> _deferredQueryPlanArchetypes = new(InitialDeferredQueryPlanCapacity);
@@ -308,9 +309,11 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>Destroys the alive entities in a caller-provided span.</summary>
+    /// <exception cref="ArgumentException">The span contains the same entity more than once.</exception>
     public int Destroy(ReadOnlySpan<Entity> entities)
     {
         EnsureNoActiveLease("destroy entities");
+        EnsureUniqueEntityList(entities, nameof(entities));
         EnsureDestroyScratch(entities.Length);
         int count = 0;
         for (int i = 0; i < entities.Length; i++)
@@ -433,6 +436,7 @@ public sealed partial class World : IDisposable
     public bool Add(Entity entity, ComponentId componentId) => Add(entity, [componentId]);
 
     /// <summary>Adds the component set to every entity in a caller-owned batch.</summary>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Add(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
         => ApplyComponents(true, componentIds, entities);
 
@@ -457,6 +461,7 @@ public sealed partial class World : IDisposable
         => Remove(entity, [componentId]);
 
     /// <summary>Removes the component set from every entity in a caller-owned batch.</summary>
+    /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Remove(ReadOnlySpan<Entity> entities, ReadOnlySpan<ComponentId> componentIds)
         => ApplyComponents(false, componentIds, entities);
 
@@ -1788,6 +1793,7 @@ public sealed partial class World : IDisposable
     private int ApplyComponents(bool isAdd, ReadOnlySpan<ComponentId> componentIds, ReadOnlySpan<Entity> entities)
     {
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
+        EnsureUniqueEntityList(entities, nameof(entities));
         if (componentIds.Length == 0 || entities.Length == 0)
         {
             return 0;
@@ -1796,11 +1802,6 @@ public sealed partial class World : IDisposable
         if (!TryGetComponentSet(componentIds, out ComponentSet? changeSet))
         {
             return 0;
-        }
-
-        if (TryApplyCompleteArchetype(changeSet, entities, isAdd, out int completeCount))
-        {
-            return completeCount;
         }
 
         int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
@@ -1851,44 +1852,24 @@ public sealed partial class World : IDisposable
         return changed;
     }
 
-    private bool TryApplyCompleteArchetype(ComponentSet changeSet, ReadOnlySpan<Entity> entities, bool isAdd, out int changed)
+    private void EnsureUniqueEntityList(ReadOnlySpan<Entity> entities, string parameterName)
     {
-        changed = 0;
-        if (entities.Length <= 1 || entities.Length > Chunk.Capacity || changeSet.TagIndices.Length != 0
-            || !TryResolve(entities[0], out _, out Chunk chunk, out _)
-            || chunk.Count != entities.Length || Archetypes[chunk.ArchetypeId].ActiveChunkCount != 1)
+        if (entities.Length < 2)
         {
-            return false;
+            return;
         }
 
-        Span<ulong> selected = stackalloc ulong[Chunk.WordCount];
-        selected.Clear();
-        foreach (Entity entity in entities)
+        _structuralEntityScratch.Clear();
+        for (int index = 0; index < entities.Length; index++)
         {
-            if (!TryResolve(entity, out _, out Chunk current, out int slot)
-                || !ReferenceEquals(current, chunk) || ComponentChangeMasks.GetSlot(selected, slot))
+            if (!_structuralEntityScratch.Add(entities.RefAt(index)))
             {
-                return false;
+                _structuralEntityScratch.Clear();
+                ThrowHelper.ThrowDuplicateEntities(parameterName);
             }
-
-            ComponentChangeMasks.SetSlot(selected, slot, true);
         }
 
-        Archetype source = Archetypes[chunk.ArchetypeId];
-        TransitionEdge edge = GetTransitionEdge(source.Id, changeSet, isAdd);
-        if (!edge.IsNoOp && Archetypes[edge.TargetArchetypeId].ActiveChunkCount != 0)
-        {
-            return false;
-        }
-
-        if (!edge.IsNoOp)
-        {
-            BeginQueryPlanBatch();
-            changed = MoveArchetypeBlocks(source, edge);
-            EndQueryPlanBatch();
-        }
-
-        return true;
+        _structuralEntityScratch.Clear();
     }
 
     private bool ApplyTags(Chunk chunk, int slotIndex, ReadOnlySpan<int> tagIndices, bool isAdd)

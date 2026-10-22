@@ -121,6 +121,11 @@ internal static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowDuplicateEntities(string parameterName)
+        => throw new ArgumentException("The entity list must not contain duplicate entities.", parameterName);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowNotGenericTypeDefinition(Type runtimeType)
         => throw new ArgumentException(
             $"Type {runtimeType} must be an open generic type definition.",

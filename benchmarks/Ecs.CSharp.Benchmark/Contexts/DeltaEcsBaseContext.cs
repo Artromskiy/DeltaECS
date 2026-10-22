@@ -3,8 +3,6 @@ using System.Runtime.CompilerServices;
 
 using Delta.ECS;
 
-using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
-
 using DeltaComponentId = Delta.ECS.ComponentId;
 using DeltaEntity = Delta.ECS.Entity;
 using DeltaLayoutRegistry = Delta.ECS.ComponentRegistry;
@@ -12,6 +10,8 @@ using DeltaQuery = Delta.ECS.Query;
 using DeltaQuerySpec = Delta.ECS.QuerySpec;
 using DeltaSchemaId = Delta.ECS.SchemaId;
 using DeltaWorld = Delta.ECS.World;
+
+using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
 
 namespace Ecs.CSharp.Benchmark.Contexts
 {
