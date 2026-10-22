@@ -9,7 +9,7 @@ internal sealed class Chunk
     internal const int Capacity = 1024;
     internal const int WordCount = (Capacity + 63) >> 6;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
-    private readonly Archetype _archetype;
+    private Archetype _archetype;
     private ComponentRowOperations[] _rowOperations;
     private NativeMemory<Entity> _entities;
     private ChunkTagMasks? _tagMasks;
@@ -65,7 +65,7 @@ internal sealed class Chunk
         ArchetypeId = archetypeId;
         ArchetypeIndex = archetypeIndex;
         _entities = new NativeMemory<Entity>(Capacity);
-        RawComponentRows = new Array[layouts.Length];
+        RawComponentRows = _componentRowArrayPool.RentRowReferences(layouts.Length);
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
         {
@@ -206,10 +206,17 @@ internal sealed class Chunk
     internal bool ComponentRowContainsReferences(int componentIndex)
         => _rowOperations.RefAt(componentIndex).ContainsReferences;
 
-    internal void SetArchetypeLocation(int archetypeId, int archetypeIndex)
+    internal void SetArchetypeLocation(Archetype archetype, int archetypeIndex)
     {
-        ArchetypeId = archetypeId;
+        _archetype = archetype;
+        ArchetypeId = archetype.Id;
         ArchetypeIndex = archetypeIndex;
+    }
+
+    internal void DetachArchetype()
+    {
+        ArchetypeId = -1;
+        ArchetypeIndex = -1;
     }
 
     internal void AdoptLayout(
@@ -223,7 +230,7 @@ internal sealed class Chunk
         }
 
         var sourceRows = RawComponentRows;
-        var targetRows = new Array[layouts.Length];
+        var targetRows = _componentRowArrayPool.RentRowReferences(layouts.Length);
         for (int sourceIndex = 0; sourceIndex < sourceToTarget.Length; sourceIndex++)
         {
             int targetIndex = sourceToTarget.RefAt(sourceIndex);
@@ -250,6 +257,7 @@ internal sealed class Chunk
                 Capacity);
         }
 
+        _componentRowArrayPool.ReturnRowReferences(sourceRows);
         RawComponentRows = targetRows;
         _rowOperations = rowOperations;
     }
@@ -282,6 +290,7 @@ internal sealed class Chunk
             }
         }
 
+        _componentRowArrayPool.ReturnRowReferences(RawComponentRows);
         donor.RawComponentRows = [];
         RawComponentRows = targetRows;
         _rowOperations = rowOperations;
@@ -445,6 +454,7 @@ internal sealed class Chunk
             _componentRowArrayPool.Return(RawComponentRows.RefAt(componentIndex));
         }
 
+        _componentRowArrayPool.ReturnRowReferences(RawComponentRows);
         RawComponentRows = [];
         _entities.Dispose();
     }

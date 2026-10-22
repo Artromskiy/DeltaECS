@@ -14,6 +14,10 @@ or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored
 `artifacts/`; durable conclusions and reproduction details belong here or in a
 linked focused report.
 
+## Structural transitions, observer routes and chunk reuse — 2026-10-22
+
+Against `8e7a5c1`, a bounded paired probe at 20, 1,024 and 131,072 entities measured structural transitions with 0/64 data/tag subscriptions and 64 cached queries. Observer-heavy round trips improved by 37–98%; a 131K no-subscriber result was inconclusive. Warm query-binding allocations dropped from 1.58–3.64MB to zero in the large workloads, and single-chunk first-use allocations dropped substantially. Unity was active, so small timing changes are not established wins. The measured mechanism, retained-memory tradeoff, rejected intermediate behavior, correctness coverage and complete tables are in [the report](structural-change-routing-2026-10-22.md).
+
 ## Query, observer and tag-membership optimizations — 2026-10-16
 
 Applied the measured `OrderedQuery.First`, observer-write and structural row-lookup optimizations supplied in `DeltaECS_optimized_5files (1).zip`. Against baseline `a59913c`, streaming `OrderedQuery.First` measured `−8.6%`; most single-component and tag `ForEach` observer scenarios improved modestly; `ForEachChange` first and dense-change calls improved, with a preliminary `−24.4%` at 1% component changes. Stable-sort changes were inconclusive and not retained: the earlier early-exit variant measured `−1.3%`, while a no-early-exit buffer-swap retest at 131K and 1M entities was neutral/slower with overlapping intervals. The tag-membership bit-mask scan regressed `+8.2–9.3%` and was not retained. Full means, uncertainty, allocation, JIT counts, and rejected candidates are in [the detailed report](query-observer-optimizations-2026-10-16.md).

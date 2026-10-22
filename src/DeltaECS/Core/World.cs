@@ -1215,6 +1215,24 @@ public sealed partial class World : IDisposable
 
     private static bool IsCompatibleComponentType<T>(ComponentLayout layout) => layout.RuntimeType == typeof(T);
 
+    private static void RecordComponentMembershipRange(
+        ComponentChangeObserverRoute?[] routes, ComponentId componentId,
+        ReadOnlySpan<Entity> entities, bool present)
+    {
+        if ((uint)componentId.Value >= (uint)routes.Length || routes[componentId.Value] is not { } route)
+        {
+            return;
+        }
+
+        foreach (WeakReference<ComponentChangeObserver> reference in route.Observers)
+        {
+            if (reference.TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.RecordMembershipRange(entities, present);
+            }
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ComponentId GetPrimaryComponentId<T>()
     {
@@ -1412,24 +1430,38 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private void RecordTransitionMembershipRange(Chunk chunk, int slot, int count, Archetype target)
+    private void RecordTransitionMembershipRange(Chunk chunk, int slot, int count, TransitionEdge edge)
     {
-        Archetype source = Archetypes[chunk.ArchetypeId];
+        if (_componentChangeObservers is not { } routes)
+        {
+            return;
+        }
+
+        ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slot, count);
+        ReadOnlySpan<ComponentId> sourceIds = Archetypes[chunk.ArchetypeId].ComponentIds;
+        for (int index = 0; index < edge.SourceToTargetRowIndices.Length; index++)
+        {
+            if (edge.SourceToTargetRowIndices.RefAt(index) < 0)
+            {
+                RecordComponentMembershipRange(routes, sourceIds.RefAt(index), entities, present: false);
+            }
+        }
+
+        ReadOnlySpan<ComponentId> targetIds = Archetypes[edge.TargetArchetypeId].ComponentIds;
+        foreach (int index in edge.AddedTargetRowIndices)
+        {
+            RecordComponentMembershipRange(routes, targetIds.RefAt(index), entities, present: true);
+        }
+    }
+
+    private void TransferComponentChangeSlot(Chunk source, int sourceSlot, Chunk target, int targetSlot)
+    {
         foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
         {
-            if (!reference.TryGetTarget(out ComponentChangeObserver? observer)
-                || _layouts.TryGetTagIndex(observer.ComponentId, out _))
+            if (reference.TryGetTarget(out ComponentChangeObserver? observer))
             {
-                continue;
+                observer.TransferSlot(source, sourceSlot, target, targetSlot);
             }
-
-            bool present = target.Mask.Contains(observer.ComponentId);
-            if (source.Mask.Contains(observer.ComponentId) == present)
-            {
-                continue;
-            }
-
-            observer.RecordMembershipRange(chunk.RawEntities.Slice(slot, count), present);
         }
     }
 
@@ -1766,6 +1798,11 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
+        if (TryApplyCompleteArchetype(changeSet, entities, isAdd, out int completeCount))
+        {
+            return completeCount;
+        }
+
         int edgeGeneration = entities.Length == 1 ? 0 : BeginBatchEdgeCache();
         int changed = 0;
         bool tagsChanged = false;
@@ -1812,6 +1849,46 @@ public sealed partial class World : IDisposable
         }
 
         return changed;
+    }
+
+    private bool TryApplyCompleteArchetype(ComponentSet changeSet, ReadOnlySpan<Entity> entities, bool isAdd, out int changed)
+    {
+        changed = 0;
+        if (entities.Length <= 1 || entities.Length > Chunk.Capacity || changeSet.TagIndices.Length != 0
+            || !TryResolve(entities[0], out _, out Chunk chunk, out _)
+            || chunk.Count != entities.Length || Archetypes[chunk.ArchetypeId].ActiveChunkCount != 1)
+        {
+            return false;
+        }
+
+        Span<ulong> selected = stackalloc ulong[Chunk.WordCount];
+        selected.Clear();
+        foreach (Entity entity in entities)
+        {
+            if (!TryResolve(entity, out _, out Chunk current, out int slot)
+                || !ReferenceEquals(current, chunk) || ComponentChangeMasks.GetSlot(selected, slot))
+            {
+                return false;
+            }
+
+            ComponentChangeMasks.SetSlot(selected, slot, true);
+        }
+
+        Archetype source = Archetypes[chunk.ArchetypeId];
+        TransitionEdge edge = GetTransitionEdge(source.Id, changeSet, isAdd);
+        if (!edge.IsNoOp && Archetypes[edge.TargetArchetypeId].ActiveChunkCount != 0)
+        {
+            return false;
+        }
+
+        if (!edge.IsNoOp)
+        {
+            BeginQueryPlanBatch();
+            changed = MoveArchetypeBlocks(source, edge);
+            EndQueryPlanBatch();
+        }
+
+        return true;
     }
 
     private bool ApplyTags(Chunk chunk, int slotIndex, ReadOnlySpan<int> tagIndices, bool isAdd)
@@ -2073,7 +2150,7 @@ public sealed partial class World : IDisposable
         targetArchetype.PrepareBlockMoveCandidates(initialTargetChunkCount);
         while (sourceArchetype.TryGetLastActiveChunk(out int sourceChunkIndex, out Chunk sourceChunk))
         {
-            RecordTransitionMembershipRange(sourceChunk, 0, sourceChunk.Count, targetArchetype);
+            RecordTransitionMembershipRange(sourceChunk, 0, sourceChunk.Count, edge);
             while (sourceChunk.Count != 0
                    && targetArchetype.TryTakeBlockPartialChunk(out Chunk targetChunk))
             {
@@ -2128,6 +2205,11 @@ public sealed partial class World : IDisposable
             }
 
             movedCount += adopted.Count;
+        }
+
+        if (movedCount != 0 && _layouts.TagCount != 0)
+        {
+            TagVersion++;
         }
 
         return movedCount;
@@ -2320,7 +2402,7 @@ public sealed partial class World : IDisposable
         }
 
         int sourceSlotIndex = sourceRecord.SlotIndex;
-        RecordTransitionMembershipRange(sourceChunk, sourceSlotIndex, 1, targetArchetype);
+        RecordTransitionMembershipRange(sourceChunk, sourceSlotIndex, 1, edge);
         int sourceChunkIndex = sourceChunk.ArchetypeIndex;
         int targetChunkId = targetArchetype.HasAvailableChunk(0) ? -1 : AllocateChunkId();
         targetArchetype.AddEntity(
@@ -2331,7 +2413,6 @@ public sealed partial class World : IDisposable
             out bool reusedTargetSlot);
         targetChunk = targetArchetype.GetChunk(targetChunkIndex);
         RegisterChunk(targetChunk);
-        PrepareComponentChangeAddRange(targetChunk, targetSlotIndex, 1);
         sourceChunk.CopyTagsTo(targetChunk, sourceSlotIndex, targetSlotIndex);
 
         for (int sourceIndex = 0; sourceIndex < edge.SourceToTargetRowIndices.Length; sourceIndex++)
@@ -2348,10 +2429,8 @@ public sealed partial class World : IDisposable
             targetChunk.InitializeRows(targetSlotIndex, edge.AddedTargetRowIndices);
         }
 
-        MoveComponentChangeRange(sourceChunk, sourceSlotIndex, targetChunk, targetSlotIndex, 1);
-        int sourceLastSlotIndex = sourceChunk.Count - 1;
+        TransferComponentChangeSlot(sourceChunk, sourceSlotIndex, targetChunk, targetSlotIndex);
         var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
-        RemoveComponentChangeSwapBack(sourceChunk, sourceSlotIndex, sourceLastSlotIndex);
         sourceRecord.Chunk = targetChunk;
         sourceRecord.SlotIndex = targetSlotIndex;
         if (moved.IsValid)

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 internal sealed class ComponentRowArrayPool
 {
     private readonly Dictionary<Type, Stack<Array>> _arrays = new();
+    private readonly Dictionary<int, Stack<Array[]>> _rowReferences = new();
 
     internal Array Rent(Type runtimeType, ComponentRowOperations rowOperations, int capacity)
     {
@@ -37,5 +38,32 @@ internal sealed class ComponentRowArrayPool
         arrays.Push(array);
     }
 
-    internal void Clear() => _arrays.Clear();
+    internal Array[] RentRowReferences(int count)
+        => count == 0 ? []
+            : _rowReferences.TryGetValue(count, out Stack<Array[]>? arrays) && arrays.Count != 0
+                ? arrays.Pop()
+                : new Array[count];
+
+    internal void ReturnRowReferences(Array[] rows)
+    {
+        if (rows.Length == 0)
+        {
+            return;
+        }
+
+        Array.Clear(rows, 0, rows.Length);
+        if (!_rowReferences.TryGetValue(rows.Length, out Stack<Array[]>? arrays))
+        {
+            arrays = new Stack<Array[]>();
+            _rowReferences.Add(rows.Length, arrays);
+        }
+
+        arrays.Push(rows);
+    }
+
+    internal void Clear()
+    {
+        _arrays.Clear();
+        _rowReferences.Clear();
+    }
 }

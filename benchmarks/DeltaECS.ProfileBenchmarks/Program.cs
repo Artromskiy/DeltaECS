@@ -15,6 +15,11 @@ public static class Program
     public static void Main(string[] args)
     {
         string[] benchmarkArgs = ProfileOptions.Parse(args);
+        if (benchmarkArgs.Contains("structural-probe", StringComparer.Ordinal))
+        {
+            StructuralChangeProbe.Run();
+            return;
+        }
         if (ProfileOptions.Memory || ProfileOptions.Allocations)
         {
             using var baseline = new baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario(ProfileOptions.Amount, ProfileOptions.RegisteredComponents, ProfileOptions.Archetypes);

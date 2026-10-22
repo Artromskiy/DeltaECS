@@ -159,6 +159,27 @@ internal sealed class GeneratedDenseBindingTests
     }
 
     [Test]
+    public void EveryChunkBindingSurvivesDeactivationAndReactivation()
+    {
+        using var world = new World();
+        ComponentId id = world.Components.Register<Health>(new SchemaId(96020));
+        var entities = new Entity[Chunk.Capacity * 2];
+        world.Create([id], entities);
+        Query query = world.WhereAll(id);
+        ChunkPlan[] original = query.Cached.MatchingChunkPlans().ToArray();
+        world.Destroy(entities);
+        world.Create([id], entities);
+        ReadOnlySpan<ChunkPlan> current = query.Cached.MatchingChunkPlans();
+        Assert.That(current.Length, Is.EqualTo(original.Length));
+        foreach (ref readonly ChunkPlan plan in current)
+        {
+            Chunk chunk = plan.Chunk;
+            ChunkPlan previous = Array.Find(original, item => ReferenceEquals(item.Chunk, chunk));
+            Assert.That(previous.ComponentRows, Is.SameAs(plan.ComponentRows));
+        }
+    }
+
+    [Test]
     public void ChunkPlanRowsRemainValidWhenChunkLayoutIsAdoptedAndRestored()
     {
         var layouts = new ComponentRegistry();

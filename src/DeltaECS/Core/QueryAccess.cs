@@ -406,9 +406,9 @@ internal sealed class QueryPlan
             return;
         }
 
-        SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
         if (dirtyPlans is null)
         {
+            SynchronizeMatchingChunkPlans(planIndex, previousChunkCount);
             IncrementMatchingVersion();
             return;
         }
@@ -425,6 +425,25 @@ internal sealed class QueryPlan
         if (!_matchingChunkPlansDirty)
         {
             return;
+        }
+
+        int previousCount = _matchingChunkCount;
+        int count = 0;
+        for (int index = 0; index < _matchingCount; index++)
+        {
+            count += _matchingPlans.RefAt(index).ChunkCount;
+        }
+
+        EnsureMatchingChunkPlanCapacity(count);
+        _matchingChunkCount = 0;
+        for (int index = 0; index < _matchingCount; index++)
+        {
+            AppendMatchingChunkPlans(index, in _matchingPlans.RefAt(index));
+        }
+
+        if (previousCount > count)
+        {
+            _matchingChunkPlans.AsSpan(count, previousCount - count).Clear();
         }
 
         _matchingChunkPlansDirty = false;
@@ -896,7 +915,8 @@ internal struct ArchetypePlan
 {
 
     private ChunkPlan[] _chunks;
-    private ChunkPlan _inactiveChunkPlan;
+    // Inactive bindings survive topology changes; reuse validates both chunk identity and rows.
+    private ChunkPlan[] _chunkPlansByIndex;
     private int _chunkTopologyVersion;
 
     internal Archetype Archetype { get; }
@@ -908,7 +928,7 @@ internal struct ArchetypePlan
         Archetype = archetype;
         ComponentRows = componentRows;
         _chunks = [];
-        _inactiveChunkPlan = default;
+        _chunkPlansByIndex = [];
         _chunkTopologyVersion = archetype.ChunkTopologyVersion;
         for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
         {
@@ -953,7 +973,6 @@ internal struct ArchetypePlan
             ThrowHelper.ThrowPlanDeactivationOutOfSync();
         }
 
-        _inactiveChunkPlan = _chunks.RefAt(activePosition);
         if (activePosition != lastPosition)
         {
             _chunks.RefAt(activePosition) = _chunks.RefAt(lastPosition);
@@ -1001,7 +1020,6 @@ internal struct ArchetypePlan
         ChunkCount = activeCount;
         for (int index = activeCount; index < previousCount; index++)
         {
-            _inactiveChunkPlan = _chunks.RefAt(index);
             _chunks.RefAt(index) = default;
         }
 
@@ -1011,7 +1029,13 @@ internal struct ArchetypePlan
 
     private ChunkPlan CreateChunkPlan(Chunk chunk)
     {
-        ChunkPlan cached = _inactiveChunkPlan;
+        int index = chunk.ArchetypeIndex;
+        if (index >= _chunkPlansByIndex.Length)
+        {
+            Array.Resize(ref _chunkPlansByIndex, Math.Max(index + 1, Math.Max(4, _chunkPlansByIndex.Length * 2)));
+        }
+
+        ChunkPlan cached = _chunkPlansByIndex.RefAt(index);
         if (ReferenceEquals(cached.Chunk, chunk)
             && cached.ComponentRows.Length == ComponentRows.Length)
         {
@@ -1030,7 +1054,6 @@ internal struct ArchetypePlan
 
             if (rowsMatch)
             {
-                _inactiveChunkPlan = default;
                 return cached;
             }
         }
@@ -1042,10 +1065,9 @@ internal struct ArchetypePlan
             resolvedRows.RefAt(queryRow) = sourceRows.RefAt(ComponentRows.RefAt(queryRow));
         }
 
-        return new ChunkPlan(
-            chunk,
-            resolvedRows,
-            ComponentRows);
+        var plan = new ChunkPlan(chunk, resolvedRows, ComponentRows);
+        _chunkPlansByIndex.RefAt(index) = plan;
+        return plan;
     }
 }
 

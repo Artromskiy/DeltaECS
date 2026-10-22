@@ -16,6 +16,7 @@
   </Target>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="StructuralChangeProbe.cs" />
     <Compile Include="ProfileBenchmarks.cs" />
     <Compile Include="NarrowIndexBenchmarks.cs" />
     <Compile Include="QueryPlanSetupBenchmarks.cs" />

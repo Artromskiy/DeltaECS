@@ -5,6 +5,7 @@
     <Compile Include="../../Shared/HasScenario.cs" Link="HasScenario.cs" />
     <Compile Include="../../Shared/QueryPlanScenario.cs" Link="QueryPlanScenario.cs" />
     <Compile Include="../../Shared/BatchStructuralScenario.cs" Link="BatchStructuralScenario.cs" />
+    <Compile Include="../../Shared/StructuralChangeScenario.cs" Link="StructuralChangeScenario.cs" />
     <ProjectReference Include="$(CandidateRoot)/src/DeltaECS/DeltaECS.csproj" AdditionalProperties="AssemblyName=DeltaECS.Profile.Candidate" SetTargetFramework="TargetFramework=$(ProfileRuntimeFramework)" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="$(CandidateRoot)/src/DeltaECS.Generators/DeltaECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="AssemblyName;PublishAot;PublishTrimmed;SelfContained;RuntimeIdentifier" />
   </ItemGroup>

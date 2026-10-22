@@ -371,7 +371,7 @@ internal sealed class Archetype
         _activeChunkPositions.RefAt(chunkIndex) = -1;
         _availableChunkPositions.RefAt(chunkIndex) = -1;
         _availableChunkFlags.RefAt(chunkIndex) = false;
-        chunk.SetArchetypeLocation(Id, chunkIndex);
+        chunk.SetArchetypeLocation(this, chunkIndex);
         if (!chunk.IsEmpty)
         {
             ActivateChunk(chunkIndex);
@@ -401,14 +401,14 @@ internal sealed class Archetype
         RemoveAvailableChunk(chunkIndex);
         _activeChunkPositions.RefAt(chunkIndex) = -1;
         _chunks[chunkIndex] = adopted;
-        adopted.SetArchetypeLocation(Id, chunkIndex);
+        adopted.SetArchetypeLocation(this, chunkIndex);
         ActivateChunk(chunkIndex);
         if (!adopted.IsFull)
         {
             PushAvailableChunk(chunkIndex);
         }
 
-        donor.SetArchetypeLocation(-1, -1);
+        donor.DetachArchetype();
         return donor;
     }
 
@@ -435,7 +435,7 @@ internal sealed class Archetype
             RemoveAvailableChunk(lastIndex);
 
             _chunks[chunkIndex] = replacement;
-            replacement.SetArchetypeLocation(Id, chunkIndex);
+            replacement.SetArchetypeLocation(this, chunkIndex);
             _availableChunkFlags.RefAt(lastIndex) = false;
             _availableChunkPositions.RefAt(lastIndex) = -1;
             _activeChunkPositions.RefAt(lastIndex) = -1;
@@ -460,7 +460,7 @@ internal sealed class Archetype
         }
 
         _chunks.RemoveAt(lastIndex);
-        detached.SetArchetypeLocation(-1, -1);
+        detached.DetachArchetype();
         return detached;
     }
 

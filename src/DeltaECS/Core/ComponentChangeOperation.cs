@@ -194,6 +194,36 @@ public sealed class ComponentChangeOperation<T> : IOperation
         RemoveEmpty(chunks, source);
     }
 
+    private static void TransferSlot(DirtyChunkSet chunks, Chunk source, int sourceSlot, Chunk target, int targetSlot)
+    {
+        PrepareAddRange(chunks, target, targetSlot, 1);
+        if (!chunks.TryGet(source, out int sourceId))
+        {
+            return;
+        }
+
+        ref DirtyChunkState state = ref chunks.GetById(sourceId);
+        bool modified = state.Kind == DirtyKind.All;
+        int lastSlot = source.Count - 1;
+        if (state.Kind == DirtyKind.Mask)
+        {
+            Span<ulong> mask = ArrayAccess.AsSpan(state.Mask);
+            modified = GetSlot(mask, sourceSlot);
+            ComponentChangeMasks.SetSlot(mask, sourceSlot, GetSlot(mask, lastSlot));
+            ComponentChangeMasks.SetSlot(mask, lastSlot, false);
+            RemoveEmpty(chunks, source);
+        }
+        else if (state.Kind == DirtyKind.All && lastSlot == 0)
+        {
+            chunks.Remove(source);
+        }
+
+        if (modified)
+        {
+            MarkRange(chunks, target, targetSlot, 1);
+        }
+    }
+
     private static void CopyRangeWithin(DirtyChunkSet chunks, Chunk chunk, int sourceSlot, int targetSlot, int count)
     {
         if (sourceSlot == targetSlot || count == 0 || !chunks.TryGet(chunk, out int chunkId))
@@ -810,6 +840,9 @@ public sealed class ComponentChangeOperation<T> : IOperation
         internal override void PrepareAddRange(Chunk chunk, int slotIndex, int count)
             => _operation.PrepareAddRange(chunk, slotIndex, count);
 
+        internal override void TransferSlot(Chunk source, int sourceSlot, Chunk target, int targetSlot)
+            => ComponentChangeOperation<T>.TransferSlot(_operation._dirtyChunks, source, sourceSlot, target, targetSlot);
+
         internal override void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count)
             => _operation.MoveRange(source, sourceSlot, target, targetSlot, count);
 
@@ -869,6 +902,8 @@ internal abstract class ComponentChangeObserver
     internal abstract void EnsureCapacity(int capacity);
 
     internal abstract void PrepareAddRange(Chunk chunk, int slotIndex, int count);
+
+    internal abstract void TransferSlot(Chunk source, int sourceSlot, Chunk target, int targetSlot);
 
     internal abstract void MoveRange(Chunk source, int sourceSlot, Chunk target, int targetSlot, int count);
 
