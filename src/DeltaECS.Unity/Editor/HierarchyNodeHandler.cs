@@ -19,7 +19,6 @@ namespace Delta.ECS.Unity.Editor
     internal sealed class HierarchyNodeHandler : HierarchyNodeTypeHandler
     {
         private const double RuntimeHierarchyRefreshInterval = 0.5d;
-        private static readonly ComponentId[] NoRequiredComponents = Array.Empty<ComponentId>();
         private static readonly SchemaId HiddenEntitySchema = new(ViewComponentSchemaIds.HideFromEntityHierarchy);
         private static double _nextRuntimeHierarchyRefresh;
         private static bool _wasPlaying;
@@ -32,6 +31,8 @@ namespace Delta.ECS.Unity.Editor
         private readonly HashSet<HierarchyView> _boundViews = new();
         private readonly Dictionary<HierarchyView, BlockedDrag> _blockedDrags = new();
         private readonly Dictionary<SceneAuthoring, Action<SceneDataChange>> _sceneDataSubscriptions = new();
+        private readonly HashSet<SceneAuthoring> _loadedAuthorings = new();
+        private readonly List<SceneAuthoring> _removedAuthorings = new();
 
         static HierarchyNodeHandler()
         {
@@ -98,6 +99,8 @@ namespace Delta.ECS.Unity.Editor
                 }
             }
             _sceneDataSubscriptions.Clear();
+            _loadedAuthorings.Clear();
+            _removedAuthorings.Clear();
             _entityNodes.Clear();
             _activeEntityKeys.Clear();
             _removedEntityKeys.Clear();
@@ -594,11 +597,11 @@ namespace Delta.ECS.Unity.Editor
             HierarchyNode sceneNode,
             SceneWorld runtimeWorld)
         {
-            Query query = runtimeWorld.World.WhereNone(runtimeWorld.HiddenEntityHierarchyComponentId)
-                .WhereAll(NoRequiredComponents);
+            Query query = runtimeWorld.World.WhereNone(runtimeWorld.HiddenEntityHierarchyComponentId);
             bool changed = false;
-            runtimeWorld.World.ForEachEntity(in query, entity =>
+            runtimeWorld.World.ForEachEntity(in query, entityRef =>
             {
+                Entity entity = entityRef;
                 if (runtimeWorld.TryGetStableId(entity, out _) || runtimeWorld.TryGetView(entity, out _))
                 {
                     return;
@@ -606,29 +609,13 @@ namespace Delta.ECS.Unity.Editor
 
                 var key = new EntityKey(runtimeWorld, entity);
                 _activeEntityKeys.Add(key);
-                string name = $"ECS Entity {entity.Index}:{entity.Generation}";
-                var reference = new NodeReference(authoring, null, runtimeWorld, entity);
-                if (_entityNodes.TryGetValue(key, out EntityNode entityNode))
+                if (_entityNodes.ContainsKey(key))
                 {
-                    if (entityNode.Reference.RuntimeWorld != reference.RuntimeWorld
-                        || entityNode.Reference.RuntimeEntity != reference.RuntimeEntity)
-                    {
-                        entityNode.Reference = reference;
-                        changed = true;
-                    }
-
-                    if (!string.Equals(entityNode.Name, name, StringComparison.Ordinal))
-                    {
-                        CommandList.SetName(entityNode.Node, name);
-                        entityNode.Name = name;
-                        changed = true;
-                    }
-
-                    _entityNodes[key] = entityNode;
-                    _nodes[entityNode.Node] = reference;
                     return;
                 }
 
+                string name = $"ECS Entity {entity.Index}:{entity.Generation}";
+                var reference = new NodeReference(authoring, null, runtimeWorld, entity);
                 CommandList.Add(sceneNode, out HierarchyNode node);
                 CommandList.SetName(node, name);
                 _entityNodes.Add(key, new EntityNode(node, reference, name));
@@ -641,7 +628,7 @@ namespace Delta.ECS.Unity.Editor
 
         private void SynchronizeSceneSubscriptions(SceneAuthoring[] authorings)
         {
-            var loadedAuthorings = new HashSet<SceneAuthoring>();
+            _loadedAuthorings.Clear();
             for (var i = 0; i < authorings.Length; i++)
             {
                 var authoring = authorings[i];
@@ -650,7 +637,7 @@ namespace Delta.ECS.Unity.Editor
                     continue;
                 }
 
-                loadedAuthorings.Add(authoring);
+                _loadedAuthorings.Add(authoring);
                 if (!_sceneDataSubscriptions.ContainsKey(authoring))
                 {
                     var capturedAuthoring = authoring;
@@ -660,29 +647,31 @@ namespace Delta.ECS.Unity.Editor
                 }
             }
 
-            if (_sceneDataSubscriptions.Count == loadedAuthorings.Count)
+            if (_sceneDataSubscriptions.Count == _loadedAuthorings.Count)
             {
                 return;
             }
 
-            var removed = new List<SceneAuthoring>();
+            _removedAuthorings.Clear();
             foreach (var authoring in _sceneDataSubscriptions.Keys)
             {
-                if (!loadedAuthorings.Contains(authoring))
+                if (!_loadedAuthorings.Contains(authoring))
                 {
-                    removed.Add(authoring);
+                    _removedAuthorings.Add(authoring);
                 }
             }
 
-            for (var i = 0; i < removed.Count; i++)
+            for (var i = 0; i < _removedAuthorings.Count; i++)
             {
-                var authoring = removed[i];
+                var authoring = _removedAuthorings[i];
                 if (authoring != null)
                 {
                     authoring.SceneData.Changed -= _sceneDataSubscriptions[authoring];
                 }
                 _sceneDataSubscriptions.Remove(authoring);
             }
+
+            _removedAuthorings.Clear();
         }
 
         private void OnSceneDataChanged(SceneAuthoring authoring, SceneDataChange change)
