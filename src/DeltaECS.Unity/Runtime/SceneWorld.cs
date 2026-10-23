@@ -28,6 +28,9 @@ namespace Delta.ECS.Unity
         private readonly SceneAuthoring _authoring;
         private readonly bool _ownsWorld;
         private readonly ComponentId _hiddenEntityHierarchyComponentId;
+        private readonly List<Entity> _destroyedViews = new();
+        private readonly List<string> _destroyedAuthoredViews = new();
+        private RuntimeEntityChangeHandler _hierarchyEntitiesChanged;
         private bool _disposed;
 
         public World World => _world;
@@ -39,6 +42,26 @@ namespace Delta.ECS.Unity
                 var entities = new Entity[_entitiesByStableId.Count];
                 _entitiesByStableId.Values.CopyTo(entities, 0);
                 return entities;
+            }
+        }
+        internal static event Action LiveWorldsChanged;
+        internal event RuntimeEntityChangeHandler HierarchyEntitiesChanged
+        {
+            add
+            {
+                if (_hierarchyEntitiesChanged == null)
+                {
+                    _world.EntityMembershipChanged += OnEntityMembershipChanged;
+                }
+                _hierarchyEntitiesChanged += value;
+            }
+            remove
+            {
+                _hierarchyEntitiesChanged -= value;
+                if (_hierarchyEntitiesChanged == null)
+                {
+                    _world.EntityMembershipChanged -= OnEntityMembershipChanged;
+                }
             }
         }
         internal ComponentId HiddenEntityHierarchyComponentId => _hiddenEntityHierarchyComponentId;
@@ -60,6 +83,7 @@ namespace Delta.ECS.Unity
             if (registerLiveWorld)
             {
                 LiveWorlds.Add(this);
+                LiveWorldsChanged?.Invoke();
             }
         }
 
@@ -91,24 +115,35 @@ namespace Delta.ECS.Unity
             UnityEngine.EntityId viewId = view.GetEntityId();
             if (_entitiesByView.TryGetValue(viewId, out Entity previousEntity))
             {
+                if (previousEntity == entity)
+                {
+                    return true;
+                }
                 _viewsByEntity.Remove(previousEntity);
+                NotifyHierarchyEntityChanged(previousEntity);
             }
 
-            if (_viewsByEntity.TryGetValue(entity, out GameObject previousView) && previousView != null)
+            if (_viewsByEntity.TryGetValue(entity, out GameObject previousView) && !ReferenceEquals(previousView, null))
             {
                 _entitiesByView.Remove(previousView.GetEntityId());
             }
 
             _viewsByEntity[entity] = view;
             _entitiesByView[viewId] = entity;
+            NotifyHierarchyEntityChanged(entity);
             return true;
         }
 
         public void UnbindView(Entity entity)
         {
-            if (_viewsByEntity.Remove(entity, out GameObject view) && view != null)
+            if (_viewsByEntity.Remove(entity, out GameObject view))
             {
-                _entitiesByView.Remove(view.GetEntityId());
+                // The managed wrapper retains its ID even after Unity destroys the native object.
+                if (!ReferenceEquals(view, null))
+                {
+                    _entitiesByView.Remove(view.GetEntityId());
+                }
+                NotifyHierarchyEntityChanged(entity);
             }
         }
 
@@ -143,7 +178,12 @@ namespace Delta.ECS.Unity
             }
 
             _disposed = true;
-            LiveWorlds.Remove(this);
+            _world.EntityMembershipChanged -= OnEntityMembershipChanged;
+            if (LiveWorlds.Remove(this))
+            {
+                LiveWorldsChanged?.Invoke();
+            }
+            _hierarchyEntitiesChanged = null;
             DestroyCurrentAuthoringEntities();
             _entitiesByStableId.Clear();
             _stableIdsByEntity.Clear();
@@ -159,14 +199,13 @@ namespace Delta.ECS.Unity
         /// <summary>Resolves the runtime view first, then the scene-authored stable-ID binding.</summary>
         public bool TryGetView(Entity entity, [NotNullWhen(true)] out GameObject view)
         {
-            if (_viewsByEntity.TryGetValue(entity, out view) && view != null)
+            if (_viewsByEntity.TryGetValue(entity, out view))
             {
-                return true;
-            }
-
-            if (_viewsByEntity.ContainsKey(entity))
-            {
-                _viewsByEntity.Remove(entity);
+                if (view != null)
+                {
+                    return true;
+                }
+                UnbindView(entity);
             }
 
             return _authoring != null
@@ -259,6 +298,36 @@ namespace Delta.ECS.Unity
             {
                 world.Dispose();
                 return UnityThrowHelpers.Rethrow<SceneWorld>(exception);
+            }
+        }
+
+        internal bool HasRuntimeView(Entity entity) => _viewsByEntity.ContainsKey(entity);
+
+        internal void RefreshDestroyedViews()
+        {
+            foreach (var pair in _viewsByEntity)
+            {
+                if (pair.Value == null || !_world.IsAlive(pair.Key))
+                {
+                    _destroyedViews.Add(pair.Key);
+                }
+            }
+            foreach (Entity entity in _destroyedViews)
+            {
+                UnbindView(entity);
+            }
+            _destroyedViews.Clear();
+            if (_authoring != null)
+            {
+                _authoring.CollectDestroyedViews(_destroyedAuthoredViews);
+                foreach (string stableId in _destroyedAuthoredViews)
+                {
+                    if (_entitiesByStableId.TryGetValue(stableId, out Entity entity))
+                    {
+                        NotifyHierarchyEntityChanged(entity);
+                    }
+                }
+                _destroyedAuthoredViews.Clear();
             }
         }
 
@@ -521,6 +590,15 @@ namespace Delta.ECS.Unity
             return new World(layouts, initialEntityCapacity);
         }
 
+        private void OnEntityMembershipChanged(ReadOnlySpan<Entity> entities)
+            => _hierarchyEntitiesChanged?.Invoke(entities);
+
+        private void NotifyHierarchyEntityChanged(Entity entity)
+        {
+            ReadOnlySpan<Entity> entities = stackalloc Entity[] { entity };
+            _hierarchyEntitiesChanged?.Invoke(entities);
+        }
+
         private void DestroyCurrentAuthoringEntities()
         {
             foreach (Entity entity in _entitiesByStableId.Values)
@@ -543,6 +621,8 @@ namespace Delta.ECS.Unity
             }
         }
     }
+
+    internal delegate void RuntimeEntityChangeHandler(ReadOnlySpan<Entity> entities);
 
     /// <summary>Owns runtime world creation and teardown for loaded Unity scenes.</summary>
     internal static class SceneWorldRuntime

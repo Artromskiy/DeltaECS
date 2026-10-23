@@ -503,3 +503,34 @@ at benchmark completion. All Mean/Error/StdDev/Allocated/ratio tables, noisy
 rounds, opcode summaries and reproduction details are in
 [the detailed report](real-project-profile-2026-10-14.md). Raw files stay under
 `artifacts/profile-optimization-20261014/`.
+
+## Incremental Unity hierarchy synchronization — 2026-10-23
+
+Baseline: `fe94828`. Candidate: the working-tree hierarchy synchronization
+change. The supplied Unity Deep Profile screenshot shows repeated enumeration
+of 46,973 entities, 221.7 KB inclusive allocation in reconciliation and 197.1 KB
+under query-slot construction. Those frame timings are not a paired benchmark.
+
+The candidate takes one initial snapshot, queues lifecycle/binding changes,
+and observes the hierarchy-hidden tag through `ForEachChange`. Runtime entity
+identity includes the generation. Idle updates inspect only bound views (to
+notice Unity objects destroyed without unbinding), not every ECS entity or
+hierarchy node. Core membership notifications use borrowed ranges and are
+subscribed only while an editor hierarchy tracker exists.
+
+Evidence: Unity `7000.0.0a9`, CoreCLR, macOS Arm64, isolated batch-mode project;
+46,973 native entity nodes and synthetic populations of zero and 278 bound
+GameObjects. After 64 warmups, 1,000 empty handler updates allocate **0 B** in
+both cases (`GC.GetAllocatedBytesForCurrentThread`). Native-node assertions
+cover initial population, hidden-tag add/remove, view bind/unbind/reassignment,
+view destruction, recycled entity generations and cleanup outside Play Mode.
+A first candidate allocated 24 B per idle update through unnecessary hierarchy
+API access; checking the dirty queue before accessing native node/command APIs
+removed that allocation. Ten new core tests cover all entity creation/deletion
+routes and exclusion of ordinary archetype moves; the complete ECS suite passes
+300/300. Runtime and Editor sources also compile against real Unity references.
+Raw harness, logs and JSON results are under `artifacts/unity-hierarchy-check/`.
+
+Decision: retain the incremental path. No BDN Mean/Error/StdDev, throughput
+ratio, JIT size or instruction-count comparison was taken; no percentage
+frame-time improvement is claimed from the Deep Profile screenshot.

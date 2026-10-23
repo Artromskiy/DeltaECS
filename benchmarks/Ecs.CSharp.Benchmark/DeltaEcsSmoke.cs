@@ -2,10 +2,10 @@ using System;
 
 using Delta.ECS;
 
-using DeltaEntity = Delta.ECS.Entity;
-
 using Ecs.CSharp.Benchmark.Contexts;
 using Ecs.CSharp.Benchmark.Contexts.DeltaEcsComponents;
+
+using DeltaEntity = Delta.ECS.Entity;
 
 namespace Ecs.CSharp.Benchmark;
 

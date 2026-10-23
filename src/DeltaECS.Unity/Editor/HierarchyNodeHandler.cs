@@ -22,9 +22,12 @@ namespace Delta.ECS.Unity.Editor
         private static readonly SchemaId HiddenEntitySchema = new(ViewComponentSchemaIds.HideFromEntityHierarchy);
         private static double _nextRuntimeHierarchyRefresh;
         private static bool _wasPlaying;
+        private static bool _authoringsDirty = true;
+        private static SceneAuthoring[] _authorings = Array.Empty<SceneAuthoring>();
         private static readonly HashSet<HierarchyNodeHandler> Instances = new();
 
         private readonly Dictionary<EntityKey, EntityNode> _entityNodes = new();
+        private readonly Dictionary<SceneAuthoring, RuntimeHierarchyState> _runtimeStates = new();
         private readonly HashSet<EntityKey> _activeEntityKeys = new();
         private readonly List<EntityKey> _removedEntityKeys = new();
         private readonly Dictionary<HierarchyNode, NodeReference> _nodes = new();
@@ -39,6 +42,8 @@ namespace Delta.ECS.Unity.Editor
             HierarchyWindow.BindView += BindHierarchyView;
             EditorApplication.delayCall += BindExistingHierarchyViews;
             EditorApplication.update += UpdateRuntimeHierarchy;
+            SceneAuthoring.HierarchyChanged += InvalidateAuthorings;
+            SceneWorld.LiveWorldsChanged += InvalidateAuthorings;
         }
 
         public override string GetNodeTypeName() => nameof(HierarchyNodeHandler);
@@ -98,6 +103,11 @@ namespace Delta.ECS.Unity.Editor
                     pair.Key.SceneData.Changed -= pair.Value;
                 }
             }
+            foreach (RuntimeHierarchyState state in _runtimeStates.Values)
+            {
+                state.Dispose();
+            }
+            _runtimeStates.Clear();
             _sceneDataSubscriptions.Clear();
             _loadedAuthorings.Clear();
             _removedAuthorings.Clear();
@@ -150,6 +160,8 @@ namespace Delta.ECS.Unity.Editor
 
         internal static void RefreshAll()
         {
+            InvalidateAuthorings();
+            GetAuthorings();
             var changed = false;
             foreach (var instance in Instances)
             {
@@ -206,7 +218,22 @@ namespace Delta.ECS.Unity.Editor
                 }
 
                 _nextRuntimeHierarchyRefresh = EditorApplication.timeSinceStartup + RuntimeHierarchyRefreshInterval;
-                RefreshAll();
+                if (_authoringsDirty)
+                {
+                    RefreshAll();
+                }
+                else
+                {
+                    bool changed = false;
+                    foreach (HierarchyNodeHandler instance in Instances)
+                    {
+                        changed |= instance.RefreshRuntimeChanges();
+                    }
+                    if (changed)
+                    {
+                        EditorApplication.RepaintHierarchyWindow();
+                    }
+                }
                 return;
             }
 
@@ -215,6 +242,18 @@ namespace Delta.ECS.Unity.Editor
                 _wasPlaying = false;
                 RefreshAll();
             }
+        }
+
+        private static void InvalidateAuthorings() => _authoringsDirty = true;
+
+        private static SceneAuthoring[] GetAuthorings()
+        {
+            if (_authoringsDirty)
+            {
+                _authorings = Resources.FindObjectsOfTypeAll<SceneAuthoring>();
+                _authoringsDirty = false;
+            }
+            return _authorings;
         }
 
         private static void BindHierarchyView(HierarchyWindow window, HierarchyView view)
@@ -432,19 +471,46 @@ namespace Delta.ECS.Unity.Editor
             }
         }
 
-        private bool Reconcile()
+        private bool Reconcile(bool changed = false)
         {
             if (!Hierarchy.IsCreated)
             {
                 return false;
             }
 
-            var changed = false;
             _activeEntityKeys.Clear();
 
             var sceneHandler = Hierarchy.GetNodeTypeHandler<HierarchySceneHandler>();
-            var authoringsInScenes = Resources.FindObjectsOfTypeAll<SceneAuthoring>();
+            var authoringsInScenes = GetAuthorings();
             SynchronizeSceneSubscriptions(authoringsInScenes);
+            foreach (var pair in _runtimeStates)
+            {
+                if (!EditorApplication.isPlaying || !pair.Value.World.IsBound
+                    || !SceneWorld.TryFindLiveWorld(pair.Key.SceneData, out SceneWorld liveWorld)
+                    || !ReferenceEquals(liveWorld, pair.Value.World))
+                {
+                    _removedAuthorings.Add(pair.Key);
+                }
+            }
+            foreach (SceneAuthoring authoring in _removedAuthorings)
+            {
+                _runtimeStates[authoring].Dispose();
+                _runtimeStates.Remove(authoring);
+            }
+            _removedAuthorings.Clear();
+            // Runtime nodes survive authored-data reconciliation. Their own dirty queue
+            // removes destroyed, hidden or newly bound entities below.
+            foreach (var pair in _entityNodes)
+            {
+                NodeReference reference = pair.Value.Reference;
+                if (reference.IsRuntimeOnly && reference.RuntimeWorld.IsBound
+                    && _loadedAuthorings.Contains(reference.Authoring)
+                    && _runtimeStates.TryGetValue(reference.Authoring, out RuntimeHierarchyState state)
+                    && ReferenceEquals(state.World, reference.RuntimeWorld))
+                {
+                    _activeEntityKeys.Add(pair.Key);
+                }
+            }
             for (var i = 0; i < authoringsInScenes.Length; i++)
             {
                 var authoringHost = authoringsInScenes[i];
@@ -464,6 +530,7 @@ namespace Delta.ECS.Unity.Editor
                 {
                     SceneWorld.TryFindLiveWorld(authoringHost.SceneData, out runtimeWorld);
                 }
+                runtimeWorld?.RefreshDestroyedViews();
 
                 var entities = authoringHost.SceneData.Entities;
                 for (var entityIndex = 0; entityIndex < entities.Count; entityIndex++)
@@ -484,8 +551,7 @@ namespace Delta.ECS.Unity.Editor
                         : default;
                     bool hasView = authoringHost.TryGetView(authoring.StableId, out _)
                         || (runtimeWorld != null
-                            && runtimeWorld.World.IsAlive(runtimeEntity)
-                            && runtimeWorld.TryGetView(runtimeEntity, out _));
+                            && runtimeWorld.HasRuntimeView(runtimeEntity));
                     if (hasView || IsHiddenFromHierarchy(authoring, runtimeWorld, runtimeEntity))
                     {
                         continue;
@@ -556,27 +622,7 @@ namespace Delta.ECS.Unity.Editor
 
             for (var i = 0; i < _removedEntityKeys.Count; i++)
             {
-                var key = _removedEntityKeys[i];
-                var entityNode = _entityNodes[key];
-                if (entityNode.Reference.IsRuntimeOnly)
-                {
-                    HierarchySelection.ClearIfSelected(
-                        entityNode.Reference.RuntimeWorld,
-                        entityNode.Reference.RuntimeEntity);
-                }
-                else
-                {
-                    HierarchySelection.ClearIfSelected(this, entityNode.Reference.Authoring, entityNode.Reference.StableId);
-                }
-                if (Hierarchy.Exists(entityNode.Node))
-                {
-                    CommandList.Remove(entityNode.Node);
-                }
-
-                SelectionProxyBridge.Remove(this, entityNode.Node);
-                _nodes.Remove(entityNode.Node);
-                _entityNodes.Remove(key);
-                changed = true;
+                changed |= RemoveEntityNode(_removedEntityKeys[i]);
             }
 
             if (CommandList.Size > 0)
@@ -597,33 +643,103 @@ namespace Delta.ECS.Unity.Editor
             HierarchyNode sceneNode,
             SceneWorld runtimeWorld)
         {
-            Query query = runtimeWorld.World.WhereNone(runtimeWorld.HiddenEntityHierarchyComponentId);
-            bool changed = false;
-            runtimeWorld.World.ForEachEntity(in query, entityRef =>
+            if (!_runtimeStates.TryGetValue(authoring, out RuntimeHierarchyState state)
+                || !ReferenceEquals(state.World, runtimeWorld))
             {
-                Entity entity = entityRef;
-                if (runtimeWorld.TryGetStableId(entity, out _) || runtimeWorld.TryGetView(entity, out _))
+                state?.Dispose();
+                state = new RuntimeHierarchyState(runtimeWorld);
+                _runtimeStates[authoring] = state;
+            }
+            state.PrepareChanges();
+            return state.Synchronize(this, authoring, sceneNode, out _);
+        }
+
+        private bool RefreshRuntimeChanges()
+        {
+            if (!Hierarchy.IsCreated)
+            {
+                return false;
+            }
+            bool changed = false;
+            bool authoredChanged = false;
+            foreach (var pair in _runtimeStates)
+            {
+                RuntimeHierarchyState state = pair.Value;
+                if (!state.World.IsBound || !state.PrepareChanges())
                 {
-                    return;
+                    continue;
                 }
-
-                var key = new EntityKey(runtimeWorld, entity);
-                _activeEntityKeys.Add(key);
-                if (_entityNodes.ContainsKey(key))
+                var sceneHandler = Hierarchy.GetNodeTypeHandler<HierarchySceneHandler>();
+                HierarchyNode sceneNode = sceneHandler.GetOrCreateNode(pair.Key.gameObject.scene);
+                if (sceneNode != HierarchyNode.Null)
                 {
-                    return;
+                    changed |= state.Synchronize(this, pair.Key, sceneNode, out bool dirtyAuthoring);
+                    authoredChanged |= dirtyAuthoring;
                 }
+            }
+            if (authoredChanged)
+            {
+                return Reconcile(changed);
+            }
+            if (!changed)
+            {
+                return false;
+            }
+            if (CommandList.Size > 0)
+            {
+                CommandList.Execute();
+            }
+            Hierarchy.Update();
+            return true;
+        }
 
-                string name = $"ECS Entity {entity.Index}:{entity.Generation}";
-                var reference = new NodeReference(authoring, null, runtimeWorld, entity);
-                CommandList.Add(sceneNode, out HierarchyNode node);
-                CommandList.SetName(node, name);
-                _entityNodes.Add(key, new EntityNode(node, reference, name));
-                _nodes.Add(node, reference);
-                changed = true;
-            }).Invoke();
+        private bool SynchronizeRuntimeEntity(SceneAuthoring authoring, HierarchyNode sceneNode,
+            SceneWorld runtimeWorld, Entity entity)
+        {
+            var key = new EntityKey(runtimeWorld, entity);
+            if (!runtimeWorld.World.IsAlive(entity)
+                || runtimeWorld.HasRuntimeView(entity)
+                || runtimeWorld.World.Has(entity, runtimeWorld.HiddenEntityHierarchyComponentId))
+            {
+                _activeEntityKeys.Remove(key);
+                return RemoveEntityNode(key);
+            }
+            _activeEntityKeys.Add(key);
+            if (_entityNodes.TryGetValue(key, out _))
+            {
+                return false;
+            }
+            string name = $"ECS Entity {entity.Index}:{entity.Generation}";
+            var reference = new NodeReference(authoring, null, runtimeWorld, entity);
+            CommandList.Add(sceneNode, out HierarchyNode node);
+            CommandList.SetName(node, name);
+            _entityNodes.Add(key, new EntityNode(node, reference, name));
+            _nodes.Add(node, reference);
+            return true;
+        }
 
-            return changed;
+        private bool RemoveEntityNode(EntityKey key)
+        {
+            if (!_entityNodes.Remove(key, out EntityNode entityNode))
+            {
+                return false;
+            }
+            NodeReference reference = entityNode.Reference;
+            if (reference.IsRuntimeOnly)
+            {
+                HierarchySelection.ClearIfSelected(reference.RuntimeWorld, reference.RuntimeEntity);
+            }
+            else
+            {
+                HierarchySelection.ClearIfSelected(this, reference.Authoring, reference.StableId);
+            }
+            if (Hierarchy.Exists(entityNode.Node))
+            {
+                CommandList.Remove(entityNode.Node);
+            }
+            SelectionProxyBridge.Remove(this, entityNode.Node);
+            _nodes.Remove(entityNode.Node);
+            return true;
         }
 
         private void SynchronizeSceneSubscriptions(SceneAuthoring[] authorings)
@@ -669,6 +785,10 @@ namespace Delta.ECS.Unity.Editor
                     authoring.SceneData.Changed -= _sceneDataSubscriptions[authoring];
                 }
                 _sceneDataSubscriptions.Remove(authoring);
+                if (_runtimeStates.Remove(authoring, out RuntimeHierarchyState state))
+                {
+                    state.Dispose();
+                }
             }
 
             _removedAuthorings.Clear();
@@ -866,6 +986,64 @@ namespace Delta.ECS.Unity.Editor
             else
             {
                 HierarchySelection.DeferClear(view);
+            }
+        }
+
+        private sealed class RuntimeHierarchyState : IDisposable
+        {
+            private readonly HashSet<Entity> _dirtyEntities = new();
+            private readonly ComponentChangeOperation<HideFromEntityHierarchy> _hiddenChanges;
+            internal SceneWorld World { get; }
+
+            internal RuntimeHierarchyState(SceneWorld world)
+            {
+                World = world;
+                world.HierarchyEntitiesChanged += Queue;
+                _hiddenChanges = world.World.ForEachChange<HideFromEntityHierarchy>(
+                    world.HiddenEntityHierarchyComponentId, OnHiddenChanged);
+                // One snapshot, without tag-slot cache or repeated per-refresh operations.
+                Query query = world.World.WhereNone(ReadOnlySpan<ComponentId>.Empty);
+                world.World.ForEachEntity(in query, QueueInitialEntity).Invoke();
+            }
+
+            public void Dispose() => World.HierarchyEntitiesChanged -= Queue;
+
+            internal bool PrepareChanges()
+            {
+                World.RefreshDestroyedViews();
+                _hiddenChanges.Invoke();
+                return _dirtyEntities.Count != 0;
+            }
+
+            internal bool Synchronize(HierarchyNodeHandler handler, SceneAuthoring authoring,
+                HierarchyNode sceneNode, out bool authoredChanged)
+            {
+                bool changed = false;
+                authoredChanged = false;
+                foreach (Entity entity in _dirtyEntities)
+                {
+                    if (World.TryGetStableId(entity, out _))
+                    {
+                        authoredChanged = true;
+                    }
+                    else
+                    {
+                        changed |= handler.SynchronizeRuntimeEntity(authoring, sceneNode, World, entity);
+                    }
+                }
+                _dirtyEntities.Clear();
+                return changed;
+            }
+
+            private void QueueInitialEntity(EntityRef entity) => _dirtyEntities.Add(entity);
+            private void OnHiddenChanged(Entity entity, ChangeKind kind, ref HideFromEntityHierarchy value)
+                => _dirtyEntities.Add(entity);
+            private void Queue(ReadOnlySpan<Entity> entities)
+            {
+                foreach (Entity entity in entities)
+                {
+                    _dirtyEntities.Add(entity);
+                }
             }
         }
 

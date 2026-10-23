@@ -24,6 +24,8 @@ namespace Delta.ECS.Unity
         [NonSerialized] private Dictionary<string, GameObject> _viewsByStableId;
         [NonSerialized] private Dictionary<UnityEngine.EntityId, string> _stableIdsByView;
 
+        internal static event Action HierarchyChanged;
+
         internal SceneData SceneData => _sceneData ??= new SceneData();
 
         internal static SceneAuthoring FindForScene(Scene scene)
@@ -120,15 +122,36 @@ namespace Delta.ECS.Unity
 
             InvalidateBindingIndex();
             EnsureBindingIndex();
+            HierarchyChanged?.Invoke();
             return true;
         }
 
         internal bool RemoveView(string stableId) => SetView(stableId, null);
 
+        internal void CollectDestroyedViews(List<string> stableIds)
+        {
+            EnsureBindingIndex();
+            foreach (var pair in _viewsByStableId)
+            {
+                if (pair.Value == null)
+                {
+                    stableIds.Add(pair.Key);
+                }
+            }
+            foreach (string stableId in stableIds)
+            {
+                if (_viewsByStableId.Remove(stableId, out GameObject view) && !ReferenceEquals(view, null))
+                {
+                    _stableIdsByView.Remove(view.GetEntityId());
+                }
+            }
+        }
+
         private void OnValidate()
         {
             SceneData.EnsureStableIds();
             InvalidateBindingIndex();
+            HierarchyChanged?.Invoke();
         }
 
         private void OnEnable()
@@ -136,6 +159,7 @@ namespace Delta.ECS.Unity
             SceneData.Changed -= OnSceneDataChanged;
             SceneData.Changed += OnSceneDataChanged;
             InvalidateBindingIndex();
+            HierarchyChanged?.Invoke();
         }
 
         private void OnDisable()
@@ -144,6 +168,7 @@ namespace Delta.ECS.Unity
             {
                 _sceneData.Changed -= OnSceneDataChanged;
             }
+            HierarchyChanged?.Invoke();
         }
 
         private void OnSceneDataChanged(SceneDataChange change)

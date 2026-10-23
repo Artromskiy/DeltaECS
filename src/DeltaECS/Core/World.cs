@@ -97,6 +97,9 @@ public sealed partial class World : IDisposable
 
     internal bool IsDisposed { get; private set; }
 
+    // Internal consumers only enqueue identities; ranges are borrowed until the callback returns.
+    internal event EntityMembershipChangedHandler? EntityMembershipChanged;
+
     internal int TagVersion { get; private set; }
 
 
@@ -151,6 +154,7 @@ public sealed partial class World : IDisposable
         EnsureNoActiveLease("dispose the world");
 
         IsDisposed = true;
+        EntityMembershipChanged = null;
         foreach (var weakQueryPlan in _queryCache.Values)
         {
             if (weakQueryPlan.TryGetTarget(out QueryPlan? queryPlan))
@@ -1405,6 +1409,7 @@ public sealed partial class World : IDisposable
 
     private void RecordEntityMembershipRange(Chunk chunk, int slot, int count, bool present)
     {
+        EntityMembershipChanged?.Invoke(chunk.RawEntities.Slice(slot, count));
         foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
         {
             if (!reference.TryGetTarget(out ComponentChangeObserver? observer))

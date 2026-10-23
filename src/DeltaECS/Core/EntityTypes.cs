@@ -118,6 +118,8 @@ public readonly struct Query
 
 }
 
+internal delegate void EntityMembershipChangedHandler(ReadOnlySpan<Entity> entities);
+
 internal struct EntityRecord
 {
     internal Chunk? Chunk;
