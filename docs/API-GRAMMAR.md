@@ -602,6 +602,13 @@ borrows the data's storage and must not be retained across changes to that
 component presence from an existing entity into the data; they do not modify
 the entity.
 
+Capture resolves the source entity once and reuses world-owned typed read
+routes. `Set(world, entity)` visits IDs already in the destination; `Add` and
+`AddOrSet` visit the source's data components and the chunk's active tags,
+copying only tags present on that source entity. These calls do not scan the
+entire component registry. New entries from a full capture are appended in
+registration order; existing destination entries keep their insertion order.
+
 `Add` preserves an existing entry and returns `false`; `AddOrSet` inserts or
 replaces a typed value and returns `void`; `Set` updates only an existing entry
 and returns `false` if it is missing. Adding an ID without a value defers type

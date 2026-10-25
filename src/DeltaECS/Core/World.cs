@@ -166,6 +166,8 @@ public sealed partial class World : IDisposable
         _queryCache.Clear();
         _componentSetCache.Clear();
         _primaryComponentIdsByType.Clear();
+        _entityDataReaders.Clear();
+        _entityDataSourceReadRoutes.Clear();
         _genericFunctors.Clear();
         _lastGenericFunctorEntry = null;
         DisposeGenericFunctorInputBlocks();

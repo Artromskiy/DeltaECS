@@ -2,7 +2,7 @@
 
 Choose an API by the work your system needs to do, then choose its callback and registration forms. This guide covers the public core runtime and generated consumer API; the [API grammar](API-GRAMMAR.md) lists the supported signatures and argument order.
 
-**Start with variadic `ForEach` when the component types are known.** Add `EntityRef` only when the handler also needs the entity. Retain a `ForEachChange<T>` operation when the task is to react to changes between calls.
+**Choose the unit of work first.** For a runtime-defined set of component IDs and values on **one entity**, use `EntityData`. For the same known component accesses across **many entities**, start with variadic `ForEach`; add `EntityRef` when the handler also needs the entity. Retain a `ForEachChange<T>` operation when the task is to react to changes between calls.
 
 ## Reading the tables
 
@@ -11,8 +11,9 @@ Examples in tables are call fragments: `q`, component IDs, callbacks and compare
 - `N`: candidate entities; `C`: visited chunks; `A`: archetypes examined during preparation or initial change reporting; `P`: entities passing a value predicate; `L`: entities in an explicit input list.
 - `M`: pending component membership changes; `D`: dirty chunks; `B`: mask words examined; `E`: emitted change notifications.
 - `H`: entity-index capacity used by a change operation; `S`: component bytes initialized, copied or cleared by a structural operation.
+- `K`: entries in an `EntityData` set; `U`: data components on a source entity; `T_c`: tag registrations present anywhere in its chunk.
 
-Complexities describe execution with a prepared query, a **fixed generated signature**, fixed filters and fixed ordering keys. They exclude user callback work, allocation growth and cold preparation unless explicitly listed. Add `O(B)` to traversal bounds when tag selection needs rebuilding or mask scanning.
+For generated iteration, complexities describe execution with a prepared query, a **fixed generated signature**, fixed filters and fixed ordering keys. They exclude user callback work, allocation growth and cold preparation unless explicitly listed. Dynamic input lists and data sets retain their explicit `L` and `K` terms. Add `O(B)` to traversal bounds when tag selection needs rebuilding or mask scanning.
 
 Generated arity is a compile-time shape: `ForEach<Position, Velocity>` does not run a generic loop over a runtime list of component types for every entity. Its dense traversal is `O(C + N)`. More component parameters increase bindings, instructions and memory traffic, but do not introduce another variable into that fixed signature's Big-O.
 
@@ -55,7 +56,7 @@ Zero-arity `ForEach` without an entity or component parameter is a generator anc
 Choose these independently before selecting callback syntax:
 
 1. **Input set:** a supplied target list needs list iteration; a live world selection needs a query. Scanning the world and testing list membership changes work from `O(L)` to at least `O(N)`.
-2. **Registration knowledge:** runtime IDs with a known CLR type still use typed component parameters and explicit IDs. Unknown CLR types need preparation through visitors or a supported runtime generic functor. Membership-only cleanup consumes IDs directly and needs neither.
+2. **Registration knowledge:** runtime IDs with a known CLR type still use typed component parameters and explicit IDs for iteration. To run custom typed behavior for unknown CLR types, prepare visitors or a supported runtime generic functor. To apply an already collected set of values to one entity, use `EntityData`; its entries retain their types. Membership-only cleanup consumes IDs directly.
 3. **Eligibility:** apply membership filters, then read-only value predicates. Choose a minimum only among eligible entities. Include every component needed by a comparison, including tie-break keys.
 4. **Terminal:** one result needs a minimum reduction (`First` on an ordering); all results in priority order need ordered iteration. For an external list, a typed entity-list callback can perform a linear minimum reduction without sorting.
 5. **Mutation phases:** finish value updates before selecting targets whose eligibility depends on those updates. Complete callbacks before structural changes. If the contract says snapshot **all** registrations before reset, invoke every snapshot operation before invoking any reset operation, rather than snapshot/reset pairs per registration.
@@ -72,7 +73,7 @@ Define the comparers as `IComponentComparer` structs with typed `Invoke(in T
 left, in T right)` methods; put the fixed reference point in the comparer
 before constructing the operation. If a callback-based ordering chain fails
 generation, use this form before replacing ordered traversal with repeated
-`First()` calls. Repeated minima cost `O(N*K)` for `K` processed targets,
+`First()` calls. Repeated minima cost `O(N*T)` for `T` processed targets,
 where a single ordered traversal costs `O(N + P log P)` after filtering.
 
 Value predicates currently select primary registrations; do not invent an
@@ -116,12 +117,83 @@ and operation themselves.
 | Create with default values or known values | `Create` | `world.Create<Health>()`; `world.Create(healthId, new Health(100))` | Creates an entity and initializes its component storage | Amortized storage work proportional to `S`; batches also scale with entity count | Capacity growth, registration validation and structural bookkeeping; batch forms avoid repeated call preparation |
 | Add or remove registrations without typed values | Type-erased `Add` / `Remove` | `world.Add(entity, id)`; `world.Remove(in q, ids)` | Changes membership using IDs directly | Selection work plus structural work proportional to affected data | Data-component changes may move/copy rows. Tags update membership masks. A CLR type is unnecessary when only IDs are consumed |
 | Add values or select a primary registration by type | Typed `Add` / primary `Remove` | `world.Add(entity, new Health(100))`; `world.Remove<Health>(entity)` | Supplies a value or selects a type's primary registration | Selection plus structural work | Use combined multi-component forms for one combined transition when changing several data components |
+| Create or patch one entity with a runtime-defined component set | **`EntityData` + `World.Create/Add/Set/AddOrSet`** | `world.AddOrSet(entity, data)`; `Entity e = world.Create(data)` | Applies heterogeneous typed values and presence-only IDs together; registrations can share a CLR type | Warm application: `O(K + S)`, plus active observer costs | Construction and first use prepare storage and routes. Reuse the same data instance and component set to reuse world-owned plans; adding data components uses a combined structural transition |
+| Copy the current state of one entity into reusable data | `EntityData.Add/Set/AddOrSet(World, Entity)` | `data.Clear(); data.AddOrSet(world, entity);` | Copies matching component values and presence into the container | Warm `Set`: `O(K + S)`; warm `Add`/`AddOrSet`: `O(U + T_c + S)` | Reuses typed readers and row routes; resolves the source once. Full capture reads its data rows and the chunk's active tags, checking tag membership for this entity. First use prepares routes; missing destination entries allocate storage |
+| Read, edit or enumerate entries before applying them | `EntityData` accessors + `ComponentIds` | `data.GetRef<float>(healthId) = 75f`; `foreach (ComponentId id in data.ComponentIds) ...` | Works with entries in the container | Expected `O(1)` keyed access; enumeration and removal `O(K)` | Entry construction can allocate. References address stored container values; `ComponentIds` borrows storage and must not survive modifications |
 | Destroy one entity, a list or query matches | `Destroy` | `world.Destroy(entity)`; `world.Destroy(in q)` | Removes entities and their components | Depends on selection and data removed/moved; an explicit list may also require `O(L log L)` grouping/sorting | Dense query deletion can use chunk work; arbitrary lists and tag-filtered deletion require more selection work |
 | Map a stable schema or config name to a runtime ID | Registration, schema lookup and aliases | `world.Components.TryGetComponentId(schemaId, out var id)` | Resolves the registration once for later use | Expected `O(1)` indexed lookup | Resolve configuration names/IDs during loading, then keep `ComponentId` rather than repeating string lookups in hot loops |
 | Get a configured category of registrations | Component groups | `world.GetGroup(Groups.History)` | Returns IDs assigned to exactly one enum group value | Cached lookup: expected `O(1)`; rebuilding the member array after group mutation: `O(group size)` | Enumerating the returned IDs costs `O(group size)`. A flags value does not union several groups in `GetGroup`; group membership does not itself select entities |
 | Build typed behavior from a CLR type known only through an ID | Component visitors | `world.Components.TryVisit(id, visitor)` | Dispatches once to a generic `Visit<TComponent>` | Dispatch per registration, plus visitor work | Build and retain typed handlers/operations here rather than dispatching a visitor for every entity |
 | Declare component metadata at build time | Schema, alias and group attributes; generated catalog | `[ComponentSchema(10)]`; `[ComponentGroup(Groups.History)]` | Describes registrations and categories for generated metadata | Registration/catalog preparation, outside the entity loop | Optional metadata; ordinary components need no ECS attributes. See the grammar for catalog and interface-binding routes |
 | Inspect/edit completely dynamic values in tooling | `World.TryRead` / `World.TryWrite` | `world.TryRead(entity, id, out object? value)` | Reads and writes dynamically selected component values | Lookup plus conversion/copying | Struct values can be boxed. Prefer typed APIs for hot simulation work |
+
+## Choose EntityData for a component set on one entity
+
+Use `EntityData` for a config-defined entity, a saved entity state, a deserialized
+payload or a patch containing independently selected components. The number and
+combination of registrations can be decided at runtime; several IDs can share
+one CLR type. Typed entries keep value-type payloads out of `object` boxing.
+No common component interface or generated variadic signature is needed to
+apply the set.
+
+The world caches validated registrations and component-row routes for the same
+data instance and encountered archetypes. Replacing existing values keeps that
+preparation reusable; adding or removing IDs invalidates the set's preparation.
+Repeated applications read the container's current values. Prefer retaining
+the container and updating its values over rebuilding it for each call.
+
+| The task on the target entity | Choose | Result |
+| --- | --- | --- |
+| Create an entity from the set | `world.Create(data)` | Creates one entity; the set must contain at least one ID |
+| Supply missing components and preserve existing values | `world.Add(entity, data)` | Returns the number of added components and tags |
+| Update the entity only when every selected entry exists | `world.Set(entity, data)` | Returns `data.Count` when all are present, or zero without applying values if any are missing |
+| Ensure the selected components exist and apply supplied values | `world.AddOrSet(entity, data)` | Adds missing entries and updates existing stored values; returns `void` |
+
+An ID added without a value supplies membership. The consuming world resolves
+whether it is a data component or tag: newly added data components receive
+their default value, and existing values are preserved. Typed tag entries use
+the same `Add` syntax and store membership only.
+
+```csharp
+using System;
+
+using Delta.ECS;
+
+using var world = new World();
+ComponentId healthId = world.Components.Register<float>(new SchemaId(1));
+ComponentId staminaId = world.Components.Register<float>(new SchemaId(2));
+
+var data = new EntityData();
+data.Add(healthId, 100f);
+data.Add(staminaId, 40f);
+Entity entity = world.Create(data);
+
+data.Set(healthId, 75f);
+int applied = world.Set(entity, data); // 2: both entries were present
+
+data.Set(staminaId, 20f);
+world.AddOrSet(entity, data);          // Reuses the set with its current values
+Console.WriteLine(world.Get<float>(entity, healthId));  // 75
+Console.WriteLine(world.Get<float>(entity, staminaId)); // 20
+```
+
+For one known component, direct typed access remains the shortest route. A
+fixed set of known types can use a generated multi-component structural call.
+Choose `EntityData` when the component set itself is data or needs to be built,
+stored or inspected independently of the call signature. Its cached preparation
+reduces repeated work, while applying the set still visits its `K` entries.
+For dense work over many entities, use variadic iteration with direct row
+references.
+
+The container does not own a world; its IDs must resolve to the intended
+registrations in each consuming world. Captured values are shallow copies, so
+references inside components remain shared. `data.Clear(); data.AddOrSet(world,
+entity);` replaces the container's contents with an individual entity snapshot.
+For repeated full-world snapshots, prepare typed traversals per registration
+to keep component-row reads dense. `EntityData` capture instead resolves each
+entity and updates its container entries individually. The
+[Entity data grammar](API-GRAMMAR.md#entity-data)
+describes the full API and copy semantics.
 
 ## Choose the callback and registration form
 
@@ -131,7 +203,7 @@ These are independent choices within an iteration family; they do not require sw
 | --- | --- | --- |
 | One ordinary registration per component type | Primary-registration overload | Shortest typed call; the component types choose their primary IDs |
 | Multiple registrations share one CLR type, or configuration chooses the registration | Typed callback with explicit `ComponentId`s | A runtime ID selects a typed row. **A dynamic registration is not an unknown CLR type** |
-| Build the registration list programmatically | Typed callback with `ReadOnlySpan<ComponentId>` | Keeps typed component parameters; IDs must match their number and types. Construction preserves the inputs for later invocation |
+| Build IDs programmatically for a fixed component signature | Typed callback with `ReadOnlySpan<ComponentId>` | Keeps typed component parameters; IDs must match their number and types. Construction preserves the inputs for later invocation |
 | Only read a component | `in T` or supported `ref readonly T`; `GetReadRef<T>` for individual access | Avoids declaring writes and generating change notifications for read-only work |
 | Change a component | `ref T` / `GetRef<T>` | Declares writable access and participates in change tracking when observed |
 | Keep a local copy | Value parameter / `Get<T>` | Copying is intentional; avoid copying large structs just to read them |
@@ -214,11 +286,16 @@ Use manual value comparison only when the task specifically needs equality-based
 ## Preparation, reuse and lifetime
 
 - Build and retain queries and operations used repeatedly. A `ForEach` call creates an operation; `Invoke()` executes it against current matches. Binding preparation and topology changes can cost more than an ordinary warm invocation.
+- Retain `EntityData` sets used for repeated single-entity creation or patches. The consuming world owns their prepared application plans; changing stored values reuses the set, while changing its IDs requires preparation again. These forms accept one entity per call.
 - Use `var` for a local generated operation. For retained ordinary traversal fields, `IOperation` is a supported type; for a result terminal use `IResultOperation<T>` or its concrete `EcsResultOperation<T>` type. `IOperation<TState>` is for caller-owned mutable state, not a result. Grammar family names and invented `ForEachInvoker` types are not field declarations. Storing a generated operation struct as `IOperation` boxes it once during preparation, not once per entity.
 - Creating an operation is not universally allocation-free: closures, captured input lists, ordering descriptions, change subscriptions and cold caches have their own storage costs. Concrete generated operation structs avoid boxing on direct invocation; storing one as `IOperation` boxes it once. A constrained generic call can preserve its concrete type.
 - Keep change operations for as long as their baseline is needed. Constructing a new one for every update creates a new subscription and restarts initial reporting.
 - Write observation has a cost in the writer as well as the consumer. Dense writes can mark chunks or masks for observers; point writes record selected slots. Value predicates do not turn write tracking into an exact comparison of modified values.
 - Borrow an `EntityRef` only within its callback. Convert it to `Entity` when a handle must be retained. Do not perform immediate structural changes from an active traversal; use a structural terminal or apply those changes after traversal.
+
+For repeated application of component values to one target, retain an
+`EntityData` set. Use prepared typed handlers when the command runs custom
+component behavior, such as an interface method.
 
 For repeated commands over a fixed set of registrations, retaining a visitor
 object is not the same as preparing typed handlers. A `TryVisit` inside every

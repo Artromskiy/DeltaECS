@@ -534,3 +534,59 @@ Raw harness, logs and JSON results are under `artifacts/unity-hierarchy-check/`.
 Decision: retain the incremental path. No BDN Mean/Error/StdDev, throughput
 ratio, JIT size or instruction-count comparison was taken; no percentage
 frame-time improvement is claimed from the Deep Profile screenshot.
+
+## Prepared EntityData capture and active chunk tags — 2026-10-25
+
+Baseline algorithm: `EntityData.CopyFrom` / `CopyVisitor` from `d6f66de`,
+reproduced by an in-process reference function using the same public visitor
+and destination methods. Candidate: working-tree read routes and chunk tag
+index; this is an algorithm-level paired probe, not a binary-to-binary BDN run.
+
+Workload: one unchanged entity, five `int` registrations and three empty-tag
+registrations, destination already populated and reused. The registry has
+32 / 400 / 4000 registrations; unrelated registrations alternate data and tags.
+`Add` is a no-op in this workload; `Set` and `AddOrSet` update eight entries.
+The runner warms both variants 1000 times, alternates sample order, and takes
+three samples per variant with at least 250 ms per measured sample. Environment:
+.NET 10.0.12, Arm64, macOS. Values below are arithmetic means ± sample standard
+deviation. Confidence-interval error was not estimated from three samples.
+
+| Registrations | Copy form | Previous algorithm | Prepared capture | Ratio | Allocated before / after (B/call) |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 32 | Add (existing entries) | 282.ns ± 0.32ns | 32.7ns ± 0.13ns | 0.1158 | 48 / 0 |
+| 32 | Set | 197.ns ± 5.79ns | 51.0ns ± 0.13ns | 0.2585 | 120 / 0 |
+| 32 | AddOrSet | 447.ns ± 1.23ns | 48.9ns ± 0.13ns | 0.1093 | 120 / 0 |
+| 400 | Add (existing entries) | 4.47µs ± 8.59ns | 32.8ns ± 0.16ns | 0.0073 | 48 / 0 |
+| 400 | Set | 1.06µs ± 2.88ns | 51.4ns ± 0.45ns | 0.0487 | 120 / 0 |
+| 400 | AddOrSet | 5.12µs ± 167.ns | 48.0ns ± 0.90ns | 0.0094 | 120 / 0 |
+| 4000 | Add (existing entries) | 38.5µs ± 189.ns | 31.1ns ± 0.27ns | 0.0008 | 48 / 0 |
+| 4000 | Set | 9.45µs ± 114.ns | 50.4ns ± 0.10ns | 0.0053 | 120 / 0 |
+| 4000 | AddOrSet | 50.4µs ± 217.ns | 47.5ns ± 0.61ns | 0.0009 | 120 / 0 |
+
+The warm candidate no longer scales with unrelated registry entries and has
+zero measured allocation in each case. First preparation, newly inserted
+container entries and changes of source/destination shape are outside these
+warm numbers. Shallow-copy semantics and all component/tag notifications remain
+unchanged; capture itself does not mark source rows writable.
+
+Full capture merges archetype data-row routes with active chunk tags in
+registration order; `Set` caches routes for destination IDs, including live tag
+membership tests. Destination shape and registry-count changes invalidate those
+plans. Plans store row indices and typed readers, never live chunks or arrays.
+The active tag list is maintained in sorted order only when a tag first appears
+or finally disappears in a chunk. Index lookup/maintenance is independent of
+copy calls; insertion/removal may shift `O(active tags)` indices. Ordinary writes
+that leave a tag present do not insert/remove an index. This avoids mutable
+read-side caches, locks and volatile operations during parallel reads.
+
+Evidence: the initial complete ECS suite passes 310/310, including allocation,
+late registration, cross-world type checks, row migration, registration-order
+capture, and randomized slot/range/overlap/clear tests for the active-tag index.
+The normal scoped dev workflow also validates package consumers and generators.
+No JIT size or executed-instruction comparison was taken; this change removes
+registry scans and repeated resolution rather than selecting a JIT kernel.
+Raw source harness, logs and JSON samples: `artifacts/entity-data-copy-probe/`.
+
+Decision: retain the prepared capture path and active-tag index. The table is
+specific to this small reused container and does not establish a universal
+speedup for cold snapshots, large payloads, or ordinary tag mutation workloads.

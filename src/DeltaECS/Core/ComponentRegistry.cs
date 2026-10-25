@@ -14,6 +14,7 @@ public sealed partial class ComponentRegistry
     private readonly Dictionary<Type, ComponentTypeMembers> _componentIdsByType = new();
     private readonly List<ComponentLayout> _layouts = new();
     private readonly List<ComponentId> _componentIds = new();
+    private readonly List<ComponentId> _tagComponentIds = new();
     private readonly List<ComponentRowOperations> _rowOperations = new();
     private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
     private readonly List<IComponentRegistrationToken> _componentVisitorTokens = new();
@@ -304,6 +305,8 @@ public sealed partial class ComponentRegistry
     internal int GetTagIndex(ComponentId id)
         => TryGetTagIndex(id, out int tagIndex) ? tagIndex : ThrowHelper.ThrowComponentIsNotTag(id);
 
+    internal ComponentId GetTagComponentId(int tagIndex) => _tagComponentIds[tagIndex];
+
     internal ComponentLayout Get(ComponentId id)
     {
         if (!id.IsValid || id.Value >= _layouts.Count)
@@ -461,6 +464,7 @@ public sealed partial class ComponentRegistry
         _tagIndices[id.Value] = isTag ? TagCount : -1;
         if (isTag)
         {
+            _tagComponentIds.Add(id);
             TagCount++;
         }
 

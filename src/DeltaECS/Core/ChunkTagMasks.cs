@@ -1,6 +1,7 @@
 namespace Delta.ECS;
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 /// <summary>External per-chunk storage for data-less tag membership.</summary>
@@ -12,6 +13,8 @@ internal sealed class ChunkTagMasks
 
     private ulong[] _summaries = [];
     private ulong[] _words = [];
+    private readonly List<int> _activeTags = new();
+    private bool[] _activeTagFlags = [];
 
     internal int TagCapacity => _summaries.Length;
 
@@ -24,7 +27,11 @@ internal sealed class ChunkTagMasks
 
         Array.Resize(ref _summaries, tagCount);
         Array.Resize(ref _words, checked(tagCount * WordsPerTag));
+        Array.Resize(ref _activeTagFlags, tagCount);
     }
+
+    // Structural mutations keep the index ordered; concurrent readers never rebuild it.
+    internal ReadOnlySpan<int> GetActiveTagIndices() => ArrayAccess.AsSpan(_activeTags);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool Contains(int tagIndex, int slotIndex)
@@ -55,6 +62,7 @@ internal sealed class ChunkTagMasks
         if (previous == 0)
         {
             _summaries[tagIndex] |= 1UL << wordIndex;
+            RefreshActiveTag(tagIndex);
         }
 
         return true;
@@ -82,6 +90,7 @@ internal sealed class ChunkTagMasks
         if (next == 0)
         {
             _summaries[tagIndex] &= ~(1UL << wordIndex);
+            RefreshActiveTag(tagIndex);
         }
 
         return true;
@@ -135,6 +144,7 @@ internal sealed class ChunkTagMasks
             {
                 target._summaries[tag] &= ~targetWordBit;
             }
+            target.RefreshActiveTag(tag);
         }
 
         // A wider target may contain registrations absent from the source.
@@ -146,6 +156,7 @@ internal sealed class ChunkTagMasks
             if (next == 0)
             {
                 target._summaries[tag] &= ~targetWordBit;
+                target.RefreshActiveTag(tag);
             }
         }
     }
@@ -251,6 +262,7 @@ internal sealed class ChunkTagMasks
             }
 
             _summaries[tag] = summary;
+            RefreshActiveTag(tag);
         }
     }
 
@@ -258,6 +270,11 @@ internal sealed class ChunkTagMasks
     {
         Array.Clear(_summaries, 0, _summaries.Length);
         Array.Clear(_words, 0, _words.Length);
+        foreach (int tag in _activeTags)
+        {
+            _activeTagFlags[tag] = false;
+        }
+        _activeTags.Clear();
     }
 
     private void RefreshSummaryWords(int tagIndex, int firstWord, int lastWord)
@@ -278,5 +295,25 @@ internal sealed class ChunkTagMasks
         }
 
         _summaries[tagIndex] = summary;
+        RefreshActiveTag(tagIndex);
+    }
+
+    private void RefreshActiveTag(int tagIndex)
+    {
+        bool active = _summaries[tagIndex] != 0;
+        if (_activeTagFlags[tagIndex] == active)
+        {
+            return;
+        }
+        _activeTagFlags[tagIndex] = active;
+        int position = _activeTags.BinarySearch(tagIndex);
+        if (active)
+        {
+            _activeTags.Insert(~position, tagIndex);
+        }
+        else
+        {
+            _activeTags.RemoveAt(position);
+        }
     }
 }

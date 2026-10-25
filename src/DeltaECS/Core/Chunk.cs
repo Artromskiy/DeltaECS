@@ -120,6 +120,9 @@ internal sealed class Chunk
 
     internal ulong GetTagSummary(int tagIndex) => _tagMasks?.Summary(tagIndex) ?? 0;
 
+    internal ReadOnlySpan<int> GetActiveTagIndices()
+        => _tagMasks is { } masks ? masks.GetActiveTagIndices() : [];
+
     internal ulong GetTagWord(int tagIndex, int wordIndex) => _tagMasks?.Word(tagIndex, wordIndex) ?? 0;
 
     internal void SetFreeRecordListIndex(int index) => FreeRecordListIndex = index;

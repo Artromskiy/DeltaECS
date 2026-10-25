@@ -221,6 +221,8 @@ public sealed class EntityData
         _shapeVersion++;
     }
 
+    internal static ComponentReader GetComponentReader<T>() => TypedComponentReader<T>.Instance;
+
     internal bool HasValue(ComponentId componentId) => _components[componentId].HasValue;
 
     internal void Validate(ComponentRegistry layouts)
@@ -274,16 +276,7 @@ public sealed class EntityData
     private int CopyFrom(World world, Entity entity, bool add, bool set)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        var visitor = new CopyVisitor(this, world, entity, add, set);
-        foreach (ComponentId componentId in world.Components.GetComponentIds())
-        {
-            if ((set && Has(componentId)) || (add && !Has(componentId)))
-            {
-                world.Components.Visit(componentId, visitor);
-            }
-        }
-
-        return visitor.AppliedCount;
+        return world.CopyEntityData(entity, this, add, set);
     }
 
     private bool AddTypedPresence<T>(ComponentId componentId)
@@ -317,37 +310,61 @@ public sealed class EntityData
         _shapeVersion++;
     }
 
+    internal abstract class ComponentReader
+    {
+        internal abstract int Copy(EntityData destination, ComponentId componentId,
+            Array? row, int slotIndex, bool add, bool set);
+    }
+
     private static class ComponentType<T>
     {
         internal static readonly bool IsTag = ComponentRegistry.IsTagType(typeof(T));
     }
 
-    private sealed class CopyVisitor(EntityData destination, World world, Entity entity, bool add, bool set)
-        : IUnconstrainedComponentVisitor
+    private sealed class TypedComponentReader<T> : ComponentReader
     {
-        internal int AppliedCount { get; private set; }
+        internal static readonly TypedComponentReader<T> Instance = new();
 
-        public void Visit<T>(ComponentId componentId)
+        internal override int Copy(EntityData destination, ComponentId componentId,
+            Array? row, int slotIndex, bool add, bool set)
         {
-            if (!world.TryGet(entity, componentId, out T value))
+            bool exists = destination._components.TryGetValue(componentId, out IEntry? entry);
+            if (exists ? !set : !add)
             {
-                return;
+                return 0;
+            }
+            if (entry is not null)
+            {
+                EnsureType<T>(componentId, entry);
+            }
+            if (ComponentType<T>.IsTag)
+            {
+                if (!exists)
+                {
+                    destination.AddEntry(componentId, new ComponentPresenceEntry(typeof(T)));
+                }
+                else if (entry is { ComponentType: null })
+                {
+                    destination._components[componentId] = new ComponentPresenceEntry(typeof(T));
+                }
+                return 1;
             }
 
-            if (add && set)
+            // Data routes supply the current typed row; tag routes return above.
+            T value = ((T[])row!).RefAt(slotIndex);
+            if (entry is ComponentEntry<T> component)
             {
-                destination.AddOrSet(componentId, in value);
+                component.Value = value;
             }
-            else if (add)
+            else if (exists)
             {
-                destination.Add(componentId, in value);
+                destination._components[componentId] = new ComponentEntry<T>(value);
             }
             else
             {
-                destination.Set(componentId, in value);
+                destination.AddEntry(componentId, new ComponentEntry<T>(value));
             }
-
-            AppliedCount++;
+            return 1;
         }
     }
 
