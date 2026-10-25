@@ -115,7 +115,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             if (interceptorsEnabled && languageSupportsInterceptors && !shape.IsFunctor && !shape.OrderedQueryReceiver)
             {
                 if (TryCreateInterceptionSite(model, invocation, shape, out InterceptionSite? site, out string? reason)
-                    && site is { } interceptionSite)
+                    && site is not null)
                 {
                     if (!interceptionSites.TryGetValue(key, out List<InterceptionSite>? sites))
                     {
@@ -123,7 +123,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                         interceptionSites.Add(key, sites);
                     }
 
-                    sites.Add(interceptionSite);
+                    sites.Add(site);
                 }
                 else if (reason is not null)
                 {
@@ -200,13 +200,12 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         site = null;
         reason = null;
 
-        if (model.GetSymbolInfo(invocation).Symbol is IMethodSymbol
-            {
-                IsExtensionMethod: false,
-                ContainingType.Name: "World",
-                ContainingType.ContainingNamespace: { } @namespace
-            }
-            && @namespace.ToDisplayString() == "Delta.ECS")
+        if (model.GetSymbolInfo(invocation).Symbol is IMethodSymbol targetMethod
+            && !targetMethod.IsExtensionMethod
+            && targetMethod.ContainingType is not null
+            && targetMethod.ContainingType.Name == "World"
+            && targetMethod.ContainingType.ContainingNamespace is not null
+            && targetMethod.ContainingType.ContainingNamespace.ToDisplayString() == "Delta.ECS")
         {
             reason = "the call targets a World instance method with its own operation type";
             return false;
@@ -245,7 +244,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 }
             }
 
-            if (resolvedMethod is not { } methodTarget)
+            var methodTarget = resolvedMethod;
+            if (methodTarget is null)
             {
                 reason = "the callback is not a resolvable static method group";
                 return false;
@@ -462,9 +462,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         string[] typeArguments = genericName?.TypeArgumentList.Arguments
-                                     .Select(argument => model.GetTypeInfo(argument).Type is { } type
-                                         ? GeneratorSupport.DisplayType(type)
-                                         : argument.ToString())
+                                     .Select(argument =>
+                                     {
+                                         ITypeSymbol? type = model.GetTypeInfo(argument).Type;
+                                         return type is not null ? GeneratorSupport.DisplayType(type) : argument.ToString();
+                                     })
                                      .ToArray()
                                  ?? LambdaComponentTypes(model, lambda, prefixCount, hasEntity);
         int componentStart = genericName is null ? 0 : prefixCount;
@@ -482,11 +484,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 : lambdaParameters.Length > 0
                     ? lambdaParameters[0].Type
                 : null;
-            lambdaContextType = contextSyntax is not null
-                ? model.GetTypeInfo(contextSyntax).Type is { } type
-                    ? GeneratorSupport.DisplayType(type)
-                : null
-                : null;
+            ITypeSymbol? lambdaContextSymbol = contextSyntax is not null ? model.GetTypeInfo(contextSyntax).Type : null;
+            lambdaContextType = lambdaContextSymbol is not null ? GeneratorSupport.DisplayType(lambdaContextSymbol) : null;
 
             ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
             if (parameters.Length == 0)
@@ -676,15 +675,15 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             components = new string[componentParameters.Length];
             for (int index = 0; index < components.Length; index++)
             {
-                ITypeSymbol requestedType = requestedTypes[requestedComponentStart + index] is { } type
-                    ? type
-                    : ThrowHelper.ThrowValidatedComponentTypeUnavailable();
+                ITypeSymbol requestedType = requestedTypes[requestedComponentStart + index]
+                    ?? ThrowHelper.ThrowValidatedComponentTypeUnavailable();
                 components[index] = GeneratorSupport.DisplayType(requestedType);
             }
 
             if (hasContext)
             {
-                contextType = requestedTypes[0] is { } requestedContextType
+                ITypeSymbol? requestedContextType = requestedTypes[0];
+                contextType = requestedContextType is not null
                     ? GeneratorSupport.DisplayType(requestedContextType)
                     : ThrowHelper.ThrowValidatedContextTypeUnavailable();
             }
@@ -826,7 +825,11 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
 
         string pattern = new(componentParameters.Select(static parameter => GeneratorSupport.PatternLetter(parameter.RefKind)).ToArray());
         string[] components = genericSelectors
-            ? genericName!.TypeArgumentList.Arguments.Select(argument => model.GetTypeInfo(argument).Type is { } type ? GeneratorSupport.DisplayType(type) : argument.ToString()).ToArray()
+            ? genericName!.TypeArgumentList.Arguments.Select(argument =>
+            {
+                ITypeSymbol? type = model.GetTypeInfo(argument).Type;
+                return type is not null ? GeneratorSupport.DisplayType(type) : argument.ToString();
+            }).ToArray()
             : componentParameters.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray();
         if (genericSelectors && components.Length != componentParameters.Length)
         {
@@ -856,7 +859,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             pattern,
             components,
             GeneratorSupport.DisplayType(functorType),
-            contextType: contextType is { } resolvedContextType ? GeneratorSupport.DisplayType(resolvedContextType) : null,
+            contextType: contextType is not null ? GeneratorSupport.DisplayType(contextType) : null,
             contextMode: contextMode,
             typeBinding: genericSelectors ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
             functorPassMode: functorPassMode);
@@ -941,7 +944,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         int start = prefixCount + (hasEntity ? 1 : 0);
         ITypeSymbol?[] types = parameters
             .Skip(start)
-            .Select(parameter => parameter.Type is { } syntax ? model.GetTypeInfo(syntax).Type : null).ToArray();
+            .Select(parameter => parameter.Type is not null ? model.GetTypeInfo(parameter.Type).Type : null).ToArray();
         return types.All(static type => type is not null)
             ? types.Select(static type => GeneratorSupport.DisplayType(type!)).ToArray()
             : [];

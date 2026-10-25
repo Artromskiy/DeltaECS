@@ -52,8 +52,9 @@ internal sealed class FastestDeltaEcsRatioColumn : IColumn
             return "Delta";
         }
 
-        if (baseline?.ResultStatistics is not { } baselineStatistics
-            || report?.ResultStatistics is not { } reportStatistics)
+        var baselineStatistics = baseline?.ResultStatistics;
+        var reportStatistics = report?.ResultStatistics;
+        if (baselineStatistics is null || reportStatistics is null)
         {
             return "NA";
         }

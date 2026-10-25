@@ -343,7 +343,7 @@ public sealed class EntityData
                 {
                     destination.AddEntry(componentId, new ComponentPresenceEntry(typeof(T)));
                 }
-                else if (entry is { ComponentType: null })
+                else if (entry is not null && entry.ComponentType is null)
                 {
                     destination._components[componentId] = new ComponentPresenceEntry(typeof(T));
                 }

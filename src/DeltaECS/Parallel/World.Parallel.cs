@@ -132,7 +132,8 @@ public sealed partial class World
 
     private void DisposeGeneratedParallelExecutors()
     {
-        if (_generatedParallelExecutors is not { } executors)
+        var executors = _generatedParallelExecutors;
+        if (executors is null)
         {
             return;
         }

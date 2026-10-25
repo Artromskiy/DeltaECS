@@ -335,8 +335,8 @@ internal static partial class DemandDrivenForEachTemplates
                 {GeneratorTemplates.Indent(AccessSetup(shape), "    ")}
                 var invoker = new {invokerType}({arguments});
                 {execute}{AppendParallelWriteIndices(shape)}, workerCount);
-                {(shape is { HasContext: true, ContextMode: ContextModeKind.Ref } ? "context = invoker.Context;" : string.Empty)}
-                {(shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref } ? "functor = invoker.Functor;" : string.Empty)}
+                {(shape.HasContext && shape.ContextMode == ContextModeKind.Ref ? "context = invoker.Context;" : string.Empty)}
+                {(shape.IsFunctor && shape.FunctorPassMode == ContextModeKind.Ref ? "functor = invoker.Functor;" : string.Empty)}
             """;
         string signature = $"private static void {methodName}{genericPrefix}(World world{target}{componentParameters}{contextParameter}{callbackParameter}, int workerCount)";
         return GeneratorTemplates.Indent(GeneratorTemplates.RenderBlock(
@@ -635,14 +635,14 @@ internal static partial class DemandDrivenForEachTemplates
         SignatureProjection slots = shape.Api.Signature;
         string generic = slots.HasGenericSelectors ? slots.GenericList() : string.Empty;
         string stateGeneric = StateGeneric(shape, generic);
-        string whereGeneric = shape.OrderedWhereSource is { } whereSource
-            ? GeneratedWhereTemplates.ViewMethodTypeParameters(whereSource)
+        string whereGeneric = shape.OrderedWhereSource is not null
+            ? GeneratedWhereTemplates.ViewMethodTypeParameters(shape.OrderedWhereSource)
             : string.Empty;
         string methodGeneric = SignatureProjection.TypeArguments(
             SignatureProjection.JoinGeneric(stateGeneric.Trim('<', '>'), whereGeneric));
-        string receiverType = shape.OrderedWhereSource is { } orderedWhereSource
-            ? GeneratedWhereTemplates.OrderedViewTypeName(orderedWhereSource)
-                + GeneratedWhereTemplates.ViewMethodTypeArguments(orderedWhereSource)
+        string receiverType = shape.OrderedWhereSource is not null
+            ? GeneratedWhereTemplates.OrderedViewTypeName(shape.OrderedWhereSource)
+                + GeneratedWhereTemplates.ViewMethodTypeArguments(shape.OrderedWhereSource)
             : "OrderedQuery";
         string ids = slots.HasExplicitIds ? slots.ComponentIdParameters("componentId") : string.Empty;
         string context = shape.HasContext
@@ -722,8 +722,8 @@ internal static partial class DemandDrivenForEachTemplates
         string genericParameters = OperationInvokerGenericParameters(shape);
         string generic = shape.Api.Signature.HasGenericSelectors ? shape.Api.Signature.GenericList() : string.Empty;
         string stateGeneric = StateGeneric(shape, generic);
-        string receiverType = shape.OrderedWhereSource is { } source
-            ? GeneratedWhereTemplates.OrderedViewTypeName(source) + GeneratedWhereTemplates.ViewMethodTypeArguments(source)
+        string receiverType = shape.OrderedWhereSource is not null
+            ? GeneratedWhereTemplates.OrderedViewTypeName(shape.OrderedWhereSource) + GeneratedWhereTemplates.ViewMethodTypeArguments(shape.OrderedWhereSource)
             : "global::Delta.ECS.OrderedQuery";
         bool mutableContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
         string? contextType = mutableContext ? ContextType(shape) : null;
@@ -909,7 +909,7 @@ internal static partial class DemandDrivenForEachTemplates
             GeneratorTemplates.Indent(AccessSetup(closedShape).TrimEnd(), "    "),
         };
         var interceptedVisitMethods = new List<string>();
-        if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
+        if (closedShape.HasContext && closedShape.ContextMode == ContextModeKind.Ref)
         {
             lines.Add($"    {InterceptedContextType(closedShape)} {parameters[0]} = {contextParameterName};");
         }
@@ -1063,7 +1063,7 @@ internal static partial class DemandDrivenForEachTemplates
 
         AppendChunkFilterBranch(lines, AppendChunkLoop);
         interceptedVisitMethods = visitMethods;
-        if (closedShape is { HasContext: true, ContextMode: ContextModeKind.Ref })
+        if (closedShape.HasContext && closedShape.ContextMode == ContextModeKind.Ref)
         {
             lines.Add($"    {contextParameterName} = {parameters[0]};");
         }
@@ -1319,7 +1319,7 @@ internal static partial class DemandDrivenForEachTemplates
                 {GeneratorTemplates.Indent(AccessSetup(accessShape).TrimEnd(), "    ")}
                 var invoker = new {invokerType}({constructorArguments});
                 {execute}
-                {(shape is { HasContext: true, ContextMode: ContextModeKind.Ref } ? parameters[0] + " = invoker.Context;" : string.Empty)}
+                {(shape.HasContext && shape.ContextMode == ContextModeKind.Ref ? parameters[0] + " = invoker.Context;" : string.Empty)}
             """;
         string declaration = $"""
             [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -1482,7 +1482,7 @@ internal static partial class DemandDrivenForEachTemplates
             : ", " + ActionType(shape) + " action";
         string target = shape.HasEntityTarget ? ", global::System.ReadOnlySpan<Entity> entities, in Query query" : ", in Query query";
         string cachedAccessParameters = cachePreparedAccess ? ", " + slots.AccessParameters(tokens: true) : string.Empty;
-        bool copyRefContext = shape is { HasContext: true, ContextMode: ContextModeKind.Ref };
+        bool copyRefContext = shape.HasContext && shape.ContextMode == ContextModeKind.Ref;
         string contextName = copyRefContext ? "contextCopy" : "context";
         string signature = $"private static void {methodName}{genericPrefix}(World world{target}{cachedAccessParameters}{componentParameters}{contextParameter}{callbackParameter})";
         var lines = new List<string>
@@ -1511,12 +1511,12 @@ internal static partial class DemandDrivenForEachTemplates
             }.Where(static value => !string.IsNullOrEmpty(value)));
             lines.Add($"    var invoker = new {invokerType}({arguments});");
             lines.Add($"    GeneratedForEachRuntime.ExecuteEntityList(world, in query, entities, ref invoker, {AppendParallelWriteIndices(shape)});");
-            if (shape is { HasContext: true, ContextMode: ContextModeKind.Ref })
+            if (shape.HasContext && shape.ContextMode == ContextModeKind.Ref)
             {
                 lines.Add("    context = invoker.Context;");
             }
 
-            if (shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref })
+            if (shape.IsFunctor && shape.FunctorPassMode == ContextModeKind.Ref)
             {
                 lines.Add("    functor = invoker.Functor;");
             }
@@ -1659,7 +1659,7 @@ internal static partial class DemandDrivenForEachTemplates
         AppendChunkFilterBranch(lines, AppendChunkLoop);
 
         closedDenseVisitMethods = visitMethods;
-        if (shape is { IsFunctor: true, FunctorPassMode: ContextModeKind.Ref })
+        if (shape.IsFunctor && shape.FunctorPassMode == ContextModeKind.Ref)
         {
             lines.Add("    functor = action;");
         }
@@ -1743,7 +1743,8 @@ internal static partial class DemandDrivenForEachTemplates
             generic = SignatureProjection.JoinGeneric("TContext", generic);
         }
 
-        if (shape.OrderedWhereSource is { } whereSource)
+        var whereSource = shape.OrderedWhereSource;
+        if (whereSource is not null)
         {
             generic = SignatureProjection.JoinGeneric(
                 generic,
@@ -1882,7 +1883,7 @@ internal static partial class DemandDrivenForEachTemplates
         var lines = new List<string>
         {
             hasInterceptedExecution
-                ? "if (_interceptedExecution is { } interceptedExecution) { interceptedExecution(_world, in _query); return; }"
+                ? "if (_interceptedExecution is not null) { _interceptedExecution(_world, in _query); return; }"
                 : string.Empty,
             "global::Delta.ECS.World world = _world;",
             shape.HasEntityTarget ? "global::Delta.ECS.Entity[] operationEntities = _entities;" : string.Empty,

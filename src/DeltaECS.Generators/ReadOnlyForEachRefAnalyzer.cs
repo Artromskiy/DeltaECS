@@ -34,7 +34,8 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
         SemanticModel semanticModel,
         CancellationToken cancellationToken)
     {
-        if (semanticModel.GetOperation(executable, cancellationToken) is not { } operation)
+        var operation = semanticModel.GetOperation(executable, cancellationToken);
+        if (operation is null)
         {
             return false;
         }
@@ -272,7 +273,8 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
 
         public override void VisitInvocation(IInvocationOperation operation)
         {
-            if (operation.Instance is { } instance
+            var instance = operation.Instance;
+            if (instance is not null
                 && ReferencesParameter(instance)
                 && !operation.TargetMethod.IsReadOnly)
             {
@@ -284,7 +286,8 @@ public sealed class ReadOnlyForEachRefAnalyzer : DiagnosticAnalyzer
 
         public override void VisitPropertyReference(IPropertyReferenceOperation operation)
         {
-            if (operation.Instance is { } instance
+            var instance = operation.Instance;
+            if (instance is not null
                 && ReferencesParameter(instance)
                 && operation.Property.GetMethod?.IsReadOnly != true)
             {

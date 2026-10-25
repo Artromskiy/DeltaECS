@@ -25,7 +25,8 @@ public sealed class CollectionExpressionDiagnosticSuppressor : DiagnosticSuppres
     {
         foreach (Diagnostic diagnostic in context.ReportedDiagnostics)
         {
-            if (diagnostic.Location.SourceTree is not { } tree
+            var tree = diagnostic.Location.SourceTree;
+            if (tree is null
                 || !RequiresExplicitArray(context.GetSemanticModel(tree), diagnostic))
             {
                 continue;
@@ -39,8 +40,9 @@ public sealed class CollectionExpressionDiagnosticSuppressor : DiagnosticSuppres
     {
         SyntaxNode root = model.SyntaxTree.GetRoot();
         SyntaxNode node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
-        if (node.AncestorsAndSelf().OfType<ExpressionSyntax>().FirstOrDefault(static expression =>
-                expression is ArrayCreationExpressionSyntax or ImplicitArrayCreationExpressionSyntax) is not { } array
+        var array = node.AncestorsAndSelf().OfType<ExpressionSyntax>().FirstOrDefault(static expression =>
+                expression is ArrayCreationExpressionSyntax or ImplicitArrayCreationExpressionSyntax);
+        if (array is null
             || array.Parent is not ArgumentSyntax argument
             || argument.Parent is not ArgumentListSyntax arguments
             || arguments.Parent is not InvocationExpressionSyntax invocation
@@ -72,9 +74,9 @@ public sealed class CollectionExpressionDiagnosticSuppressor : DiagnosticSuppres
     private static bool HasComponentValues(IInvocationOperation operation, IArgumentOperation firstArgument)
         => operation.Arguments
             .Where(argument => argument.Syntax != firstArgument.Syntax && argument.ArgumentKind == ArgumentKind.Explicit)
-            .Any(argument => argument.Parameter is { } parameter
-                && parameter.Type.SpecialType != SpecialType.System_Int32
-                && !IsEntitySpan(parameter.Type));
+            .Any(argument => argument.Parameter is not null
+                && argument.Parameter.Type.SpecialType != SpecialType.System_Int32
+                && !IsEntitySpan(argument.Parameter.Type));
 
     private static bool HasFollowingQuery(IInvocationOperation operation, IArgumentOperation firstArgument)
         => operation.Arguments

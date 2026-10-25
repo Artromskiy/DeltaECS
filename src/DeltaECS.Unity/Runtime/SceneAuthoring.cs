@@ -140,7 +140,7 @@ namespace Delta.ECS.Unity
             }
             foreach (string stableId in stableIds)
             {
-                if (_viewsByStableId.Remove(stableId, out GameObject view) && !ReferenceEquals(view, null))
+                if (_viewsByStableId.Remove(stableId, out GameObject view) && view is not null)
                 {
                     _stableIdsByView.Remove(view.GetEntityId());
                 }

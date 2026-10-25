@@ -75,7 +75,8 @@ public sealed partial class World
         for (int row = 0; row < ids.Length; row++)
         {
             ComponentId id = ids[row];
-            if (GetEntityDataReader(id) is { } reader)
+            EntityData.ComponentReader? reader = GetEntityDataReader(id);
+            if (reader is not null)
             {
                 routes[count++] = new EntityDataReadRoute(id, row, reader);
             }
@@ -99,7 +100,8 @@ public sealed partial class World
             {
                 continue;
             }
-            if (GetEntityDataReader(id) is { } reader)
+            EntityData.ComponentReader? reader = GetEntityDataReader(id);
+            if (reader is not null)
             {
                 routes[count++] = new EntityDataReadRoute(id, row, reader);
             }

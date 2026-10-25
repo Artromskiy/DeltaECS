@@ -225,7 +225,8 @@ public struct GeneratedWhereStructuralContext
         }
 
         _world.MarkGeneratedWhereAffected(_plan.SourceArchetype);
-        if (_plan.TargetArchetype is { } targetArchetype)
+        var targetArchetype = _plan.TargetArchetype;
+        if (targetArchetype is not null)
         {
             _world.MarkGeneratedWhereAffected(targetArchetype);
         }

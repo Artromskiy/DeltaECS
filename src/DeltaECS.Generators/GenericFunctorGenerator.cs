@@ -12,7 +12,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var models = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, _) => node is StructDeclarationSyntax { TypeParameterList: not null, BaseList: not null },
+                static (node, _) => node is StructDeclarationSyntax declaration && declaration.TypeParameterList is not null && declaration.BaseList is not null,
                 static (syntax, _) => ReadModel(syntax))
             .Where(static model => model is not null)
             .Select(static (model, _) => model!)
@@ -105,7 +105,7 @@ public sealed class GenericFunctorGenerator : IIncrementalGenerator
     private static string Selector(ITypeSymbol type, ITypeParameterSymbol[] parameters) => type switch
     {
         ITypeParameterSymbol parameter => $"genericArguments[{Array.FindIndex(parameters, candidate => SymbolEqualityComparer.Default.Equals(candidate, parameter))}]",
-        INamedTypeSymbol { IsGenericType: true } named when GeneratorSupport.ContainsTypeParameter(named)
+        INamedTypeSymbol named when named.IsGenericType && GeneratorSupport.ContainsTypeParameter(named)
             => GenericComponentSelector(named, parameters),
         _ => $"world.Components.GetPrimary<{GeneratorSupport.DisplayType(type)}>()"
     };

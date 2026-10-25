@@ -20,8 +20,8 @@ s.World.Remove(s.Units[1], s.ArmorId);
 Entity added = s.SpawnHealth(55);
 solution.Execute();
 Check.That(solution.Sink.Records.Count == 27, "Snapshot not cleared or membership stale");
-Check.That(solution.Sink.Records.Single(r => r.Entity == s.Units[0] && r.Id == s.HealthId).Value is Health { Value: 77 }, "Health value not copied");
+Check.That(solution.Sink.Records.Single(r => r.Entity == s.Units[0] && r.Id == s.HealthId).Value is Health capturedHealth && capturedHealth.Value == 77, "Health value not copied");
 Check.That(solution.Sink.Records.Single(r => r.Entity == s.Units[0] && r.Id == s.DamageId).Value is float value && value == 42, "Explicit float registration lost");
-Check.That(solution.Sink.Records.Single(r => r.Entity == added && r.Id == s.HealthId).Value is Health { Value: 55 }, "New entity missing");
+Check.That(solution.Sink.Records.Single(r => r.Entity == added && r.Id == s.HealthId).Value is Health addedHealth && addedHealth.Value == 55, "New entity missing");
 
 Console.WriteLine("PASS 09-world-snapshot");

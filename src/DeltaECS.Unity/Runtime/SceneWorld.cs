@@ -123,7 +123,7 @@ namespace Delta.ECS.Unity
                 NotifyHierarchyEntityChanged(previousEntity);
             }
 
-            if (_viewsByEntity.TryGetValue(entity, out GameObject previousView) && !ReferenceEquals(previousView, null))
+            if (_viewsByEntity.TryGetValue(entity, out GameObject previousView) && previousView is not null)
             {
                 _entitiesByView.Remove(previousView.GetEntityId());
             }
@@ -139,7 +139,7 @@ namespace Delta.ECS.Unity
             if (_viewsByEntity.Remove(entity, out GameObject view))
             {
                 // The managed wrapper retains its ID even after Unity destroys the native object.
-                if (!ReferenceEquals(view, null))
+                if (view is not null)
                 {
                     _entitiesByView.Remove(view.GetEntityId());
                 }

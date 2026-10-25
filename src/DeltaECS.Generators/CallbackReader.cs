@@ -128,11 +128,11 @@ internal static class CallbackReader
 
         if (members.Length > 1
             && model.GetTypeInfo(originalExpression).ConvertedType is INamedTypeSymbol delegateType
-            && delegateType.DelegateInvokeMethod is { } invoke)
+            && delegateType.DelegateInvokeMethod is not null)
         {
             IMethodSymbol[] matches = members
                 .OfType<IMethodSymbol>()
-                .Where(candidate => SameCallbackSignature(candidate, invoke)).ToArray();
+                .Where(candidate => SameCallbackSignature(candidate, delegateType.DelegateInvokeMethod)).ToArray();
             if (matches.Length == 1)
             {
                 method = matches[0];
@@ -170,7 +170,8 @@ internal static class CallbackReader
         out IMethodSymbol? method)
     {
         if (TryGetMethodGroupTarget(model, expression, out IMethodSymbol? candidate)
-            && candidate is { IsStatic: true, MethodKind: MethodKind.Ordinary, Arity: 0, ContainingType: not null }
+            && candidate is not null && candidate.IsStatic && candidate.MethodKind == MethodKind.Ordinary
+            && candidate.Arity == 0 && candidate.ContainingType is not null
             && GeneratorSupport.IsAccessibleSymbol(candidate))
         {
             method = candidate;
@@ -181,8 +182,8 @@ internal static class CallbackReader
         return false;
     }
 
-    internal static string MethodGroupTarget(IMethodSymbol method) => method.ContainingType is { } containingType
-            ? containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name
+    internal static string MethodGroupTarget(IMethodSymbol method) => method.ContainingType is not null
+            ? method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name
             : ThrowHelper.ThrowMethodGroupTargetMissing(method);
 
     internal static bool TryGetMarker(INamedTypeSymbol type, Func<string, bool> name, out INamedTypeSymbol? marker)
@@ -256,7 +257,7 @@ internal static class CallbackReader
         foreach (SyntaxNode node in lambda.Body.DescendantNodesAndSelf())
         {
             ISymbol? symbol = model.GetSymbolInfo(node).Symbol;
-            if (symbol is null or IParameterSymbol or IRangeVariableSymbol)
+            if (symbol is null || symbol is IParameterSymbol or IRangeVariableSymbol)
             {
                 continue;
             }
@@ -289,7 +290,7 @@ internal static class CallbackReader
             }
         }
 
-        if (model.GetEnclosingSymbol(lambda.SpanStart) is IMethodSymbol { IsGenericMethod: true })
+        if (model.GetEnclosingSymbol(lambda.SpanStart) is IMethodSymbol enclosingMethod && enclosingMethod.IsGenericMethod)
         {
             reason = "generic containing methods are not supported by the generated callback";
             return false;

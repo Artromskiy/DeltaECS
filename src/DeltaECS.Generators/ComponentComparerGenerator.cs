@@ -55,7 +55,7 @@ public sealed class ComponentComparerGenerator : IIncrementalGenerator
                 continue;
             }
 
-            if (model.Signature is not { })
+            if (model.Signature is null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     InvalidComparer,

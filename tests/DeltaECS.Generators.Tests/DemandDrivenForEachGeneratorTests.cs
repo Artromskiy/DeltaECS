@@ -2308,7 +2308,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("InterceptsLocationAttribute"));
         Assert.That(generated, Does.Contain("ExecuteInterceptedClosed_"));
         Assert.That(generated, Does.Contain("value.Value++"));
-        Assert.That(generated, Does.Contain("if (_interceptedExecution is { } interceptedExecution)"));
+        Assert.That(generated, Does.Contain("if (_interceptedExecution is not null)"));
         Assert.That(generated, Does.Contain("interceptedExecution(_world, in _query);"));
         Assert.That(generated, Does.Contain("InterceptedExecution_"));
         int interceptedConstructor = generated.IndexOf("_interceptedExecution = interceptedExecution;", StringComparison.Ordinal);

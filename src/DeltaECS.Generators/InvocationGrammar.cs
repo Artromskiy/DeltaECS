@@ -17,17 +17,11 @@ internal static class InvocationGrammar
         InvocationExpressionSyntax invocation,
         out InvocationExpressionSyntax? whereInvocation)
     {
-        if (invocation.Expression is MemberAccessExpressionSyntax
-            {
-                Expression: InvocationExpressionSyntax candidate
-            }
-            && candidate.Expression is MemberAccessExpressionSyntax
-            {
-                Name: IdentifierNameSyntax
-                {
-                    Identifier.ValueText: "Where" or "WhereEntity"
-                }
-            })
+        if (invocation.Expression is MemberAccessExpressionSyntax member
+            && member.Expression is InvocationExpressionSyntax candidate
+            && candidate.Expression is MemberAccessExpressionSyntax candidateMember
+            && candidateMember.Name is IdentifierNameSyntax name
+            && name.Identifier.ValueText is "Where" or "WhereEntity")
         {
             whereInvocation = candidate;
             return true;

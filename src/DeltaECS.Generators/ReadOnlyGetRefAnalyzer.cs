@@ -59,8 +59,8 @@ public sealed class ReadOnlyGetRefAnalyzer : DiagnosticAnalyzer
         if (context.Node is not MethodDeclarationSyntax methodSyntax
             || methodSyntax.Identifier.ValueText != "Invoke"
             || context.SemanticModel.GetDeclaredSymbol(methodSyntax, context.CancellationToken) is not IMethodSymbol method
-            || method.ContainingType is not { } containingType
-            || !CallbackReader.TryGetForEachMarker(containingType, out bool hasContext, out bool hasEntity, out ITypeSymbol? contextType)
+            || method.ContainingType is null
+            || !CallbackReader.TryGetForEachMarker(method.ContainingType, out bool hasContext, out bool hasEntity, out ITypeSymbol? contextType)
             || !CallbackReader.HasValidPrefix(method, hasContext, hasEntity, contextType, requireRefContext: false, entityRef: true))
         {
             return;
@@ -125,10 +125,15 @@ public sealed class ReadOnlyGetRefAnalyzer : DiagnosticAnalyzer
         out bool isRefLocal)
     {
         isRefLocal = variable.Parent?.Parent is LocalDeclarationStatementSyntax
-            && variable.Parent is VariableDeclarationSyntax { Type: RefTypeSyntax };
+            && variable.Parent is VariableDeclarationSyntax declaration && declaration.Type is RefTypeSyntax;
 
-        if (variable.Ancestors().FirstOrDefault(IsExecutableScope) is not { } scope
-            || semanticModel.GetOperation(scope, cancellationToken) is not { } operation)
+        var scope = variable.Ancestors().FirstOrDefault(IsExecutableScope);
+        if (scope is null)
+        {
+            return false;
+        }
+        var operation = semanticModel.GetOperation(scope, cancellationToken);
+        if (operation is null)
         {
             return false;
         }
@@ -208,7 +213,8 @@ public sealed class ReadOnlyGetRefAnalyzer : DiagnosticAnalyzer
 
         public override void VisitInvocation(IInvocationOperation operation)
         {
-            if (operation.Instance is { } instance
+            var instance = operation.Instance;
+            if (instance is not null
                 && ReferencesLocal(instance)
                 && !operation.TargetMethod.IsReadOnly)
             {
@@ -220,7 +226,8 @@ public sealed class ReadOnlyGetRefAnalyzer : DiagnosticAnalyzer
 
         public override void VisitPropertyReference(IPropertyReferenceOperation operation)
         {
-            if (operation.Instance is { } instance
+            var instance = operation.Instance;
+            if (instance is not null
                 && ReferencesLocal(instance)
                 && operation.Property.GetMethod?.IsReadOnly != true)
             {

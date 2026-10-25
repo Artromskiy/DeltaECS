@@ -25,7 +25,8 @@ public sealed class ImplicitLambdaDiagnosticSuppressor : DiagnosticSuppressor
     {
         foreach (Diagnostic diagnostic in context.ReportedDiagnostics)
         {
-            if (diagnostic.Location.SourceTree is not { } tree
+            var tree = diagnostic.Location.SourceTree;
+            if (tree is null
                 || !RequiresExplicitTypes(context.GetSemanticModel(tree), diagnostic))
             {
                 continue;
@@ -40,7 +41,8 @@ public sealed class ImplicitLambdaDiagnosticSuppressor : DiagnosticSuppressor
         SyntaxTree tree = model.SyntaxTree;
         SyntaxNode root = tree.GetRoot();
         SyntaxNode node = root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true);
-        if (node.AncestorsAndSelf().OfType<LambdaExpressionSyntax>().FirstOrDefault() is not { } lambda
+        var lambda = node.AncestorsAndSelf().OfType<LambdaExpressionSyntax>().FirstOrDefault();
+        if (lambda is null
             || lambda.Parent is not ArgumentSyntax argument
             || argument.Expression != lambda
             || argument.Parent is not ArgumentListSyntax argumentList

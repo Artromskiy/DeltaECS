@@ -263,7 +263,8 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         invoker = _workerInvokers.GetRefAtZero();
         for (int workerIndex = 0; workerIndex < workerCount; workerIndex++)
         {
-            if (_workerFailures.RefAt(workerIndex) is { } failure)
+            var failure = _workerFailures.RefAt(workerIndex);
+            if (failure is not null)
             {
                 failure.Throw();
             }
@@ -390,9 +391,9 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         finally
         {
             World.ChangeTrackingWorkerIndex = previousChangeWorker;
-            if (schedulerWorker && world is { } schedulerWorld)
+            if (schedulerWorker && world is not null)
             {
-                schedulerWorld.ExitSchedulerWorker();
+                world.ExitSchedulerWorker();
             }
 
             if (workerSlot is not null)

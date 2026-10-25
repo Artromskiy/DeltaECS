@@ -116,8 +116,9 @@ public sealed class CallProfiler
             WriteSummaryValue("Measured thread", _ownerThreadId.ToString(CultureInfo.InvariantCulture));
             WriteSummaryValue("Samples", _sampleCount.ToString(CultureInfo.InvariantCulture));
             WriteSummaryValue("Dropped samples", _droppedSamples.ToString(CultureInfo.InvariantCulture));
-            if (calibration is { } calibrated)
+            if (calibration is not null)
             {
+                var calibrated = calibration.Value;
                 WriteSummaryValue(
                     "Probe overhead",
                     calibrated.NanosecondsPerProbe.ToString("F2", CultureInfo.InvariantCulture) + " ns/sample");

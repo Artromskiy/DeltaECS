@@ -16,7 +16,7 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         IncrementalValuesProvider<INamedTypeSymbol?> systems = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, _) => node is BaseTypeDeclarationSyntax { BaseList: not null },
+                static (node, _) => node is BaseTypeDeclarationSyntax declaration && declaration.BaseList is not null,
                 static (syntaxContext, _) => syntaxContext.SemanticModel.GetDeclaredSymbol(syntaxContext.Node) as INamedTypeSymbol)
             .Where(static symbol => symbol is not null)
             .Collect()
@@ -80,8 +80,8 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
                 && declarations.Any(static declaration => declaration.Modifiers.Any(SyntaxKind.PartialKeyword));
             string key = candidate.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             string helperName = "GeneratedSystemAccess_" + GeneratorSupport.StableName(key);
-            string namespaceName = candidate.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
-                ? containingNamespace.ToDisplayString()
+            string namespaceName = candidate.ContainingNamespace is not null && !candidate.ContainingNamespace.IsGlobalNamespace
+                ? candidate.ContainingNamespace.ToDisplayString()
                 : string.Empty;
             GeneratedSystemAccessModel access = accumulator.Build(
                 namespaceName,
@@ -97,8 +97,10 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
             SymbolEqualityComparer.Default.Equals(interfaceType, systemInterface));
 
     private static bool IsOwnedBy(InvocationExpressionSyntax invocation, TypeDeclarationSyntax declaration)
-        => invocation.Ancestors().OfType<BaseTypeDeclarationSyntax>().FirstOrDefault() is { } owner
-            && owner.SpanStart == declaration.SpanStart;
+    {
+        var owner = invocation.Ancestors().OfType<BaseTypeDeclarationSyntax>().FirstOrDefault();
+        return owner is not null && owner.SpanStart == declaration.SpanStart;
+    }
 
     private static void ReadInvocation(
         SemanticModel model,
@@ -268,7 +270,8 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         }
 
         ExpressionSyntax expression = invocation.ArgumentList.Arguments[queryArgumentIndex].Expression;
-        if (model.GetSymbolInfo(expression).Symbol is not IFieldSymbol { IsReadOnly: true } field
+        if (model.GetSymbolInfo(expression).Symbol is not IFieldSymbol field
+            || !field.IsReadOnly
             || !GeneratorSupport.IsEcsType(field.Type, "Query")
             || !SymbolEqualityComparer.Default.Equals(
                 field.ContainingType,
@@ -434,16 +437,16 @@ public sealed class GeneratedSystemAccessGenerator : IIncrementalGenerator
         }
 
         if (expressionType is INamedTypeSymbol delegateType
-            && delegateType.DelegateInvokeMethod is { } delegateInvoke)
+            && delegateType.DelegateInvokeMethod is not null)
         {
             if (delegateType.Name == "QueryChunkAction"
-                || delegateInvoke.Parameters.Any(parameter => GeneratorSupport.IsEcsType(parameter.Type, "QueryChunk")))
+                || delegateType.DelegateInvokeMethod.Parameters.Any(parameter => GeneratorSupport.IsEcsType(parameter.Type, "QueryChunk")))
             {
                 accumulator.Unknown();
                 return;
             }
 
-            ReadMethodParameters(delegateInvoke, hasContext, hasEntity, genericTypes, accumulator);
+            ReadMethodParameters(delegateType.DelegateInvokeMethod, hasContext, hasEntity, genericTypes, accumulator);
             return;
         }
 

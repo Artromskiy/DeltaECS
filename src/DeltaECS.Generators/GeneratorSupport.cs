@@ -28,9 +28,12 @@ internal static class GeneratorSupport
             ?? [];
 
     internal static string ContainingNamespace(SemanticModel model, SyntaxNode node)
-        => model.GetEnclosingSymbol(node.SpanStart)?.ContainingNamespace is { IsGlobalNamespace: false } containingNamespace
+    {
+        INamespaceSymbol? containingNamespace = model.GetEnclosingSymbol(node.SpanStart)?.ContainingNamespace;
+        return containingNamespace is not null && !containingNamespace.IsGlobalNamespace
             ? containingNamespace.ToDisplayString()
             : string.Empty;
+    }
 
     internal static ImmutableArray<string> EcsNamespaceUsings(string namespaceName)
         => string.Equals(namespaceName, EcsNamespace, StringComparison.Ordinal)
@@ -183,7 +186,7 @@ internal static class GeneratorSupport
 
     internal static string DisplayType(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
+        if (type is INamedTypeSymbol tuple && tuple.IsTupleType)
         {
             return "(" + string.Join(
                 ", ",
@@ -299,7 +302,8 @@ internal static class GeneratorSupport
                 result.Add("using global::" + namespaceName + ";");
             }
 
-            if (enclosing.ContainingType is { Arity: 0 } containingType)
+            var containingType = enclosing.ContainingType;
+            if (containingType is not null && containingType.Arity == 0)
             {
                 if (!IsAccessibleSymbol(containingType) && rejectInaccessibleContainingType)
                 {

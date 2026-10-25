@@ -75,6 +75,13 @@ explicitly marked `internal` (or `private`). This marks the point where
 validation has already completed and prevents accidentally exposing trusted
 runtime operations as public API.
 
+Null/default checks are explicit (`is null`, `is not null`, `== default`),
+not property patterns (`is { }`, `is { Property: null }`). When keeping a
+non-null value in a local, declare it before the explicit null check instead
+of using `value is { } local`. Ordinary type patterns remain supported. Configure
+the built-in Roslyn style preferences in `.editorconfig`; do not add a
+project-specific analyzer for this convention.
+
 For multiline C# source generation and template payloads, prefer C# raw string
 literals (`\"\"\"...\"\"\"`) over escaped regular strings or concatenation. Keep
 the generated text readable and use another representation only when the

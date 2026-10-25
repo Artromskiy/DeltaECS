@@ -41,7 +41,7 @@ public sealed class ComponentSchemaIdCodeFixProvider : CodeFixProvider
 
             AttributeSyntax? attribute = root.FindNode(diagnostic.Location.SourceSpan)
                 .FirstAncestorOrSelf<AttributeSyntax>();
-            if (attribute is null || attribute.ArgumentList is { Arguments.Count: > 0 })
+            if (attribute is null || (attribute.ArgumentList is not null && attribute.ArgumentList.Arguments.Count > 0))
             {
                 continue;
             }

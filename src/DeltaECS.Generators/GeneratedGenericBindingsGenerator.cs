@@ -288,7 +288,7 @@ public sealed class GeneratedGenericBindingsGenerator : IIncrementalGenerator
         }
 
         if (expression is TypeOfExpressionSyntax typeOf
-            && semanticModel.GetTypeInfo(typeOf.Type).Type is INamedTypeSymbol { IsUnboundGenericType: true } type)
+            && semanticModel.GetTypeInfo(typeOf.Type).Type is INamedTypeSymbol type && type.IsUnboundGenericType)
         {
             definition = type.OriginalDefinition;
             return true;

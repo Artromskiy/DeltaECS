@@ -39,7 +39,7 @@ internal static class GenericTypeConstraintSupport
 {
     internal static bool TryGetSupported(INamedTypeSymbol type, out ImmutableArray<GenericTypeParameterConstraint> constraints)
     {
-        if (type.ContainingType is { IsGenericType: true })
+        if (type.ContainingType is not null && type.ContainingType.IsGenericType)
         {
             constraints = default;
             return false;

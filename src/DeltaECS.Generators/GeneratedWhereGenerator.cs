@@ -199,7 +199,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                 && !shape.IsFunctor
                 && (terminal.IsCallback || terminal.Kind is TerminalKind.Destroy or TerminalKind.Add or TerminalKind.Remove)
                 && TryCreateInterceptionSite(model, whereInvocation!, invocation, shape, whereCall.Binding, terminal, out WhereInterceptionSite? site)
-                && site is { } interceptionSite)
+                && site is not null)
             {
                 if (!interceptionSites.TryGetValue(shape.Key, out List<WhereInterceptionSite>? sites))
                 {
@@ -207,7 +207,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                     interceptionSites.Add(shape.Key, sites);
                 }
 
-                sites.Add(interceptionSite);
+                sites.Add(site);
             }
         }
 
@@ -410,7 +410,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
                     expectedTypes,
                     shape.HasEntity,
                     out method)
-                && method is { ReturnsVoid: false, ReturnType.SpecialType: SpecialType.System_Boolean })
+                && method is not null && !method.ReturnsVoid && method.ReturnType.SpecialType == SpecialType.System_Boolean)
             {
                 return true;
             }
@@ -474,7 +474,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             functorType: GeneratorSupport.DisplayType(functorType),
             hasEntity,
             hasContext,
-            contextType: hasContext && contextType is { } resolvedContext ? GeneratorSupport.DisplayType(resolvedContext) : null,
+            contextType: hasContext && contextType is not null ? GeneratorSupport.DisplayType(contextType) : null,
             components: components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
             namespaceName);
         return true;
@@ -490,7 +490,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
     {
         shape = null;
         if (!CallbackReader.TryGetStaticMethodGroupTarget(model, expression, out IMethodSymbol? method)
-            || method is not { ReturnsVoid: false, ReturnType.SpecialType: SpecialType.System_Boolean })
+            || method is null || method.ReturnsVoid || method.ReturnType.SpecialType != SpecialType.System_Boolean)
         {
             return false;
         }
@@ -553,14 +553,9 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
     {
         terminal = null;
         if (!CallbackReader.TryGetMethodGroupTarget(model, invocation.ArgumentList.Arguments[0].Expression, out IMethodSymbol? method)
-            || method is not
-            {
-                IsStatic: true,
-                ReturnsVoid: true,
-                MethodKind: MethodKind.Ordinary,
-                Arity: 0,
-                ContainingType: not null
-            })
+            || method is null || !method.IsStatic || !method.ReturnsVoid
+            || method.MethodKind != MethodKind.Ordinary || method.Arity != 0
+            || method.ContainingType is null)
         {
             return false;
         }
@@ -879,7 +874,7 @@ public sealed class GeneratedWhereGenerator : IIncrementalGenerator
             isFunctor: true,
             functorType: GeneratorSupport.DisplayType(functorType),
             hasContext,
-            contextType: hasContext && contextType is { } resolvedContext ? GeneratorSupport.DisplayType(resolvedContext) : null,
+            contextType: hasContext && contextType is not null ? GeneratorSupport.DisplayType(contextType) : null,
             components: components.Select(static parameter => GeneratorSupport.DisplayType(parameter.Type)).ToArray(),
             functorPassMode: functorPassMode);
         return true;

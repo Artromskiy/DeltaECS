@@ -136,8 +136,8 @@ internal static class GeneratedWhereTemplates
             .Where(static declaration => declaration.Length != 0).ToArray();
         string body = binding.LambdaBodyIsBlock
             ? GeneratorTemplates.Indent(binding.LambdaBody!, "        ")
-            : binding.LambdaBody is { } expression
-                ? predicate ? $$"""        return {{expression}};""" : $$"""        {{expression}};"""
+            : binding.LambdaBody is not null
+                ? predicate ? $$"""        return {{binding.LambdaBody}};""" : $$"""        {{binding.LambdaBody}};"""
                 : $$"""        {{(predicate ? "return " : string.Empty)}}{{MethodGroupInvocation(binding.MethodGroupTarget!, predicate ? shape.HasContext : terminal.HasContext, hasEntity, slots, parameters)}};""";
         string returnType = predicate ? "bool" : "void";
         string methodName = predicate ? "Predicate" : "Action";
@@ -366,12 +366,10 @@ internal static class GeneratedWhereTemplates
         string[] terminalMembers = shape.Terminals.Ordered()
             .SelectMany(terminal => new[]
             {
-                RenderActionDelegate(terminal, hash, supportsScoped) is { Length: > 0 } action
-                    ? action
-                    : null,
+                RenderActionDelegate(terminal, hash, supportsScoped),
                 RenderInvoker(shape, terminal, hash)
             })
-            .OfType<string>().ToArray();
+            .Where(static member => !string.IsNullOrEmpty(member)).ToArray();
         IEnumerable<string> componentSetKeys = shape.Terminals.Ordered()
             .Where(static terminal => terminal.Kind is TerminalKind.Add or TerminalKind.AddOrSet or TerminalKind.Set or TerminalKind.Remove
                 && !terminal.Api.Signature.HasExplicitIds)

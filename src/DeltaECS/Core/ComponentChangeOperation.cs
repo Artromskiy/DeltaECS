@@ -335,7 +335,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
         for (int index = 0; index < source.ActiveCount; index++)
         {
             ref DirtyChunkState state = ref source.GetAt(index);
-            if (state.Chunk is not { } chunk)
+            var chunk = state.Chunk;
+            if (chunk is null)
             {
                 continue;
             }
@@ -394,7 +395,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         for (int index = 0; index < _workerDirtyChunks.Length; index++)
         {
-            if (_workerDirtyChunks[index] is { } worker)
+            var worker = _workerDirtyChunks[index];
+            if (worker is not null)
             {
                 MergeDirtyChunks(worker, _dirtyChunks);
                 worker.Clear();
@@ -639,7 +641,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
         for (int dirtyIndex = 0; dirtyIndex < _processingDirtyChunks.ActiveCount; dirtyIndex++)
         {
             ref DirtyChunkState state = ref _processingDirtyChunks.GetAt(dirtyIndex);
-            if (state.Kind == DirtyKind.None || state.Chunk is not { } chunk)
+            var chunk = state.Chunk;
+            if (state.Kind == DirtyKind.None || chunk is null)
             {
                 continue;
             }
@@ -717,7 +720,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
         for (int dirtyIndex = 0; dirtyIndex < _processingDirtyChunks.ActiveCount; dirtyIndex++)
         {
             ref DirtyChunkState state = ref _processingDirtyChunks.GetAt(dirtyIndex);
-            if (state.Kind == DirtyKind.None || state.Chunk is not { } chunk)
+            var chunk = state.Chunk;
+            if (state.Kind == DirtyKind.None || chunk is null)
             {
                 continue;
             }

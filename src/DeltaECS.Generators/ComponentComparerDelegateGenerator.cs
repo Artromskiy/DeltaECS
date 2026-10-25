@@ -38,7 +38,8 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
             }
 
             site = site with { Model = models.GetOrAdd(site.Model) };
-            if (site.WhereSource is { } whereSource)
+            var whereSource = site.WhereSource;
+            if (whereSource is not null)
             {
                 whereSources.Add(site.Model.Key, whereSource);
             }

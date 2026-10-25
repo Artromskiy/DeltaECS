@@ -177,7 +177,8 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             return;
         }
 
-        if (constant.Type is not INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: not null } enumType || constant.Value is null)
+        if (constant.Type is not INamedTypeSymbol enumType
+            || enumType.TypeKind != TypeKind.Enum || enumType.EnumUnderlyingType is null || constant.Value is null)
         {
             context.ReportDiagnostic(Diagnostic.Create(InvalidGroup, location));
             return;

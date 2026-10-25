@@ -81,7 +81,8 @@ public sealed class ReadOnlyAccessCodeFixProvider : CodeFixProvider
     {
         TextSpan diagnosticSpan = diagnostic.Location.SourceSpan;
         SyntaxNode? root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
-        if (root?.FindNode(diagnosticSpan).FirstAncestorOrSelf<SimpleNameSyntax>() is not { } name)
+        var name = root?.FindNode(diagnosticSpan).FirstAncestorOrSelf<SimpleNameSyntax>();
+        if (root is null || name is null)
         {
             return document;
         }
@@ -93,7 +94,8 @@ public sealed class ReadOnlyAccessCodeFixProvider : CodeFixProvider
             && updateRefLocal)
         {
             VariableDeclaratorSyntax? variable = updatedRoot.FindNode(diagnosticSpan).FirstAncestorOrSelf<VariableDeclaratorSyntax>();
-            if (variable?.Parent is VariableDeclarationSyntax { Type: RefTypeSyntax refType }
+            if (variable?.Parent is VariableDeclarationSyntax declaration
+                && declaration.Type is RefTypeSyntax refType
                 && !refType.ReadOnlyKeyword.IsKind(SyntaxKind.ReadOnlyKeyword))
             {
                 RefTypeSyntax updatedType = refType.WithReadOnlyKeyword(

@@ -6,7 +6,7 @@ namespace Delta.ECS.Generators;
 internal static class OrderedQueryInvocationGrammar
 {
     internal static bool IsCandidate(SyntaxNode node)
-        => node is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
+        => node is InvocationExpressionSyntax invocation && invocation.Expression is MemberAccessExpressionSyntax member
             && member.Name.Identifier.ValueText is "OrderBy" or "ThenBy";
 
     internal static bool TryReadMethod(
@@ -63,7 +63,7 @@ internal static class OrderedQueryInvocationGrammar
     internal static bool TryReadOrderedWhereSource(ExpressionSyntax expression, SemanticModel model, out PredicateModel? shape)
     {
         shape = null;
-        if (expression is not InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member })
+        if (expression is not InvocationExpressionSyntax invocation || invocation.Expression is not MemberAccessExpressionSyntax member)
         {
             return false;
         }
@@ -101,12 +101,12 @@ internal static class OrderedQueryInvocationGrammar
         }
 
         registrationBinding = result.RegistrationBinding;
-        return result.HasComponentIdSpan || result.ComponentIdCount is 0 || result.ComponentIdCount == componentArity;
+        return result.HasComponentIdSpan || result.ComponentIdCount == 0 || result.ComponentIdCount == componentArity;
     }
 
     private static bool IsOrderedQueryExpression(ExpressionSyntax expression, SemanticModel model)
         => GeneratorSupport.IsEcsType(model.GetTypeInfo(expression).Type, "OrderedQuery")
-            || expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member }
+            || expression is InvocationExpressionSyntax invocation && invocation.Expression is MemberAccessExpressionSyntax member
                 && member.Name.Identifier.ValueText == "OrderBy"
                 && GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query");
 }

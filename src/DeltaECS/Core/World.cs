@@ -666,7 +666,8 @@ public sealed partial class World : IDisposable
 
     internal void RecordComponentMembershipChanges(Chunk chunk, int slotIndex, int count, ReadOnlySpan<ComponentId> componentIds, bool isAdd)
     {
-        if (_componentChangeObservers is not { } routes)
+        var routes = _componentChangeObservers;
+        if (routes is null)
         {
             return;
         }
@@ -675,7 +676,12 @@ public sealed partial class World : IDisposable
         ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
         foreach (ComponentId id in componentIds)
         {
-            if ((uint)id.Value >= (uint)routes.Length || routes[id.Value] is not { } route)
+            if ((uint)id.Value >= (uint)routes.Length)
+            {
+                continue;
+            }
+            var route = routes[id.Value];
+            if (route is null)
             {
                 continue;
             }
@@ -917,9 +923,9 @@ public sealed partial class World : IDisposable
         }
 
         DeferQueryPlanUpdates(sourceArchetype);
-        if (targetArchetype is { } target)
+        if (targetArchetype is not null)
         {
-            DeferQueryPlanUpdates(target);
+            DeferQueryPlanUpdates(targetArchetype);
         }
     }
 
@@ -1230,7 +1236,12 @@ public sealed partial class World : IDisposable
         ComponentChangeObserverRoute?[] routes, ComponentId componentId,
         ReadOnlySpan<Entity> entities, bool present)
     {
-        if ((uint)componentId.Value >= (uint)routes.Length || routes[componentId.Value] is not { } route)
+        if ((uint)componentId.Value >= (uint)routes.Length)
+        {
+            return;
+        }
+        var route = routes[componentId.Value];
+        if (route is null)
         {
             return;
         }
@@ -1444,7 +1455,8 @@ public sealed partial class World : IDisposable
 
     private void RecordTransitionMembershipRange(Chunk chunk, int slot, int count, TransitionEdge edge)
     {
-        if (_componentChangeObservers is not { } routes)
+        var routes = _componentChangeObservers;
+        if (routes is null)
         {
             return;
         }
@@ -2733,7 +2745,8 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetChunkById(int chunkId, out Chunk chunk)
     {
-        if ((uint)chunkId < (uint)_chunksById.Length && _chunksById[chunkId] is { } found)
+        var found = (uint)chunkId < (uint)_chunksById.Length ? _chunksById[chunkId] : null;
+        if (found is not null)
         {
             chunk = found;
             return true;
@@ -2988,7 +3001,8 @@ public sealed partial class World : IDisposable
 
         public void Dispose()
         {
-            if (_world is { } world)
+            var world = _world;
+            if (world is not null)
             {
                 _world = null;
                 world.ExitSchedulerExecution();

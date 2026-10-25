@@ -121,7 +121,7 @@ internal sealed class Chunk
     internal ulong GetTagSummary(int tagIndex) => _tagMasks?.Summary(tagIndex) ?? 0;
 
     internal ReadOnlySpan<int> GetActiveTagIndices()
-        => _tagMasks is { } masks ? masks.GetActiveTagIndices() : [];
+        => _tagMasks is not null ? _tagMasks.GetActiveTagIndices() : [];
 
     internal ulong GetTagWord(int tagIndex, int wordIndex) => _tagMasks?.Word(tagIndex, wordIndex) ?? 0;
 
@@ -335,7 +335,8 @@ internal sealed class Chunk
     internal void CopyTagsTo(Chunk target, int sourceSlotIndex, int targetSlotIndex)
     {
         target.ClearTagRange(targetSlotIndex, 1);
-        if (_tagMasks is { } source)
+        var source = _tagMasks;
+        if (source is not null)
         {
             target.EnsureTagCapacity(source.TagCapacity);
             source.CopySlotTo(target._tagMasks!, sourceSlotIndex, targetSlotIndex);
@@ -345,7 +346,8 @@ internal sealed class Chunk
     internal void CopyTagsRangeTo(Chunk target, int sourceSlotIndex, int targetSlotIndex, int count)
     {
         target.ClearTagRange(targetSlotIndex, count);
-        if (_tagMasks is { } source)
+        var source = _tagMasks;
+        if (source is not null)
         {
             target.EnsureTagCapacity(source.TagCapacity);
             source.CopyRangeTo(target._tagMasks!, sourceSlotIndex, targetSlotIndex, count);
