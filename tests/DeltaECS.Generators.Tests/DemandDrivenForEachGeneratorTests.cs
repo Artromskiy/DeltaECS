@@ -2176,6 +2176,28 @@ public sealed class DemandDrivenForEachGeneratorTests
     }
 
     [Test]
+    public void ExplicitGenericForEachSupportsPrivateNestedContext()
+        => AssertPrivateNestedContextForEachCompiles(
+            """
+            _operation = world.ForEach<State, Position>(
+                in query,
+                ref _state,
+                static (ref State state, in Position position) =>
+                    state.Sum += position.Value);
+            """);
+
+    [Test]
+    public void InferredGenericForEachSupportsPrivateNestedContext()
+        => AssertPrivateNestedContextForEachCompiles(
+            """
+            _operation = world.ForEach(
+                in query,
+                ref _state,
+                static (ref State state, in Position position) =>
+                    state.Sum += position.Value);
+            """);
+
+    [Test]
     public void ExplicitIdEntityInterceptionBindsRowsFromChunkArrays()
     {
         const string source = """
@@ -3111,6 +3133,40 @@ public sealed class DemandDrivenForEachGeneratorTests
 
             AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
         }
+    }
+
+    private static void AssertPrivateNestedContextForEachCompiles(string invocation)
+    {
+        string source = $$"""
+            using Delta;
+            using Delta.ECS;
+
+            public struct Position
+            {
+                public int Value;
+            }
+
+            public sealed class ForEachAccessRepro
+            {
+                private State _state;
+                private readonly IOperation<State> _operation;
+
+                private struct State
+                {
+                    public int Sum;
+                }
+
+                public ForEachAccessRepro(World world)
+                {
+                    Query query = world.WhereAll<Position>();
+                    {{invocation}}
+                }
+            }
+            """;
+        GeneratorDriverRunResult run = RunGenerator(source);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        AssertCompiles(new[] { RuntimeStubSource, source }, run.GeneratedTrees);
     }
 
     private static GeneratorDriverRunResult RunGenerator()

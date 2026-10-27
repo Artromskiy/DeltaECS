@@ -2156,18 +2156,20 @@ internal static partial class DemandDrivenForEachTemplates
     };
 
     private static string StateGeneric(IterationModel shape, string generic)
-        => !shape.Api.Signature.HasGenericSelectors
-            ? string.Empty
-            : SignatureProjection.TypeArguments(shape.IsFunctor
+        => SignatureProjection.TypeArguments(shape.Api.Signature.HasGenericSelectors
+            ? shape.IsFunctor
                 ? generic
-                : shape.HasContext ? SignatureProjection.JoinGeneric("TContext", generic) : generic);
+                : shape.HasContext ? SignatureProjection.JoinGeneric("TContext", generic) : generic
+            : shape.ContextTypeNeedsGeneric ? "TContext" : string.Empty);
 
     private static string ParallelInvokerName(IterationModel shape) => "DemandForEachParallelInvoker_" + GeneratorSupport.StableName(shape.Key);
     private static string ComponentType(IterationModel shape, int index) => shape.ComponentModels[index].TypeName;
 
-    private static string ContextType(IterationModel shape) => shape.IsFunctor || shape.ImplicitComponents
+    private static string ContextType(IterationModel shape) => shape.IsFunctor
             ? shape.ContextType ?? "TContext"
-            : "TContext";
+            : shape.ContextTypeNeedsGeneric || !shape.ImplicitComponents
+                ? "TContext"
+                : shape.ContextType ?? "TContext";
 
     private static string ConstructorName(string name)
     {

@@ -46,7 +46,8 @@ internal sealed class IterationModel(
     ContextModeKind functorPassMode = ContextModeKind.Ref,
     string namespaceName = "",
     bool orderedQueryReceiver = false,
-    PredicateModel? orderedWhereSource = null)
+    PredicateModel? orderedWhereSource = null,
+    bool contextTypeNeedsGeneric = false)
 {
     public RegistrationBindingKind RegistrationBinding => Api.Selector.RegistrationBinding;
     public bool HasEntity => Api.Callback?.HasEntity == true;
@@ -73,6 +74,7 @@ internal sealed class IterationModel(
     public string Namespace { get; } = namespaceName;
     public bool OrderedQueryReceiver { get; } = orderedQueryReceiver;
     public PredicateModel? OrderedWhereSource { get; } = orderedWhereSource;
+    public bool ContextTypeNeedsGeneric { get; } = contextTypeNeedsGeneric;
     public string Key => Namespace + "|" + Api.SignatureKey
         + (OrderedQueryReceiver ? "|OrderedQuery" : string.Empty)
         + (OrderedWhereSource is null ? string.Empty : "|" + OrderedWhereSource.Key);

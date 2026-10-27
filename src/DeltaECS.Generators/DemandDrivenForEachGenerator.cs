@@ -477,6 +477,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         }
 
         string? lambdaContextType = null;
+        bool contextTypeNeedsGeneric = false;
         if (hasContext)
         {
             TypeSyntax? contextSyntax = genericName is not null && genericName.TypeArgumentList.Arguments.Count > 0
@@ -486,6 +487,9 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
                 : null;
             ITypeSymbol? lambdaContextSymbol = contextSyntax is not null ? model.GetTypeInfo(contextSyntax).Type : null;
             lambdaContextType = lambdaContextSymbol is not null ? GeneratorSupport.DisplayType(lambdaContextSymbol) : null;
+            contextTypeNeedsGeneric = genericName is null
+                && lambdaContextSymbol is not null
+                && !GeneratorSupport.IsAccessibleSymbol(lambdaContextSymbol);
 
             ParameterSyntax[] parameters = CallbackReader.LambdaParameters(lambda);
             if (parameters.Length == 0)
@@ -518,7 +522,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             functorType: null,
             contextType: lambdaContextType,
             contextMode: contextMode,
-            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred);
+            typeBinding: genericName is not null ? TypeBindingKind.Generic : TypeBindingKind.CallbackInferred,
+            contextTypeNeedsGeneric: contextTypeNeedsGeneric);
         return true;
     }
 
@@ -883,7 +888,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
         string? contextType,
         ContextModeKind contextMode,
         TypeBindingKind typeBinding,
-        ContextModeKind functorPassMode = ContextModeKind.Ref)
+        ContextModeKind functorPassMode = ContextModeKind.Ref,
+        bool contextTypeNeedsGeneric = false)
         => new(
             prefix.RegistrationBinding,
             hasEntity,
@@ -902,7 +908,8 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             functorPassMode: functorPassMode,
             namespaceName: GeneratorSupport.ContainingNamespace(model, invocation),
             orderedQueryReceiver: orderedQueryReceiver,
-            orderedWhereSource: orderedWhereSource);
+            orderedWhereSource: orderedWhereSource,
+            contextTypeNeedsGeneric: contextTypeNeedsGeneric);
 
     private static bool Reject(
         DiagnosticDescriptor descriptor,
