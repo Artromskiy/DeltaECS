@@ -60,10 +60,11 @@ public partial class SystemWithTwoComponents
     {
         _entityRefIteration ??= _deltaEcs.World.ForEachEntity(
             in _deltaEcs.Query,
-            entity =>
+            in _deltaEcs,
+            static (in DeltaSystemTwoContext context, EntityRef entity) =>
             {
-                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
-                ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
+                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(context.First);
+                ref readonly DeltaComponent2 second = ref entity.GetReadRef<DeltaComponent2>(context.Second);
                 first.Value += second.Value;
             });
         _entityRefIteration.Invoke();
@@ -96,10 +97,11 @@ public partial class SystemWithTwoComponents
     {
         _entityRefParallelIteration ??= _deltaEcs.World.ForEachEntityParallel(
             in _deltaEcs.Query,
-            entity =>
+            in _deltaEcs,
+            static (in DeltaSystemTwoContext context, EntityRef entity) =>
             {
-                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
-                ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
+                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(context.First);
+                ref readonly DeltaComponent2 second = ref entity.GetReadRef<DeltaComponent2>(context.Second);
                 first.Value += second.Value;
             },
             workerCount: ParallelContext.ParallelWorkerCount);

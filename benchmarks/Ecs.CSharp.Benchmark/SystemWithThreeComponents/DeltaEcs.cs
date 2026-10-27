@@ -60,11 +60,12 @@ public partial class SystemWithThreeComponents
     {
         _entityRefIteration ??= _deltaEcs.World.ForEachEntity(
             in _deltaEcs.Query,
-            entity =>
+            in _deltaEcs,
+            static (in DeltaSystemThreeContext context, EntityRef entity) =>
             {
-                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
-                ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
-                ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(_deltaEcs.Third);
+                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(context.First);
+                ref readonly DeltaComponent2 second = ref entity.GetReadRef<DeltaComponent2>(context.Second);
+                ref readonly DeltaComponent3 third = ref entity.GetReadRef<DeltaComponent3>(context.Third);
                 first.Value += second.Value + third.Value;
             });
         _entityRefIteration.Invoke();
@@ -97,11 +98,12 @@ public partial class SystemWithThreeComponents
     {
         _entityRefParallelIteration ??= _deltaEcs.World.ForEachEntityParallel(
             in _deltaEcs.Query,
-            entity =>
+            in _deltaEcs,
+            static (in DeltaSystemThreeContext context, EntityRef entity) =>
             {
-                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_deltaEcs.First);
-                ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_deltaEcs.Second);
-                ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(_deltaEcs.Third);
+                ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(context.First);
+                ref readonly DeltaComponent2 second = ref entity.GetReadRef<DeltaComponent2>(context.Second);
+                ref readonly DeltaComponent3 third = ref entity.GetReadRef<DeltaComponent3>(context.Third);
                 first.Value += second.Value + third.Value;
             },
             workerCount: ParallelContext.ParallelWorkerCount);

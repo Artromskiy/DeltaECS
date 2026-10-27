@@ -113,7 +113,7 @@ namespace Ecs.CSharp.Benchmark.Contexts
         public void Invoke(EntityRef entity)
         {
             ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_firstId);
-            ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_secondId);
+            ref readonly DeltaComponent2 second = ref entity.GetReadRef<DeltaComponent2>(_secondId);
             first.Value += second.Value;
         }
     }
@@ -138,8 +138,8 @@ namespace Ecs.CSharp.Benchmark.Contexts
         public void Invoke(EntityRef entity)
         {
             ref DeltaComponent1 first = ref entity.GetRef<DeltaComponent1>(_firstId);
-            ref DeltaComponent2 second = ref entity.GetRef<DeltaComponent2>(_secondId);
-            ref DeltaComponent3 third = ref entity.GetRef<DeltaComponent3>(_thirdId);
+            ref readonly DeltaComponent2 second = ref entity.GetReadRef<DeltaComponent2>(_secondId);
+            ref readonly DeltaComponent3 third = ref entity.GetReadRef<DeltaComponent3>(_thirdId);
             first.Value += second.Value + third.Value;
         }
     }

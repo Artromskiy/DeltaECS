@@ -58,9 +58,10 @@ public partial class SystemWithOneComponent
     {
         _entityRefIteration ??= _deltaEcs.World.ForEachEntity(
             in _deltaEcs.Query,
-            entity =>
+            in _deltaEcs,
+            static (in DeltaSystemOneContext context, EntityRef entity) =>
             {
-                ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(_deltaEcs.Component);
+                ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(context.Component);
                 component.Value++;
             });
         _entityRefIteration.Invoke();
@@ -93,9 +94,10 @@ public partial class SystemWithOneComponent
     {
         _entityRefParallelIteration ??= _deltaEcs.World.ForEachEntityParallel(
             in _deltaEcs.Query,
-            entity =>
+            in _deltaEcs,
+            static (in DeltaSystemOneContext context, EntityRef entity) =>
             {
-                ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(_deltaEcs.Component);
+                ref DeltaComponent1 component = ref entity.GetRef<DeltaComponent1>(context.Component);
                 component.Value++;
             },
             workerCount: ParallelContext.ParallelWorkerCount);
