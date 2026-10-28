@@ -596,6 +596,16 @@ world.AddOrSet(e, data) -> void
 world.Set(e, data) -> int
 ```
 
+The typed accessors treat tags like data components: a present tag returns
+`default(T)` from `Get<T>` and succeeds in `TryGet<T>`. `GetRef<T>` and
+`GetReadRef<T>` return the same shared dummy reference used by `World`; writing
+through it does not change tag presence. These forms work for typed entries,
+ID-only entries and tags captured from a world. A known CLR-type mismatch
+returns `false` from `TryGet<T>` and throws from the other accessors. An ID-only
+entry has no registered CLR type to check until it is typed or consumed by a
+world; it can be read as a tag, but a data component still requires a stored
+value.
+
 `ComponentIds` enumerates stored IDs in insertion order. Its span
 borrows the data's storage and must not be retained across changes to that
 `EntityData`. `EntityData.Add/Set/AddOrSet(World, Entity)` copy values and

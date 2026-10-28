@@ -1,5 +1,7 @@
 namespace Delta.ECS.Tests;
 
+using System.Runtime.CompilerServices;
+
 using NUnit.Framework;
 
 [TestFixture]
@@ -106,18 +108,78 @@ internal sealed class EntityDataTests
         Assert.That(untypedData.Get<int>(componentId), Is.EqualTo(10));
     }
 
-    [Test]
-    public void TagsHavePresenceButNoValue()
+    [TestCase("Add")]
+    [TestCase("AddOrSet")]
+    [TestCase("Set")]
+    public void TagsSupportAllTypedAccessors(string mode)
     {
         var data = new EntityData();
         ComponentId tagId = new(1);
 
-        Assert.That(data.Add(tagId, default(Alive)), Is.True);
+        switch (mode)
+        {
+            case "Add":
+                Assert.That(data.Add(tagId, default(Alive)), Is.True);
+                break;
+            case "AddOrSet":
+                data.AddOrSet(tagId, default(Alive));
+                break;
+            default:
+                data.Add(tagId);
+                Assert.That(data.Set(tagId, default(Alive)), Is.True);
+                break;
+        }
+
         Assert.That(data.Add(tagId, default(Alive)), Is.False);
         Assert.That(data.Has(tagId), Is.True);
-        Assert.That(data.TryGet<Alive>(tagId, out _), Is.False);
+        Assert.That(data.TryGet<Alive>(tagId, out Alive value), Is.True);
+        Assert.That(value, Is.EqualTo(default(Alive)));
+        Assert.That(data.Get<Alive>(tagId), Is.EqualTo(default(Alive)));
+
+        ref Alive writable = ref data.GetRef<Alive>(tagId);
+        Assert.That(Unsafe.IsNullRef(ref writable), Is.False);
+        writable = default;
+        ref readonly Alive readable = ref data.GetReadRef<Alive>(tagId);
+        Assert.That(Unsafe.IsNullRef(ref Unsafe.AsRef(in readable)), Is.False);
+        Assert.That(data.Count, Is.EqualTo(1));
+
         Assert.That(data.TryGet<int>(tagId, out _), Is.False);
+        Assert.That(data.TryGet<OtherTag>(tagId, out _), Is.False);
+        Assert.Throws<System.InvalidOperationException>(() => data.Get<OtherTag>(tagId));
+        Assert.Throws<System.InvalidOperationException>(() => data.GetRef<OtherTag>(tagId));
+        Assert.Throws<System.InvalidOperationException>(() => data.GetReadRef<OtherTag>(tagId));
         Assert.Throws<System.InvalidOperationException>(() => data.GetRef<int>(tagId));
+
+        data.Remove(tagId);
+        Assert.That(data.TryGet<Alive>(tagId, out _), Is.False);
+        Assert.Throws<System.Collections.Generic.KeyNotFoundException>(() => data.Get<Alive>(tagId));
+        Assert.Throws<System.Collections.Generic.KeyNotFoundException>(() => data.GetRef<Alive>(tagId));
+        Assert.Throws<System.Collections.Generic.KeyNotFoundException>(() => data.GetReadRef<Alive>(tagId));
+    }
+
+    [Test]
+    public void UntypedPresenceSupportsTagsWithoutInventingStoredDataValues()
+    {
+        var data = new EntityData();
+        ComponentId componentId = new(1);
+        data.Add(componentId);
+
+        Assert.That(data.TryGet<Alive>(componentId, out _), Is.True);
+        Assert.That(data.Get<Alive>(componentId), Is.EqualTo(default(Alive)));
+        ref Alive writable = ref data.GetRef<Alive>(componentId);
+        ref readonly Alive readable = ref data.GetReadRef<Alive>(componentId);
+        Assert.That(Unsafe.IsNullRef(ref writable), Is.False);
+        Assert.That(Unsafe.IsNullRef(ref Unsafe.AsRef(in readable)), Is.False);
+
+        Assert.That(data.TryGet<int>(componentId, out _), Is.False);
+        Assert.Throws<System.InvalidOperationException>(() => data.Get<int>(componentId));
+        Assert.Throws<System.InvalidOperationException>(() => data.GetRef<int>(componentId));
+        Assert.Throws<System.InvalidOperationException>(() => data.GetReadRef<int>(componentId));
+
+        Assert.That(data.Set(componentId, 7), Is.True);
+        Assert.That(data.Get<int>(componentId), Is.EqualTo(7));
+        Assert.That(data.TryGet<Alive>(componentId, out _), Is.False);
+        Assert.Throws<System.InvalidOperationException>(() => data.Get<Alive>(componentId));
     }
 
     [Test]
@@ -416,6 +478,8 @@ internal sealed class EntityDataTests
     }
 
     private struct Alive { }
+
+    private struct OtherTag { }
 
     private struct Position
     {

@@ -1,12 +1,42 @@
 namespace Delta.ECS.Tests;
 
 using System;
+using System.Runtime.CompilerServices;
 
 using NUnit.Framework;
 
 [TestFixture]
 internal sealed class EntityDataCopyTests
 {
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void CapturedTagsSupportTypedAccessAndRoundTripToWorld(int mode)
+    {
+        using var world = new World();
+        ComponentId tag = world.Components.Register<Marker>(new SchemaId(93_050));
+        Entity source = world.Create(tag);
+        var data = new EntityData();
+        if (mode == 1)
+        {
+            data.Add(tag);
+        }
+
+        Copy(mode, data, world, source);
+
+        Assert.That(data.TryGet<Marker>(tag, out Marker value), Is.True);
+        Assert.That(value, Is.EqualTo(world.Get<Marker>(source, tag)));
+        Assert.That(data.Get<Marker>(tag), Is.EqualTo(default(Marker)));
+        ref Marker writable = ref data.GetRef<Marker>(tag);
+        ref readonly Marker readable = ref data.GetReadRef<Marker>(tag);
+        Assert.That(Unsafe.IsNullRef(ref writable), Is.False);
+        Assert.That(Unsafe.IsNullRef(ref Unsafe.AsRef(in readable)), Is.False);
+
+        Entity restored = world.Create(data);
+        Assert.That(world.Has(restored, tag), Is.True);
+        Assert.That(world.Get<Marker>(restored, tag), Is.EqualTo(value));
+    }
+
     [Test]
     public void SnapshotMergesRowsAndOnlyTheSourcesTagsInRegistrationOrder()
     {

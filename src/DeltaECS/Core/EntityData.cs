@@ -58,18 +58,13 @@ public sealed class EntityData
     public bool Add<T>(ComponentId componentId, in T value)
     {
         EnsureValid(componentId);
-        if (ComponentType<T>.IsTag)
-        {
-            return AddTypedPresence<T>(componentId);
-        }
-
         if (_components.TryGetValue(componentId, out IEntry? existing))
         {
             EnsureType<T>(componentId, existing);
             return false;
         }
 
-        AddEntry(componentId, new ComponentEntry<T>(value));
+        AddEntry(componentId, CreateEntry(in value));
         return true;
     }
 
@@ -81,39 +76,35 @@ public sealed class EntityData
     public void AddOrSet<T>(ComponentId componentId, in T value)
     {
         EnsureValid(componentId);
-        if (ComponentType<T>.IsTag)
+        if (!_components.TryGetValue(componentId, out IEntry? existing))
         {
-            AddOrSetTypedPresence<T>(componentId);
+            AddEntry(componentId, CreateEntry(in value));
             return;
         }
 
-        if (_components.TryGetValue(componentId, out IEntry? existing))
+        EnsureType<T>(componentId, existing);
+        if (existing is ComponentEntry<T> component)
         {
-            EnsureType<T>(componentId, existing);
-            if (existing is ComponentEntry<T> component)
-            {
-                component.Value = value;
-                return;
-            }
-
-            _components[componentId] = new ComponentEntry<T>(value);
-            return;
+            component.Value = value;
         }
-
-        AddEntry(componentId, new ComponentEntry<T>(value));
+        else
+        {
+            _components[componentId] = CreateEntry(in value);
+        }
     }
 
     /// <summary>Reports whether the component ID is stored.</summary>
     public bool Has(ComponentId componentId) => _components.ContainsKey(componentId);
 
     /// <summary>Tries to copy a stored component value of the requested CLR type.</summary>
-    /// <remarks>Entries without a stored value return <see langword="false"/>.</remarks>
+    /// <remarks>Present tags return their default value. Other entries without a stored value return <see langword="false"/>.</remarks>
     public bool TryGet<T>(ComponentId componentId, out T value)
     {
-        if (_components.TryGetValue(componentId, out IEntry? entry) && entry is ComponentEntry<T> component)
+        if (_components.TryGetValue(componentId, out IEntry? entry))
         {
-            value = component.Value;
-            return true;
+            ComponentEntry<T>? component = entry as ComponentEntry<T>;
+            value = component is not null ? component.Value : default!;
+            return component is not null || IsTagEntry<T>(entry);
         }
 
         value = default!;
@@ -121,22 +112,10 @@ public sealed class EntityData
     }
 
     /// <summary>Gets a stored component value of the requested CLR type.</summary>
+    /// <remarks>Present tags return their default value.</remarks>
     /// <exception cref="KeyNotFoundException">No component value is stored under the ID.</exception>
     /// <exception cref="InvalidOperationException">No value of the requested CLR type is stored under the ID.</exception>
-    public T Get<T>(ComponentId componentId)
-    {
-        if (!_components.TryGetValue(componentId, out IEntry? entry))
-        {
-            ThrowHelper.ThrowEntityDataMissingValue(componentId);
-        }
-
-        if (entry is ComponentEntry<T> component)
-        {
-            return component.Value;
-        }
-
-        return ThrowHelper.ThrowEntityDataTypeMismatch<T>(componentId);
-    }
+    public T Get<T>(ComponentId componentId) => GetReadRef<T>(componentId);
 
     /// <summary>Tries to replace a stored component value without adding a new entry.</summary>
     /// <returns><see langword="true"/> when the value was replaced; otherwise, <see langword="false"/>.</returns>
@@ -149,25 +128,21 @@ public sealed class EntityData
         }
 
         EnsureType<T>(componentId, entry);
-        if (ComponentType<T>.IsTag)
-        {
-            _components[componentId] = new ComponentPresenceEntry(typeof(T));
-            return true;
-        }
-
         if (entry is ComponentEntry<T> component)
         {
             component.Value = value;
-            return true;
         }
-
-        _components[componentId] = new ComponentEntry<T>(value);
+        else
+        {
+            _components[componentId] = CreateEntry(in value);
+        }
         return true;
     }
 
     /// <summary>Gets a writable reference to a stored component value.</summary>
+    /// <remarks>Present tags return a shared dummy reference, as in <see cref="World"/>; tag presence is unchanged.</remarks>
     /// <exception cref="KeyNotFoundException">No component value is stored under the ID.</exception>
-    /// <exception cref="InvalidOperationException">The stored value has a different CLR type or is a tag.</exception>
+    /// <exception cref="InvalidOperationException">No value of the requested CLR type is stored under the ID.</exception>
     public ref T GetRef<T>(ComponentId componentId)
     {
         if (!_components.TryGetValue(componentId, out IEntry? entry))
@@ -180,10 +155,13 @@ public sealed class EntityData
             return ref component.Value;
         }
 
-        return ref ThrowHelper.ThrowEntityDataRefTypeMismatch<T>(componentId);
+        return ref IsTagEntry<T>(entry)
+            ? ref GeneratedTagRows.GetReference<T>(0)
+            : ref ThrowHelper.ThrowEntityDataRefTypeMismatch<T>(componentId);
     }
 
     /// <summary>Gets a read-only reference to a stored component value.</summary>
+    /// <remarks>Present tags return a shared dummy reference, as in <see cref="World"/>.</remarks>
     public ref readonly T GetReadRef<T>(ComponentId componentId) => ref GetRef<T>(componentId);
 
     /// <summary>Removes a stored component ID.</summary>
@@ -257,6 +235,12 @@ public sealed class EntityData
         }
     }
 
+    private static IEntry CreateEntry<T>(in T value)
+        => ComponentType<T>.IsTag ? new ComponentPresenceEntry(typeof(T)) : new ComponentEntry<T>(value);
+
+    private static bool IsTagEntry<T>(IEntry entry)
+        => ComponentType<T>.IsTag && (entry.ComponentType is null || entry.ComponentType == typeof(T));
+
     private static void EnsureValid(ComponentId componentId)
     {
         if (!componentId.IsValid)
@@ -277,30 +261,6 @@ public sealed class EntityData
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         return world.CopyEntityData(entity, this, add, set);
-    }
-
-    private bool AddTypedPresence<T>(ComponentId componentId)
-    {
-        if (_components.TryGetValue(componentId, out IEntry? existing))
-        {
-            EnsureType<T>(componentId, existing);
-            return false;
-        }
-
-        AddEntry(componentId, new ComponentPresenceEntry(typeof(T)));
-        return true;
-    }
-
-    private void AddOrSetTypedPresence<T>(ComponentId componentId)
-    {
-        if (_components.TryGetValue(componentId, out IEntry? existing))
-        {
-            EnsureType<T>(componentId, existing);
-            _components[componentId] = new ComponentPresenceEntry(typeof(T));
-            return;
-        }
-
-        AddEntry(componentId, new ComponentPresenceEntry(typeof(T)));
     }
 
     private void AddEntry(ComponentId componentId, IEntry entry)

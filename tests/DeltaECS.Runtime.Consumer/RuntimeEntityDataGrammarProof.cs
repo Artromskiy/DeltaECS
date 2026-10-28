@@ -23,6 +23,12 @@ public static partial class RuntimeApiGrammarProof
         Require(data.TryGet<Position>(positionId, out Position copiedPosition));
         Require(copiedPosition.Value == 20 && data.Get<Position>(positionId).Value == 20);
         Require(data.Add(markerId));
+        Require(data.TryGet<Marker>(markerId, out _));
+        _ = data.Get<Marker>(markerId);
+        ref Marker storedMarker = ref data.GetRef<Marker>(markerId);
+        storedMarker = default;
+        ref readonly Marker readMarker = ref data.GetReadRef<Marker>(markerId);
+        _ = readMarker;
         ReadOnlySpan<ComponentId> dataIds = data.ComponentIds;
         Require(dataIds.Length == 2 && dataIds[0] == positionId && dataIds[1] == markerId);
 
@@ -48,6 +54,8 @@ public static partial class RuntimeApiGrammarProof
         Require(captured.Add(world, entity) == 3);
         Require(captured.Has(positionId) && captured.Has(velocityId) && captured.Has(markerId));
         Require(captured.Get<Position>(positionId).Value == 40);
+        Require(captured.TryGet<Marker>(markerId, out _));
+        _ = captured.Get<Marker>(markerId);
         Require(captured.Set(world, entity) == 3);
         captured.AddOrSet(world, entity);
 
