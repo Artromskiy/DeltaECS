@@ -43,6 +43,7 @@ public sealed partial class World : IDisposable
 
     // These snapshots change only outside query execution; parallel callbacks observe them after executor publication.
     private ComponentChangeObserverRoute?[]? _componentChangeObservers;
+    private ComponentChangeObserverRoute?[]? _componentChangeFilterObservers;
     private WeakReference<ComponentChangeObserver>[] _componentChangeObserverList = [];
     private readonly List<Entity> _queryEntityScratch = new();
     private readonly HashSet<Entity> _structuralEntityScratch = new();
@@ -193,6 +194,7 @@ public sealed partial class World : IDisposable
         _orderedQueryKeyRoutes = [];
         _freeRecordChunks.Clear();
         _componentChangeObservers = null;
+        _componentChangeFilterObservers = null;
         _componentChangeObserverList = [];
         GC.SuppressFinalize(this);
     }
@@ -231,6 +233,14 @@ public sealed partial class World : IDisposable
     /// <summary>Creates a reusable operation that reports changes to one component registration across the world.</summary>
     public ComponentChangeOperation<T> ForEachChange<T>(ComponentId componentId, ComponentChangeAction<T> action)
         => new(this, componentId, action);
+
+    /// <summary>Creates a reusable operation that reports component changes within a query.</summary>
+    /// <remarks>Entering the query reports Added; leaving it reports Removed with a null component reference.</remarks>
+    public ComponentChangeOperation<T> ForEachChange<T>(in Query query, ComponentId componentId, ComponentChangeAction<T> action)
+    {
+        ValidateQuery(in query);
+        return new(this, componentId, action, query);
+    }
 
     /// <summary>Creates one entity with the supplied component registrations.</summary>
     public Entity Create(ReadOnlySpan<ComponentId> componentIds)
@@ -664,6 +674,39 @@ public sealed partial class World : IDisposable
         }
     }
 
+    internal void RegisterComponentChangeFilterObserver(ComponentChangeObserver observer, QuerySpec filter)
+    {
+        ComponentMask dependencies = filter.AllMask.Or(filter.AnyMask).Or(filter.NoneMask);
+        foreach (ComponentId id in dependencies)
+        {
+            if (id == observer.ComponentId)
+            {
+                continue;
+            }
+
+            if (_componentChangeFilterObservers is null || id.Value >= _componentChangeFilterObservers.Length)
+            {
+                Array.Resize(ref _componentChangeFilterObservers, id.Value + 1);
+            }
+
+            WeakReference<ComponentChangeObserver>[]? existing = _componentChangeFilterObservers[id.Value]?.Observers;
+            var observers = new List<WeakReference<ComponentChangeObserver>>((existing?.Length ?? 0) + 1);
+            if (existing is not null)
+            {
+                foreach (WeakReference<ComponentChangeObserver> reference in existing)
+                {
+                    if (reference.TryGetTarget(out _))
+                    {
+                        observers.Add(reference);
+                    }
+                }
+            }
+
+            observers.Add(new WeakReference<ComponentChangeObserver>(observer));
+            _componentChangeFilterObservers[id.Value] = new ComponentChangeObserverRoute(observers.ToArray());
+        }
+    }
+
     internal void RecordComponentMembershipChanges(Chunk chunk, int slotIndex, int count, ReadOnlySpan<ComponentId> componentIds, bool isAdd)
     {
         var routes = _componentChangeObservers;
@@ -676,6 +719,7 @@ public sealed partial class World : IDisposable
         ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slotIndex, count);
         foreach (ComponentId id in componentIds)
         {
+            RecordFilterMembershipRange(id, entities);
             if ((uint)id.Value >= (uint)routes.Length)
             {
                 continue;
@@ -1255,6 +1299,29 @@ public sealed partial class World : IDisposable
         }
     }
 
+    private void RecordFilterMembershipRange(ComponentId componentId, ReadOnlySpan<Entity> entities)
+    {
+        var routes = _componentChangeFilterObservers;
+        if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
+        {
+            return;
+        }
+
+        var route = routes[componentId.Value];
+        if (route is null)
+        {
+            return;
+        }
+
+        foreach (WeakReference<ComponentChangeObserver> reference in route.Observers)
+        {
+            if (reference.TryGetTarget(out ComponentChangeObserver? observer))
+            {
+                observer.RecordFilterMembershipRange(entities);
+            }
+        }
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ComponentId GetPrimaryComponentId<T>()
     {
@@ -1468,6 +1535,7 @@ public sealed partial class World : IDisposable
             if (edge.SourceToTargetRowIndices.RefAt(index) < 0)
             {
                 RecordComponentMembershipRange(routes, sourceIds.RefAt(index), entities, present: false);
+                RecordFilterMembershipRange(sourceIds.RefAt(index), entities);
             }
         }
 
@@ -1475,6 +1543,7 @@ public sealed partial class World : IDisposable
         foreach (int index in edge.AddedTargetRowIndices)
         {
             RecordComponentMembershipRange(routes, targetIds.RefAt(index), entities, present: true);
+            RecordFilterMembershipRange(targetIds.RefAt(index), entities);
         }
     }
 
@@ -1491,6 +1560,15 @@ public sealed partial class World : IDisposable
 
     private void RecordTagMembershipRange(Chunk chunk, int slot, int count, ReadOnlySpan<int> tagIndices, bool present)
     {
+        if (_componentChangeFilterObservers is not null)
+        {
+            ReadOnlySpan<Entity> entities = chunk.RawEntities.Slice(slot, count);
+            foreach (int tagIndex in tagIndices)
+            {
+                RecordFilterMembershipRange(_layouts.GetTagComponentId(tagIndex), entities);
+            }
+        }
+
         foreach (WeakReference<ComponentChangeObserver> reference in _componentChangeObserverList)
         {
             if (!reference.TryGetTarget(out ComponentChangeObserver? observer)

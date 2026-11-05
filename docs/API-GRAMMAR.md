@@ -332,11 +332,12 @@ union those groups.
 ## Runtime component-change iteration
 
 `ForEachChange<T>` is a runtime API and does not require the source generator.
-It watches one explicit registration across the world and returns a retained
-operation:
+It watches one explicit registration across the world or within a component-membership
+query and returns a retained operation:
 
 ```text
 world.ForEachChange<T>(ComponentId, ComponentChangeAction<T>) -> ComponentChangeOperation<T>
+world.ForEachChange<T>(in Query, ComponentId, ComponentChangeAction<T>) -> ComponentChangeOperation<T>
 ComponentChangeOperation<T> : IOperation
 ComponentChangeAction<T>(Entity, ChangeKind, ref T) -> void
 ChangeKind = Added | Modified | Removed
@@ -372,6 +373,38 @@ the callback receives `Unsafe.NullRef<T>()` and the previous entity handle,
 which may be stale. Tags have no stored payload, but writable tag access still
 reports a change. Writes made by an operation's own callback are not reported
 to that same operation a second time.
+
+To restrict tracking to a query, pass it before the component ID:
+
+```csharp
+Query active = world.WhereAll<Health, Enemy>().WhereNone<Paused>();
+var activeHealthChanges = world.ForEachChange<Health>(in active, healthId,
+    static (Entity entity, ChangeKind kind, ref Health health) =>
+    {
+        if (kind != ChangeKind.Removed)
+        {
+            Console.WriteLine($"{entity}: {kind}, health={health.Value}");
+        }
+    });
+
+activeHealthChanges.Invoke();
+```
+
+The query supports `WhereAll`, `WhereAny`, and `WhereNone`, including tag filters,
+and must belong to the same world. The tracked component need not be explicitly
+required by the query: it must be present for an entity to enter the observed set.
+The first invocation reports only matching instances as `Added`. Entering the
+observed set reports `Added`; leaving it reports `Removed` with a null component
+reference, even if the entity still has the component. Writes outside the set
+produce no notification. A filter-only change that leaves an entity in the set
+does not report `Modified`. Intermediate exits and reentries coalesce to the
+membership at the next invocation; a write or removal and readdition of the
+tracked component still reports `Modified` for an entity that remains included.
+
+Filter membership changes are queued by the affected registrations. Subsequent
+invocations process pending membership changes and dirty chunks rather than
+rescanning the world. Value predicates from `Where` are not query-membership
+filters and are not accepted by this overload.
 
 ## Object-based component access
 

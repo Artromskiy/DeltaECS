@@ -4,14 +4,15 @@ using System.Runtime.CompilerServices;
 
 using static ComponentChangeMasks;
 
-/// <summary>Reports changes to one component registration across the world.</summary>
-/// <remarks>The first invocation reports every existing component as <see cref="ChangeKind.Added"/>. Later invocations report current state changes.</remarks>
+/// <summary>Reports changes to one component registration across the world or within a query.</summary>
+/// <remarks>The first invocation reports matching components as <see cref="ChangeKind.Added"/>. Later invocations report current state changes, including entry into and exit from an optional query.</remarks>
 public sealed class ComponentChangeOperation<T> : IOperation
 {
     [ThreadStatic]
     private static ComponentChangeOperation<T>? s_invoking;
     private readonly World _world;
     private readonly ComponentChangeAction<T> _action;
+    private readonly QueryPlan? _query;
     private Entity[] _entities = [];
     private Entity[] _currentEntities = [];
     private ulong[] _entityPresence = [];
@@ -25,14 +26,19 @@ public sealed class ComponentChangeOperation<T> : IOperation
     private bool _invoking;
     private bool _hasSnapshot;
 
-    internal ComponentChangeOperation(World world, ComponentId componentId, ComponentChangeAction<T> action)
+    internal ComponentChangeOperation(World world, ComponentId componentId, ComponentChangeAction<T> action, Query query = default)
     {
         ThrowHelper.ThrowIfNull(action, nameof(action));
         world.ValidateGeneratedComponentType<T>(componentId);
         _world = world;
         _action = action;
+        _query = query.Cached;
         _observer = new Observer(this, componentId);
         world.RegisterComponentChangeObserver(_observer);
+        if (_query is not null)
+        {
+            world.RegisterComponentChangeFilterObserver(_observer, query.Description);
+        }
     }
 
     /// <summary>Reports additions, modifications, and removals since the previous invocation.</summary>
@@ -87,7 +93,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 for (int index = 0; index < _membershipChanges.Count; index++)
                 {
                     ComponentMembershipChange change = _membershipChanges[index];
-                    _processingMembershipChanges.Record(change.Entity, change.Present);
+                    _processingMembershipChanges.Record(change.Entity, change.Present, change.ComponentChanged);
                 }
 
                 _membershipChanges.Clear();
@@ -500,6 +506,11 @@ public sealed class ComponentChangeOperation<T> : IOperation
         for (int archetypeIndex = 0; archetypeIndex < archetypes.Count; archetypeIndex++)
         {
             Archetype archetype = archetypes[archetypeIndex];
+            if (_query is not null && !_query.MatchesArchetype(archetype))
+            {
+                continue;
+            }
+
             int componentIndex = -1;
             if (!isTag && !archetype.TryGetComponentIndex(_observer.ComponentId, out componentIndex))
             {
@@ -510,6 +521,8 @@ public sealed class ComponentChangeOperation<T> : IOperation
             {
                 Chunk chunk = archetype.GetActiveChunk(chunkIndex);
                 Span<Entity> entities = chunk.RawEntities;
+                ReadOnlySpan<ulong> queryMask = default;
+                bool masked = _query is not null && _query.TryGetTagMask(chunk, out queryMask);
                 if (isTag)
                 {
                     ref T component = ref GeneratedTagRows.GetReference<T>(0);
@@ -517,6 +530,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
                     for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
                     {
                         ulong candidates = Intersect(chunk.GetTagWord(tagIndex, wordIndex), GetValidWord(chunk.Count, wordIndex));
+                        if (masked)
+                        {
+                            candidates = Intersect(candidates, queryMask[wordIndex]);
+                        }
                         if (IsFullWord(candidates, chunk.Count, wordIndex))
                         {
                             ref Entity entity = ref entities.RefAt(WordStart(wordIndex));
@@ -543,6 +560,11 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 Span<T> components = chunk.GetComponentRow<T>(componentIndex);
                 for (int slot = 0; slot < chunk.Count; slot++)
                 {
+                    if (masked && !IsMarked(queryMask, slot))
+                    {
+                        continue;
+                    }
+
                     Entity entity = entities.RefAt(slot);
                     ref T component = ref components.RefAt(slot);
                     VisitCurrentEntity(entity, ref component);
@@ -566,7 +588,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
             ComponentMembershipChange change = _processingMembershipChanges[index];
             Entity entity = change.Entity;
             bool existed = IsMarked(_entityPresence.AsSpan(), entity.Index) && _entities[entity.Index] == entity;
-            if (!change.Present)
+            bool resolved = _world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot);
+            bool present = _query is null ? change.Present : resolved && MatchesQuery(chunk, slot);
+            _processingMembershipChanges.SetPresent(index, present);
+            if (!present)
             {
                 if (existed)
                 {
@@ -576,7 +601,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 continue;
             }
 
-            if (_world.TryResolveEntityLocation(entity, out Chunk chunk, out int slot))
+            if (resolved && (!existed || change.ComponentChanged || IsDirty(chunk, slot)))
             {
                 ref T component = ref _world.Components.TryGetTagIndex(_observer.ComponentId, out _)
                     ? ref GeneratedTagRows.GetReference<T>(0)
@@ -590,6 +615,26 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         _world.Archetypes[chunk.ArchetypeId].TryGetComponentIndex(_observer.ComponentId, out int componentIndex);
         return componentIndex;
+    }
+
+    private bool MatchesQuery(Chunk chunk, int slot)
+    {
+        Archetype archetype = _world.Archetypes[chunk.ArchetypeId];
+        bool present = _world.Components.TryGetTagIndex(_observer.ComponentId, out int tagIndex)
+            ? chunk.HasTag(tagIndex, slot)
+            : archetype.Mask.Contains(_observer.ComponentId);
+        return present && _query is not null && _query.MatchesArchetype(archetype) && _query.MatchesTagSlot(chunk, slot);
+    }
+
+    private bool IsDirty(Chunk chunk, int slot)
+    {
+        if (!_processingDirtyChunks.TryGet(chunk, out int chunkId))
+        {
+            return false;
+        }
+
+        ref DirtyChunkState state = ref _processingDirtyChunks.GetById(chunkId);
+        return state.Kind == DirtyKind.All || (state.Kind == DirtyKind.Mask && IsMarked(state.Mask, slot));
     }
 
     private void CommitMembershipChanges()
@@ -624,19 +669,26 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     private void VisitDirtyChunks<TFilter>(TFilter filter) where TFilter : struct, IChangeFilter
     {
-        if (_world.Components.TryGetTagIndex(_observer.ComponentId, out int tagIndex))
+        bool isTag = _world.Components.TryGetTagIndex(_observer.ComponentId, out int tagIndex);
+        if (!isTag && (_query is null || !_query.HasTagFilters))
         {
-            // Keep localloc outside the hot kernel so tiered JIT can use dynamic PGO.
-            Span<ulong> selected = stackalloc ulong[Chunk.WordCount];
+            VisitDirtyDataChunks(filter, default);
+            return;
+        }
+
+        // Keep localloc outside the hot kernels so tiered JIT can use dynamic PGO.
+        Span<ulong> selected = stackalloc ulong[Chunk.WordCount];
+        if (isTag)
+        {
             VisitDirtyTagChunks(tagIndex, filter, selected);
         }
         else
         {
-            VisitDirtyDataChunks(filter);
+            VisitDirtyDataChunks(filter, selected);
         }
     }
 
-    private void VisitDirtyDataChunks<TFilter>(TFilter filter) where TFilter : struct, IChangeFilter
+    private void VisitDirtyDataChunks<TFilter>(TFilter filter, Span<ulong> selected) where TFilter : struct, IChangeFilter
     {
         for (int dirtyIndex = 0; dirtyIndex < _processingDirtyChunks.ActiveCount; dirtyIndex++)
         {
@@ -655,10 +707,23 @@ public sealed class ComponentChangeOperation<T> : IOperation
             }
 
             Archetype archetype = _world.Archetypes[chunk.ArchetypeId];
-            if (!archetype.TryGetComponentIndex(_observer.ComponentId, out int componentIndex))
+            if ((_query is not null && !_query.MatchesArchetype(archetype))
+                || !archetype.TryGetComponentIndex(_observer.ComponentId, out int componentIndex))
             {
                 continue;
             }
+
+            ReadOnlySpan<ulong> mask = state.Mask;
+            if (_query is not null && _query.TryGetTagMask(chunk, out ReadOnlySpan<ulong> queryMask))
+            {
+                kind = SelectChanges(kind, mask, queryMask, selected, count);
+                mask = selected;
+                if (kind == DirtyKind.None)
+                {
+                    continue;
+                }
+            }
+
             Span<T> components = chunk.GetComponentRow<T>(componentIndex);
             Span<Entity> entities = chunk.RawEntities;
             if (kind == DirtyKind.All)
@@ -682,7 +747,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
             int wordCount = WordCount(count);
             for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
             {
-                ulong candidates = Intersect(state.Mask[wordIndex], GetValidWord(count, wordIndex));
+                ulong candidates = Intersect(mask[wordIndex], GetValidWord(count, wordIndex));
                 if (IsFullWord(candidates, count, wordIndex))
                 {
                     int start = WordStart(wordIndex);
@@ -726,8 +791,17 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 continue;
             }
 
+            if (_query is not null && !_query.MatchesArchetype(_world.Archetypes[chunk.ArchetypeId]))
+            {
+                continue;
+            }
+
             int count = chunk.Count;
             DirtyKind kind = SelectTagChanges(chunk, tagIndex, state.Kind, state.Mask, selected);
+            if (_query is not null && _query.TryGetTagMask(chunk, out ReadOnlySpan<ulong> queryMask))
+            {
+                kind = SelectChanges(kind, selected, queryMask, selected, count);
+            }
             if (kind == DirtyKind.None)
             {
                 continue;
@@ -828,6 +902,9 @@ public sealed class ComponentChangeOperation<T> : IOperation
         internal override void RecordMembershipRange(ReadOnlySpan<Entity> entities, bool present)
             => _operation._membershipChanges.RecordRange(entities, present);
 
+        internal override void RecordFilterMembershipRange(ReadOnlySpan<Entity> entities)
+            => _operation._membershipChanges.RecordRange(entities, present: true, componentChanged: false);
+
         internal override void MergeParallel() => _operation.MergeParallel();
 
         internal override void RecordChunkSlot(Chunk chunk, int slotIndex) => _operation.RecordChunkSlot(chunk, slotIndex);
@@ -866,13 +943,13 @@ public sealed class ComponentChangeOperation<T> : IOperation
 /// <summary>Describes a component addition, modification, or removal.</summary>
 public enum ChangeKind : byte
 {
-    /// <summary>The component is present but was absent at the previous invocation.</summary>
+    /// <summary>The component is present in the observed set but was absent at the previous invocation.</summary>
     Added,
 
     /// <summary>The component was opened for writing since the previous invocation.</summary>
     Modified,
 
-    /// <summary>The component or its entity is no longer present.</summary>
+    /// <summary>The component, its entity, or its membership in the optional query is no longer present.</summary>
     Removed
 }
 
@@ -892,6 +969,8 @@ internal abstract class ComponentChangeObserver
     internal abstract void RecordMembership(Entity entity, bool present);
 
     internal abstract void RecordMembershipRange(ReadOnlySpan<Entity> entities, bool present);
+
+    internal abstract void RecordFilterMembershipRange(ReadOnlySpan<Entity> entities);
 
     internal abstract void MergeParallel();
 
@@ -1064,17 +1143,19 @@ internal struct ComponentMembershipChange
 {
     internal Entity Entity;
     internal bool Present;
+    internal bool ComponentChanged;
 }
 
 internal sealed class ComponentMembershipChanges
 {
     private Entity[] _entities = [];
     private bool[] _present = [];
+    private bool[] _componentChanged = [];
     private int[] _indices = [];
     internal int Count { get; private set; }
-    internal ComponentMembershipChange this[int index] => new() { Entity = _entities[index], Present = _present[index] };
+    internal ComponentMembershipChange this[int index] => new() { Entity = _entities[index], Present = _present[index], ComponentChanged = _componentChanged[index] };
 
-    internal void Record(Entity entity, bool present)
+    internal void Record(Entity entity, bool present, bool componentChanged = true)
     {
         EnsureIndexCapacity(entity.Index + 1);
         int index = Find(entity);
@@ -1084,12 +1165,14 @@ internal sealed class ComponentMembershipChanges
             index = Count++;
             _indices[entity.Index] = index + 1;
             _entities[index] = entity;
+            _componentChanged[index] = false;
         }
 
         _present[index] = present;
+        _componentChanged[index] |= componentChanged;
     }
 
-    internal void RecordRange(ReadOnlySpan<Entity> entities, bool present)
+    internal void RecordRange(ReadOnlySpan<Entity> entities, bool present, bool componentChanged = true)
     {
         int requiredIndices = _indices.Length;
         for (int index = 0; index < entities.Length; index++)
@@ -1099,7 +1182,7 @@ internal sealed class ComponentMembershipChanges
             {
                 for (int item = 0; item < entities.Length; item++)
                 {
-                    Record(entities[item], present);
+                    Record(entities[item], present, componentChanged);
                 }
 
                 return;
@@ -1112,6 +1195,7 @@ internal sealed class ComponentMembershipChanges
         EnsureChangeCapacity(Count + entities.Length);
         entities.CopyTo(_entities.AsSpan(Count));
         _present.AsSpan(Count, entities.Length).Fill(present);
+        _componentChanged.AsSpan(Count, entities.Length).Fill(componentChanged);
         for (int index = 0; index < entities.Length; index++)
         {
             _indices[entities[index].Index] = Count + index + 1;
@@ -1121,6 +1205,8 @@ internal sealed class ComponentMembershipChanges
     }
 
     internal bool Contains(Entity entity) => Find(entity) >= 0;
+
+    internal void SetPresent(int index, bool present) => _present[index] = present;
 
     internal void Clear()
     {
@@ -1153,6 +1239,7 @@ internal sealed class ComponentMembershipChanges
             capacity = Math.Max(capacity, Math.Max(4, _entities.Length * 2));
             Array.Resize(ref _entities, capacity);
             Array.Resize(ref _present, capacity);
+            Array.Resize(ref _componentChanged, capacity);
         }
     }
 }

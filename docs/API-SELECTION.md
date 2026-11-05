@@ -9,7 +9,7 @@ Choose an API by the work your system needs to do, then choose its callback and 
 Examples in tables are call fragments: `q`, component IDs, callbacks and comparers are assumed to be declared. The complete examples below need the `DeltaECS` runtime and `DeltaECS.Generators` packages.
 
 - `N`: candidate entities; `C`: visited chunks; `A`: archetypes examined during preparation or initial change reporting; `P`: entities passing a value predicate; `L`: entities in an explicit input list.
-- `M`: pending component membership changes; `D`: dirty chunks; `B`: mask words examined; `E`: emitted change notifications.
+- `M`: pending component or query membership changes; `D`: dirty chunks; `B`: mask words examined; `E`: emitted change notifications.
 - `H`: entity-index capacity used by a change operation; `S`: component bytes initialized, copied or cleared by a structural operation.
 - `K`: entries in an `EntityData` set; `U`: data components on a source entity; `T_c`: tag registrations present anywhere in its chunk.
 
@@ -28,7 +28,7 @@ Generated arity is a compile-time shape: `ForEach<Position, Velocity>` does not 
 | Run independent entity-aware work with known components in parallel | Variadic `ForEachEntityParallel` | `world.ForEachEntityParallel(in q, entityUpdate, workerCount: 4).Invoke()` | Combines typed rows, an entity view and parallel execution | Total work `O(C + N)` | Parallel costs plus entity-view maintenance |
 | Run entity-only or genuinely dynamic work in parallel | Zero-arity `ForEachEntityParallel` | `world.ForEachEntityParallel(in q, entityCallback, workerCount: 4).Invoke()` | Parallel entity callbacks without typed component parameters | Total work `O(C + N)` plus accesses | Parallel costs and component access resolution inside the callback |
 | Process a list that another system already selected | Entity-list `ForEach` / `ForEachEntity` | `world.ForEach(entities, in q, update).Invoke()` | Visits the supplied handles, optionally checking a query | `O(L)` for a fixed signature | Handle resolution and scattered memory access. Construction saves the input list; it is not a borrowed span held until invocation |
-| React to additions, writes and removals since the last call | **Retained runtime `ForEachChange<T>`** | `var changes = world.ForEachChange<Health>(healthId, onChange);` then `changes.Invoke()` | Establishes a baseline and consumes coalesced changes for one registration across the world; it needs no query or source generator | First: `O(H + A + C + B + N)`; later: `O(M + D + B + E)`; no pending changes: `O(1)` | Observer state and notification costs, including costs in the component's write path. A writable access counts even if the value is unchanged; no manual before/after value snapshots are needed |
+| React to additions, writes and removals since the last call | **Retained runtime `ForEachChange<T>`** | `var changes = world.ForEachChange<Health>(healthId, onChange);` then `changes.Invoke()` | Establishes a baseline and consumes coalesced changes for one registration; pass `in q` before the ID to restrict tracking to a component-membership query. No source generator is needed | First: `O(H + A + C + B + N)`; later: `O(M + D + B + E)`; no pending changes: `O(1)` | Observer state and notification costs, including costs in the component's write path. A writable access counts even if the value is unchanged. With a query, entering reports `Added` and leaving reports `Removed`; no manual before/after value snapshots are needed |
 | Select a generic processor from a registration whose CLR type is unknown | Runtime-selected generic functor | `world.ForEach(in q, id, typeof(SaveHistory<>)).Invoke()` | Closes and caches a typed executor for the selected registration | After preparation: the corresponding typed traversal | First-use type dispatch and executor preparation; not reflection dispatch on each entity |
 
 Zero-arity `ForEach` without an entity or component parameter is a generator anchor, not an executable substitute for these forms: invoking that anchor throws.
@@ -245,7 +245,7 @@ If another part of the handler also needs the entity, use `ForEachEntity` with t
 
 ## Example: update a cache only when health changes
 
-Task: report current health when it first appears or is opened for writing, and remove cached entries when health disappears. Keep one change operation across calls:
+Task: report current health when it first appears or is opened for writing, and remove cached entries when health disappears. Keep one change operation across calls. To watch only active enemies, build `Query active = world.WhereAll<Enemy>().WhereNone<Paused>()` and use `world.ForEachChange<Health>(in active, healthId, onChange)`. Both components and tags can define the filter; entry and exit update the observed set even without a write to health.
 
 ```csharp
 using System;

@@ -277,6 +277,30 @@ For `Removed`, the component reference is null and must not be read. This API
 uses one explicit `ComponentId`, requires no query or source generator, and
 reports writable access as a change even if the value stays the same.
 
+Pass a query to track a subset, including changes to the filter itself:
+
+```csharp
+Query active = world.WhereAll<Health>().WhereNone<Paused>();
+var activeChanges = world.ForEachChange<Health>(in active, healthId,
+    static (Entity changedEntity, ChangeKind kind, ref Health health) =>
+    {
+        if (kind != ChangeKind.Removed)
+        {
+            Console.WriteLine($"{changedEntity}: {kind}, health={health.Value}");
+        }
+    });
+
+activeChanges.Invoke(); // Added for currently active health components.
+world.Add(tracked, new Paused());
+activeChanges.Invoke(); // Removed; the callback receives a null component reference.
+world.Remove<Paused>(tracked);
+activeChanges.Invoke(); // Added; the health component itself was not removed.
+```
+
+Only matching entities are observed. Changing a filter component without
+changing membership does not notify the handler. The query and operation are
+reusable; value predicates from `Where` are not accepted by this overload.
+
 ## Change an explicit batch
 
 ```csharp

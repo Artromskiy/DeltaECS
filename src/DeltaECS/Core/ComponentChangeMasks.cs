@@ -143,6 +143,24 @@ internal static class ComponentChangeMasks
         return all ? DirtyKind.All : any ? DirtyKind.Mask : DirtyKind.None;
     }
 
+    internal static DirtyKind SelectChanges(
+        DirtyKind kind, ReadOnlySpan<ulong> changes, ReadOnlySpan<ulong> selection,
+        Span<ulong> selected, int count)
+    {
+        if (kind == DirtyKind.None)
+        {
+            return DirtyKind.None;
+        }
+
+        for (int index = 0, words = WordCount(count); index < words; index++)
+        {
+            ulong changed = kind == DirtyKind.All ? GetValidWord(count, index) : changes[index];
+            selected[index] = Intersect(changed, selection[index]);
+        }
+
+        return Classify(selected, count);
+    }
+
     internal static void Union(Span<ulong> target, ReadOnlySpan<ulong> source, int count)
     {
         for (int index = 0, end = WordCount(count); index < end; index++)
