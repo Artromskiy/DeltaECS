@@ -8,6 +8,7 @@ An archetype Entity Component System for .NET and Unity, with generated typed it
 - Typed systems generated at build time from the API shapes your code uses.
 - Clear access rules: `in` to read a component, `ref` to change it.
 - Composable queries: combine component filters, predicates and ordering.
+- Value-based entity grouping and incremental component-change observation.
 - Flexible iteration: use lambdas, reusable functors, caller-owned context, entity-aware and parallel forms.
 - No component ceremony: components are ordinary C# types; no ECS attributes are required.
 
@@ -94,6 +95,11 @@ world.Where(in candidates,
 ```
 
 The query excludes paused and defeated enemies, filters to the damage zone, then orders targets by distance and unique ID. The iteration spends the damage budget in that order, never reducing health below zero. The same API also supports explicit `ComponentId`s, entity lists, struct functors, caller-owned context, tags, structural operations and parallel iteration. See the [API grammar](docs/API-GRAMMAR.md) for the available forms.
+
+For recurring squad or owner selections, register a component with `group: true`
+and query its value. Retain `ForEachChange<T>` with that query to observe entry,
+writes and exit. See [grouping and changes](docs/API-SELECTION.md#choose-grouping-for-recurring-equality-filters)
+for the example and storage trade-offs.
 
 ## Fast, and measured
 

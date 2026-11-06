@@ -28,7 +28,7 @@ Generated arity is a compile-time shape: `ForEach<Position, Velocity>` does not 
 | Run independent entity-aware work with known components in parallel | Variadic `ForEachEntityParallel` | `world.ForEachEntityParallel(in q, entityUpdate, workerCount: 4).Invoke()` | Combines typed rows, an entity view and parallel execution | Total work `O(C + N)` | Parallel costs plus entity-view maintenance |
 | Run entity-only or genuinely dynamic work in parallel | Zero-arity `ForEachEntityParallel` | `world.ForEachEntityParallel(in q, entityCallback, workerCount: 4).Invoke()` | Parallel entity callbacks without typed component parameters | Total work `O(C + N)` plus accesses | Parallel costs and component access resolution inside the callback |
 | Process a list that another system already selected | Entity-list `ForEach` / `ForEachEntity` | `world.ForEach(entities, in q, update).Invoke()` | Visits the supplied handles, optionally checking a query | `O(L)` for a fixed signature | Handle resolution and scattered memory access. Construction saves the input list; it is not a borrowed span held until invocation |
-| React to additions, writes and removals since the last call | **Retained runtime `ForEachChange<T>`** | `var changes = world.ForEachChange<Health>(healthId, onChange);` then `changes.Invoke()` | Establishes a baseline and consumes coalesced changes for one registration; pass `in q` before the ID to restrict tracking to a component-membership query. No source generator is needed | First: `O(H + A + C + B + N)`; later: `O(M + D + B + E)`; no pending changes: `O(1)` | Observer state and notification costs, including costs in the component's write path. A writable access counts even if the value is unchanged. With a query, entering reports `Added` and leaving reports `Removed`; no manual before/after value snapshots are needed |
+| React to additions, writes and removals since the last call | **Retained runtime `ForEachChange<T>`** | `var changes = world.ForEachChange<Health>(healthId, onChange);` then `changes.Invoke()` | Establishes a baseline and consumes coalesced changes for one registration; pass `in q` before the ID to restrict tracking to component/tag membership and grouped values. No source generator is needed | First: `O(H + A + C + B + N)`; later: `O(M + D + B + E)`; no pending changes: `O(1)` | Observer state and notification costs, including costs in the component's write path. A writable access counts even if the value is unchanged. With a query, entering reports `Added` and leaving reports `Removed`; no manual before/after value snapshots are needed |
 | Select a generic processor from a registration whose CLR type is unknown | Runtime-selected generic functor | `world.ForEach(in q, id, typeof(SaveHistory<>)).Invoke()` | Closes and caches a typed executor for the selected registration | After preparation: the corresponding typed traversal | First-use type dispatch and executor preparation; not reflection dispatch on each entity |
 
 Zero-arity `ForEach` without an entity or component parameter is a generator anchor, not an executable substitute for these forms: invoking that anchor throws.
@@ -40,8 +40,9 @@ Zero-arity `ForEach` without an entity or component parameter is a generator anc
 | Task | API | Example | What it does | Execution complexity | Potential overhead |
 | --- | --- | --- | --- | --- | --- |
 | Require components, accept alternatives, or exclude paused/dead entities | `WhereAll` / `WhereAny` / `WhereNone` | `world.WhereAll<Health, Enemy>().WhereNone<Paused>()` | Describes component membership; data components filter archetypes, tags filter slots | Query preparation depends on archetypes and filters; subsequent iteration pays for matching chunks/entities and tag masks | Cold plan preparation and selection-cache updates. Prefer this to repeating membership tests in every callback |
+| Repeatedly select the same squad, team or owner | **Value grouping** | `world.WhereAll(new MemberOf(squad))` | Selects archetypes by an opt-in grouped component value | Normal matching-chunk traversal after regrouping | Writes may relocate entities; use bounded, recurring keys. See [grouping and changes](#choose-grouping-for-recurring-equality-filters) |
 | Assemble filters from configuration | `QuerySpec` + `CreateQuery` | `world.CreateQuery(in spec)` | Creates a reusable query from runtime component IDs | Preparation depends on the filter set and current archetypes | Save the query when it is reused; a query describes live matches, not a snapshot of entity handles |
-| Filter by component values | `Where` | `world.Where(in q, static (in Health h) => h.Value > 0).ForEach(update).Invoke()` | Evaluates a predicate and runs the terminal on its matches | `O(C + N + P)` | Predicate evaluation on every candidate; prefer membership filters for presence/absence tests |
+| Filter by ranges or arbitrary component values | `Where` | `world.Where(in q, static (in Health h) => h.Value > 0).ForEach(update).Invoke()` | Evaluates a predicate and runs the terminal on its matches | `O(C + N + P)` | Predicate evaluation on every candidate; prefer membership filters for presence/absence tests |
 | Filter by values and entity identity | `WhereEntity` | `world.WhereEntity(in q, entityPredicate).ForEach(update).Invoke()` | Adds the entity handle to the predicate's component inputs | `O(C + N + P)` | Entity access and predicate work. The predicate receives `Entity`; an entity-aware terminal receives `EntityRef` |
 | Get any matching entity | `Query.First` | `q.First().Invoke()` | Stops at the first match in traversal order | Up to `O(C + B)` | May inspect chunks and rebuild tag selection; does not sort results |
 | Get the nearest, smallest or highest-priority entity | `OrderBy(...).First()` | `q.OrderBy(ref distanceComparer).ThenBy(ref idComparer).First().Invoke()` | Finds the minimum under the specified ordering | `O(C + N)` comparisons for fixed keys | Component-key reads and comparisons. It does **not** sort the whole result |
@@ -51,61 +52,26 @@ Zero-arity `ForEach` without an entity or component parameter is a generator anc
 
 `OrderBy` and `ThenBy` describe ordering; the terminal determines its cost. Do not pay for sorting all results just to select one. Ordered iteration is sequential.
 
-## Choose the pipeline in execution order
+## Compose the work
 
-Choose these independently before selecting callback syntax:
+1. Select a supplied entity list in `O(L)`, or build a live world query.
+2. Apply component/tag and grouped-value filters before a read-only `Where` predicate.
+3. Use `OrderBy(...).First()` for one best result; ordered iteration for all results in order. Repeated minima repeat the scan.
+4. Finish observation or value updates before applying structural changes. Snapshot all registrations before resetting any when that is the task's contract.
 
-1. **Input set:** a supplied target list needs list iteration; a live world selection needs a query. Scanning the world and testing list membership changes work from `O(L)` to at least `O(N)`.
-2. **Registration knowledge:** runtime IDs with a known CLR type still use typed component parameters and explicit IDs for iteration. To run custom typed behavior for unknown CLR types, prepare visitors or a supported runtime generic functor. To apply an already collected set of values to one entity, use `EntityData`; its entries retain their types. Membership-only cleanup consumes IDs directly.
-3. **Eligibility:** apply membership filters, then read-only value predicates. Choose a minimum only among eligible entities. Include every component needed by a comparison, including tie-break keys.
-4. **Terminal:** one result needs a minimum reduction (`First` on an ordering); all results in priority order need ordered iteration. For an external list, a typed entity-list callback can perform a linear minimum reduction without sorting.
-5. **Mutation phases:** finish value updates before selecting targets whose eligibility depends on those updates. Complete callbacks before structural changes. If the contract says snapshot **all** registrations before reset, invoke every snapshot operation before invoking any reset operation, rather than snapshot/reset pairs per registration.
+Runtime IDs with known CLR types still use typed parameters. For unknown types,
+use a visitor during preparation; for a runtime-defined set of values on one
+entity, use `EntityData`.
 
-Examples of distinct compositions are `Where → OrderBy → First`,
-`Where → OrderBy → ForEach`, and `ForEach(write) → Where(updated value) → Destroy`.
-An event-fed cleanup instead uses `ForEachChange → retain Entity handles → batch Remove`;
-it must not replace incremental observation with a full-world rescan.
+Entity-list operations copy their input at construction: collect handles first,
+then invoke a batch operation. Reuse list/array storage instead of calling
+`ToArray()` every update. A moving origin or per-call damage budget must be
+refreshed before invocation; changing a struct copied into an operation does
+not update its stored copy.
 
-For a filtered ordered traversal, the generated comparer-functor form is the
-checked composition: `world.Where(in query, predicate).OrderBy(ref comparer)`
-followed by `.ThenBy(ref tieComparer).ForEach((ref Health value) => ...)`.
-Define the comparers as `IComponentComparer` structs with typed `Invoke(in T
-left, in T right)` methods; put the fixed reference point in the comparer
-before constructing the operation. If a callback-based ordering chain fails
-generation, use this form before replacing ordered traversal with repeated
-`First()` calls. Repeated minima cost `O(N*T)` for `T` processed targets,
-where a single ordered traversal costs `O(N + P log P)` after filtering.
-
-Value predicates currently select primary registrations; do not invent an
-explicit-ID `Where` overload for two registrations sharing a CLR type. When
-that composition is unavailable, retain a membership query, order with
-explicit component IDs, and check eligibility in the typed ordered terminal
-before consuming budget. This sorts all candidates (`O(N log N)`), but preserves
-the order of eligible rows. Declare the intermediate receiver as
-`OrderedQuery ordered = query.OrderBy(sourceId, stableId, ref comparer);`
-before building `ordered.ForEach<float, float>(sourceId, destinationId, callback)`.
-This explicit receiver form is supported by the current generator. Prefer a
-supported filter-before-sort composition when its predicate selects the intended
-registrations; a predicate silently reading the primary registration is incorrect.
-
-The cleanup target list does not exist until observation completes. Do not
-construct a deferred entity-list operation over an empty list and expect it
-to see later additions: list inputs are copied during operation construction.
-Use an immediate batch call after collection. With a reusable `List<Entity>`
-on a runtime providing `CollectionsMarshal.AsSpan`, pass its span to the batch
-call; otherwise use a reusable array and its populated prefix. A repeated
-`ToArray()` introduces an allocation on each nonempty update. Do not retain
-the borrowed span or an `EntityRef` beyond the call that uses it.
-
-Keep the predicate and comparer on the same reference point. Distance to an
-origin is not distance to a player unless that player is actually at the
-origin. A fixed origin may be read during construction; a moving origin must
-be refreshed before every invocation. Comparer/context values are copied
-when the ordering is built: changing the original struct afterwards does not
-update a retained operation. A comparer and predicate can share a reference
-state object whose origin is refreshed once before `Invoke()`. Reset
-per-call reduction/budget state before invocation, while retaining the query
-and operation themselves.
+Value predicates currently select primary registrations. For repeated CLR types,
+use explicit IDs in supported ordering/iteration forms; do not invent an
+explicit-ID `Where` overload. The [grammar](API-GRAMMAR.md) specifies each composition.
 
 ## Access, create or reconfigure data
 
@@ -122,7 +88,6 @@ and operation themselves.
 | Read, edit or enumerate entries before applying them | `EntityData` accessors + `ComponentIds` | `data.GetRef<float>(healthId) = 75f`; `foreach (ComponentId id in data.ComponentIds) ...` | Works with entries in the container, including tags through the same typed accessors | Expected `O(1)` keyed access; enumeration and removal `O(K)` | Entry construction can allocate. References address stored values; present tags return `default(T)` or a shared dummy reference. `ComponentIds` borrows storage and must not survive modifications |
 | Destroy one entity, a list or query matches | `Destroy` | `world.Destroy(entity)`; `world.Destroy(in q)` | Removes entities and their components | Depends on selection and data removed/moved; an explicit list may also require `O(L log L)` grouping/sorting | Dense query deletion can use chunk work; arbitrary lists and tag-filtered deletion require more selection work |
 | Map a stable schema or config name to a runtime ID | Registration, schema lookup and aliases | `world.Components.TryGetComponentId(schemaId, out var id)` | Resolves the registration once for later use | Expected `O(1)` indexed lookup | Resolve configuration names/IDs during loading, then keep `ComponentId` rather than repeating string lookups in hot loops |
-| Keep entities with equal component values together | Experimental value grouping | `layouts.Register<MemberOf>(schema, group: true); world.WhereAll(new MemberOf(squad))` | Keeps ordinary component values as the source of truth and selects matching archetypes | Stable queries have normal chunk traversal cost; resolving dirty chunks is `O(Cw + Nd × G)` plus relocation of changed entities | `Cw` is the world's chunk-slot capacity scanned for flags, `Nd` is entities in dirty chunks, `G` is grouped rows. Writable access schedules a check even if no value changes; new combinations retain archetype metadata. Recurring groups fit this policy best |
 | Get a configured category of registrations | Component groups | `world.GetGroup(Groups.History)` | Returns IDs assigned to exactly one enum group value | Cached lookup: expected `O(1)`; rebuilding the member array after group mutation: `O(group size)` | Enumerating the returned IDs costs `O(group size)`. A flags value does not union several groups in `GetGroup`; group membership does not itself select entities |
 | Build typed behavior from a CLR type known only through an ID | Component visitors | `world.Components.TryVisit(id, visitor)` | Dispatches once to a generic `Visit<TComponent>` | Dispatch per registration, plus visitor work | Build and retain typed handlers/operations here rather than dispatching a visitor for every entity |
 | Declare component metadata at build time | Schema, alias and group attributes; generated catalog | `[ComponentSchema(10)]`; `[ComponentGroup(Groups.History)]` | Describes registrations and categories for generated metadata | Registration/catalog preparation, outside the entity loop | Optional metadata; ordinary components need no ECS attributes. See the grammar for catalog and interface-binding routes |
@@ -130,71 +95,39 @@ and operation themselves.
 
 ## Choose EntityData for a component set on one entity
 
-Use `EntityData` for a config-defined entity, a saved entity state, a deserialized
-payload or a patch containing independently selected components. The number and
-combination of registrations can be decided at runtime; several IDs can share
-one CLR type. Typed entries keep value-type payloads out of `object` boxing.
-No common component interface or generated variadic signature is needed to
-apply the set.
+Use `EntityData` for configuration, serialization, entity snapshots and patches
+whose component set is decided at runtime. It retains typed values without
+boxing them into `object`; several IDs may share one CLR type.
 
-The world caches validated registrations and component-row routes for the same
-data instance and encountered archetypes. Replacing existing values keeps that
-preparation reusable; adding or removing IDs invalidates the set's preparation.
-Repeated applications read the container's current values. Prefer retaining
-the container and updating its values over rebuilding it for each call.
-
-| The task on the target entity | Choose | Result |
+| Intent | Call | Result |
 | --- | --- | --- |
-| Create an entity from the set | `world.Create(data)` | Creates one entity; the set must contain at least one ID |
-| Supply missing components and preserve existing values | `world.Add(entity, data)` | Returns the number of added components and tags |
-| Update the entity only when every selected entry exists | `world.Set(entity, data)` | Returns `data.Count` when all are present, or zero without applying values if any are missing |
-| Ensure the selected components exist and apply supplied values | `world.AddOrSet(entity, data)` | Adds missing entries and updates existing stored values; returns `void` |
-
-An ID added without a value supplies membership. The consuming world resolves
-whether it is a data component or tag: newly added data components receive
-their default value, and existing values are preserved. Typed tag entries use
-the same `Add` syntax and store membership only.
+| Create from the set | `world.Create(data)` | New entity; at least one ID is required |
+| Add only missing entries | `world.Add(entity, data)` | Number of components/tags added; existing values stay unchanged |
+| Update only if the entire set exists | `world.Set(entity, data)` | `data.Count`, or zero with no values applied if any entry is missing |
+| Ensure membership and apply values | `world.AddOrSet(entity, data)` | Adds missing entries and updates supplied values; returns `void` |
+| Capture one entity | `data.Clear(); data.AddOrSet(world, entity);` | Replaces the container contents with shallow copies |
+| Inspect the set | `data.ComponentIds`; `data.Get<T>(id)` | Borrowed ID span and typed values; present tags return their default value |
 
 ```csharp
-using System;
-
-using Delta.ECS;
-
-using var world = new World();
-ComponentId healthId = world.Components.Register<float>(new SchemaId(1));
-ComponentId staminaId = world.Components.Register<float>(new SchemaId(2));
-
 var data = new EntityData();
 data.Add(healthId, 100f);
 data.Add(staminaId, 40f);
 Entity entity = world.Create(data);
 
 data.Set(healthId, 75f);
-int applied = world.Set(entity, data); // 2: both entries were present
-
-data.Set(staminaId, 20f);
-world.AddOrSet(entity, data);          // Reuses the set with its current values
-Console.WriteLine(world.Get<float>(entity, healthId));  // 75
-Console.WriteLine(world.Get<float>(entity, staminaId)); // 20
+world.Set(entity, data); // Reuses preparation and applies current values
 ```
 
-For one known component, direct typed access remains the shortest route. A
-fixed set of known types can use a generated multi-component structural call.
-Choose `EntityData` when the component set itself is data or needs to be built,
-stored or inspected independently of the call signature. Its cached preparation
-reduces repeated work, while applying the set still visits its `K` entries.
-For dense work over many entities, use variadic iteration with direct row
-references.
+An ID without a value supplies membership: new data components get default
+values, tags get presence, and existing values are preserved. The consuming
+world resolves IDs and caches plans for this data instance and its encountered
+archetypes. Replacing values reuses those plans; changing the ID set invalidates
+them. Retain the container for repeated applications.
 
-The container does not own a world; its IDs must resolve to the intended
-registrations in each consuming world. Captured values are shallow copies, so
-references inside components remain shared. `data.Clear(); data.AddOrSet(world,
-entity);` replaces the container's contents with an individual entity snapshot.
-For repeated full-world snapshots, prepare typed traversals per registration
-to keep component-row reads dense. `EntityData` capture instead resolves each
-entity and updates its container entries individually. The
-[Entity data grammar](API-GRAMMAR.md#entity-data)
-describes the full API and copy semantics.
+For one known component use direct access. For a fixed known set use generated
+multi-component calls. For full-world snapshots prefer prepared typed row
+traversals per registration; individual `EntityData` captures resolve each entity
+and its entries separately. See [Entity data](API-GRAMMAR.md#entity-data).
 
 ## Choose the callback and registration form
 
@@ -212,166 +145,126 @@ These are independent choices within an iteration family; they do not require sw
 | Reusable typed behavior or mutable processor state | Struct functor | A concrete generic call avoids boxing and permits specialization. Do not erase it to an interface just to invoke it |
 | Pass/update external state without a closure | Caller-owned context overload | Explicit ownership; parallel forms accept read-only/value context, not shared mutable `ref` context |
 
-## Example: update known components
+## Choose grouping for recurring equality filters
 
-Task: move every entity with `Position` and `Velocity`, excluding paused entities. The entity handle is unnecessary, so use variadic `ForEach`:
+Value grouping is an experimental storage policy: equal **whole component
+values** share an archetype. The component remains ordinary per-entity data with
+one `ComponentId` and `SchemaId`; changing that value changes the group. Multiple
+grouped components split storage by their combinations of values.
 
-```csharp
-using System;
-using System.Numerics;
-using Delta.ECS;
+| Need | Choose | Trade-off |
+| --- | --- | --- |
+| Repeated squad, team, owner or region selection with recurring keys | `Register<T>(schema, group: true)` + `WhereAll(value)` | Reads skip other groups; changing a key may move component rows |
+| A range, distance, or a frequently changing mostly unique value | Ordinary registration + `Where` | Tests candidate values without fragmenting storage into groups |
+| Added/modified/removed instances inside one group | Retained `ForEachChange<T>(in groupQuery, id, callback)` | Tracks the selected set and writes to the observed registration |
+| Categories of registrations such as `History` or `Temp` | `[ComponentGroup(...)]` + `world.GetGroup(...)` | Returns component IDs; does not group or select entities |
 
-using var world = new World();
-world.Components.Register<Position>(new SchemaId(1));
-world.Components.Register<Velocity>(new SchemaId(2));
-world.Components.Register<Paused>(new SchemaId(3));
-Entity entity = world.Create<Position>();
-world.GetRef<Position>(entity) = new Position(Vector2.Zero);
-world.Add(entity, new Velocity(new Vector2(2, 1)));
-Query moving = world.WhereAll<Position, Velocity>().WhereNone<Paused>();
+Grouped types must be structs implementing `IEquatable<T>`; a record struct
+already does. Register explicitly or use `[ComponentSchema(10, group: true)]`
+with the generated catalog. `WhereAll(value)` requires a value,
+`WhereAny(value)` adds to the shared OR alternatives, and `WhereNone(value)`
+excludes that value, allowing entities without the component. For several
+registrations of the same CLR type, pass the ID before the value.
 
-var move = world.ForEach(in moving,
-    static (ref Position position, in Velocity velocity) => position.Value += velocity.Value);
+### Observe health within one squad
 
-move.Invoke();
-move.Invoke();
-Console.WriteLine(world.Get<Position>(entity).Value.X); // 4
-
-public record struct Position(Vector2 Value);
-public record struct Velocity(Vector2 Value);
-public record struct Paused;
-```
-
-If another part of the handler also needs the entity, use `ForEachEntity` with the same component parameters. Do not replace them with `e.GetRef<Position>()` and `e.GetReadRef<Velocity>()`. If configuration selects an alternate position registration, pass its ID to the typed overload; keep the `ref Position` parameter.
-
-## Example: update a cache only when health changes
-
-Task: report current health when it first appears or is opened for writing, and remove cached entries when health disappears. Keep one change operation across calls. To watch only active enemies, build `Query active = world.WhereAll<Enemy>().WhereNone<Paused>()` and use `world.ForEachChange<Health>(in active, healthId, onChange)`. Both components and tags can define the filter; entry and exit update the observed set even without a write to health.
+This complete runtime-only example reports entry, writes and exit. Registering
+`MemberOf` with grouping lets the query select squad 1 without a per-entity
+predicate. Retain both the query and the change operation.
 
 ```csharp
 using System;
 using Delta.ECS;
 
 using var world = new World();
-ComponentId healthId = world.Components.Register<Health>(new SchemaId(1));
-Entity entity = world.Create(healthId, new Health(100));
+world.Components.Register<MemberOf>(new SchemaId(10), group: true);
+ComponentId healthId = world.Components.Register<Health>(new SchemaId(11));
+Entity unit = world.Create(healthId, new Health(100));
+world.Add(unit, new MemberOf(1));
+Query squad = world.WhereAll(new MemberOf(1));
 
-var changes = world.ForEachChange<Health>(healthId,
+var changes = world.ForEachChange<Health>(in squad, healthId,
     static (Entity entity, ChangeKind kind, ref Health health) =>
-    {
-        if (kind == ChangeKind.Removed)
-        {
-            Console.WriteLine($"{kind}: {entity.Index}");
-            return;
-        }
+        Console.WriteLine(kind == ChangeKind.Removed
+            ? $"{entity.Index}: left the observed set"
+            : $"{entity.Index}: {kind}, health={health.Value}"));
 
-        Console.WriteLine($"{kind}: {health.Value}");
-    });
-
-changes.Invoke();                             // Added: 100
-world.GetRef<Health>(entity, healthId).Value -= 25;
-changes.Invoke();                             // Modified: 75
+changes.Invoke();                             // Added, health=100
+world.GetRef<Health>(unit).Value -= 25;
+changes.Invoke();                             // Modified, health=75
+world.GetRef<MemberOf>(unit) = new MemberOf(2);
+changes.Invoke();                             // Removed; Health still exists
+world.GetRef<MemberOf>(unit) = new MemberOf(1);
+changes.Invoke();                             // Added, health=75
 changes.Invoke();                             // No output
-world.Remove(entity, healthId);
-changes.Invoke();                             // Removed: <entity index>
 
+public readonly record struct MemberOf(int Squad);
 public record struct Health(int Value);
 ```
 
-This is **write-access and membership tracking**, not value comparison. `ref` access counts as a modification even if the value is unchanged. Data components and tags follow this rule; tags have no stored payload, so their writable reference is a dummy value.
+Add ordinary membership filters, for example `.WhereNone<Paused>()`, to the
+same query. The observed component must be present, even if omitted from the
+query. A `Where` predicate view cannot be passed to `ForEachChange`.
 
-The first invocation reports existing instances as `Added`. Later invocations coalesce changes since that operation's previous successful call: add then remove can cancel, while remove then add of the same entity/component becomes `Modified`. Reusing an index with a new generation keeps the old entity's removal separate from the new entity's addition. A `Removed` callback receives a null component reference, which must not be read, and the original entity handle, which may now be stale. Writes made through this operation's own callback are not reported again to itself.
+Writable access to a grouped component marks its chunk dirty, even if its value
+stays equal. The **next world data operation**, including `changes.Invoke()`,
+resolves pending regrouping before using locations or query bindings. Movement
+waits while an iteration is active: nested work sees that operation's existing
+group placement. Do not reuse a borrowed component reference after another
+operation can relocate it; reference lifetime is the caller's responsibility.
 
-Use manual value comparison only when the task specifically needs equality-based differences. For ordinary write/membership notifications, a second cache of component copies duplicates work already provided by `ForEachChange`.
+Stable reads visit matching chunks normally. Resolving dirty groups costs
+`O(Cw + Nd × G)` plus relocation: world chunk-slot capacity `Cw`, entities in dirty
+chunks `Nd`, and grouped rows `G`. Chunks grow from 16 slots up to 1024 rather
+than allocating 1024 slots for every small group; they do not automatically
+shrink. Distinct keys and value combinations retain metadata for the registry/world
+lifetime, so an unbounded ID stream is still a poor grouping key.
+
+## Understand change notifications
+
+| Since this operation's last successful call | Notification |
+| --- | --- |
+| First invocation, or entry into its filtered set | `Added` |
+| Writable access to its component while still included | `Modified`, even if the value is unchanged |
+| Component removal, destruction, or leaving the filter | `Removed`; null component ref, original possibly stale entity |
+| Only another filter component changes, but the entity remains included | None |
+| Exit and reentry between invocations | Coalesced; final membership and writes to the tracked component determine the result |
+
+`ForEachChange<T>` tracks **one registration**, including tags, across the world
+or a query; it does not compare old/new values or observe every component in the
+query. To observe the grouping value itself, track `memberOfId`; to maintain a
+squad's health cache, track `healthId` with the squad query as above.
+
+Events coalesce per entity generation: add then remove can cancel; remove then
+add for an already observed instance becomes `Modified`. Reusing an entity index
+keeps the old removal separate from the new addition. Never read a `Removed`
+component ref. Writes through an operation's own callback do not notify itself
+again. Build a change operation once: recreating it restarts initial reporting.
+
+## When a visitor helps
+
+Use `world.Components.Visit(id, visitor)` when an ID selects an unknown CLR type
+and your code needs `T`. Use `IUnconstrainedComponentVisitor` for any type, or
+`IComponentVisitor<TInterface>` after `BindInterface<T, TInterface>()` for custom
+behavior. The constraint type is supplied automatically.
+
+For a one-off command, the visitor can call `GetRef<T>` directly. For repeated
+commands, prepare typed handlers once; for a full-world pass, prepare typed
+operations per registration. Do not dispatch a visitor for each entity or cast
+a struct component to its interface, which mutates a boxed copy. See the
+[compact visitor example](API-EXAMPLES.md#visit-a-runtime-selected-component).
+Runtime-selected open generic functors currently do not accept user-defined
+interface/base-class constraints; use a closed constrained handler for that case.
+An inline generated lambda mentioning a visitor method's open `T` is also
+unsupported; use a typed functor or a closed handler.
 
 ## Preparation, reuse and lifetime
 
-- Build and retain queries and operations used repeatedly. A `ForEach` call creates an operation; `Invoke()` executes it against current matches. Binding preparation and topology changes can cost more than an ordinary warm invocation.
-- Retain `EntityData` sets used for repeated single-entity creation or patches. The consuming world owns their prepared application plans; changing stored values reuses the set, while changing its IDs requires preparation again. These forms accept one entity per call.
-- Use `var` for a local generated operation. For retained ordinary traversal fields, `IOperation` is a supported type; for a result terminal use `IResultOperation<T>` or its concrete `EcsResultOperation<T>` type. `IOperation<TState>` is for caller-owned mutable state, not a result. Grammar family names and invented `ForEachInvoker` types are not field declarations. Storing a generated operation struct as `IOperation` boxes it once during preparation, not once per entity.
-- Creating an operation is not universally allocation-free: closures, captured input lists, ordering descriptions, change subscriptions and cold caches have their own storage costs. Concrete generated operation structs avoid boxing on direct invocation; storing one as `IOperation` boxes it once. A constrained generic call can preserve its concrete type.
-- Keep change operations for as long as their baseline is needed. Constructing a new one for every update creates a new subscription and restarts initial reporting.
-- Write observation has a cost in the writer as well as the consumer. Dense writes can mark chunks or masks for observers; point writes record selected slots. Value predicates do not turn write tracking into an exact comparison of modified values.
-- Borrow an `EntityRef` only within its callback. Convert it to `Entity` when a handle must be retained. Do not perform immediate structural changes from an active traversal; use a structural terminal or apply those changes after traversal.
+- Retain queries and operations; `Invoke()` sees current matches, including new chunks and groups. Rebuild when the selected group value/configuration changes.
+- Use `var` locally, `IOperation` for a retained traversal, `IResultOperation<T>` for a result, and `IOperation<TState>` for caller-owned mutable state. Assigning a generated operation struct to an interface boxes it once.
+- A functor avoids a per-entity delegate call; closures, lists, ordering and subscriptions can still allocate during preparation. Caching is not a promise of allocation-free construction.
+- Use `in`/`GetReadRef` for reads. Writes cost both the writer and active observers; grouped writes also schedule regrouping.
+- `EntityRef` is borrowed only for its callback. Retain an `Entity` handle instead. Apply structural changes after traversal or through a structural terminal.
 
-For repeated application of component values to one target, retain an
-`EntityData` set. Use prepared typed handlers when the command runs custom
-component behavior, such as an interface method.
-
-For repeated commands over a fixed set of registrations, retaining a visitor
-object is not the same as preparing typed handlers. A `TryVisit` inside every
-command still dispatches the registration on every call. Dispatch each ID in
-the constructor and keep the resulting handler instead:
-
-```csharp
-// Construction-time visitor callback; ResetHandler<T> is your typed handler.
-public void Visit<T>(ComponentId id) where T : IResettable =>
-    handlers.Add(id, new ResetHandler<T>(world, id));
-
-// Repeated command: lookup the already prepared handler and invoke it.
-return handlers.TryGetValue(id, out var handler) && handler.TryReset(target);
-```
-
-This is a preparation sketch, not a complete class. Each typed handler uses
-`Has` and `GetRef<T>` for its one target and performs the constrained call on
-the stored component. Those point accesses are appropriate here; scanning the
-world to update one known entity is not. A one-off visitor call remains useful
-when there is no repeated workload to amortize preparation.
-
-For exact overloads use the [API grammar](API-GRAMMAR.md); for more complete scenarios use the [API examples](API-EXAMPLES.md).
-
-## Several unknown component types implementing one interface
-
-An entity can carry several selected debuffs at once. A fixed list of their
-registration IDs describes **separate component-instance traversals**, not a
-query requiring every debuff simultaneously. Prepare each registration once;
-then execute every prepared traversal against its current matches. Keep
-explicit IDs when multiple registrations share one CLR type.
-
-Mutate struct implementations through their actual stored reference using a
-constrained generic call. Casting a struct value to its interface boxes a
-copy; changing that copy does not update the stored component.
-
-The current generator has two relevant limits. Runtime-selected open generic
-functors do not accept user interface/base-class constraints (`DECSGEN008`).
-An inline typed lambda mentioning a visitor method's open `T` can also emit
-`T` outside its scope (`CS0246`). Do not repeatedly retry those signatures or
-erase values to `object` to make them compile. An unconstrained generic
-read-only snapshot functor is supported; interface mutation can use a cold
-constrained visitor to construct a closed generic handler, with a retained
-entity-only operation calling an ordinary constrained helper:
-
-```csharp
-public interface ITickable { void Tick(int duration); }
-
-public sealed class TickHandler<T> where T : ITickable
-{
-    private readonly IOperation operation;
-
-    public TickHandler(World world, ComponentId id, int duration)
-    {
-        Query query = world.WhereAll(id);
-        operation = world.ForEachEntity(in query,
-            (EntityRef entity) => TickOne(entity, id, duration));
-    }
-
-    private static void TickOne(EntityRef entity, ComponentId id, int duration)
-        => entity.GetRef<T>(id).Tick(duration);
-
-    public void Invoke() => operation.Invoke();
-}
-```
-
-Construct `TickHandler<T>` in the visitor's constrained `Visit<T>` and retain
-it through a caller-owned non-generic handler contract. This supported
-fallback pays a component lookup for every instance; it is not the direct
-typed-row path recommended for statically known components. Keep that cost
-visible in API reviews. For expiring effects, retain only expired entity
-handles during the callback and remove their registration after traversal.
-
-For snapshot-then-reset workloads, use the supported unconstrained typed
-read-only functor for the snapshot phase, so the callback receives both the
-entity and the typed value without a second component lookup. Reserve the
-constrained entity-handler fallback for the reset phase. For expiration,
-batch the collected handles per registration rather than removing each entity's
-component with a separate structural call.
+See the [API grammar](API-GRAMMAR.md) for exact signatures and the
+[API examples](API-EXAMPLES.md) for complete code.

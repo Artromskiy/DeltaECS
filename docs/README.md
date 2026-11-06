@@ -10,8 +10,11 @@ The canonical generated API grammar and argument order are in
 [API grammar](API-GRAMMAR.md). Update that contract together with generator
 or public API changes.
 
-## Public and integration API
+## Public API
 
+- [Choose an API](API-SELECTION.md) — task, complexity and execution costs.
+- [Examples](API-EXAMPLES.md) — compact runnable patterns, including visitors.
+- [Grouping and changes](API-SELECTION.md#choose-grouping-for-recurring-equality-filters) — value grouping with `ForEachChange`.
 - [API map](APIMAP.md)
 - [Runtime package guide](packages/DeltaECS.README.md)
 - [Generator package guide](packages/DeltaECS.Generators.README.md)

@@ -102,115 +102,51 @@ types.
 
 ## Component registration and type visitors
 
-`Register<T>(schemaId)` returns the component ID directly. The registry's marker-route overloads select the strongest standard constraint visible for `T` (`class, new()`, `unmanaged`, `struct`, `new()`, or `class`). A generic caller with no constraints uses the unconstrained route. To select a narrower route in generic code, declare that constraint on the helper method:
+`Register<T>(schemaId, group: false)` returns a `ComponentId`. Registration
+selects the strongest CLR constraint visible at the call site (`unmanaged`,
+`struct`, `class`, `new()`, or `class, new()`). A generic helper must declare
+its constraint to select that route; an unconstrained `T` uses the unconstrained
+route even when its closed type is a struct. These APIs require no generator.
 
-```csharp
-ComponentId positionId = layouts.Register<Position>(new SchemaId(1));
-
-static ComponentId RegisterNew<T>(ComponentRegistry layouts, SchemaId schemaId)
-    where T : new()
-    => layouts.Register<T>(schemaId);
-
-ComponentId constructibleId = RegisterNew<Constructible>(layouts, new SchemaId(3));
-```
-
-`BindInterface<TComponent, TInterface>()` declares a route for the interface-based visitor contracts for one concrete component CLR type and one interface. It applies to every schema registration of that CLR type, including registrations made before or after the binding. The compiler checks that `TComponent` implements `TInterface`; binding another component type requires another call. This uses closed generic code directly and does not require generated interface routes:
-
-```csharp
-layouts.BindInterface<Position, IMovable>();
-
-ComponentId positionId = layouts.Register<Position>(new SchemaId(4));
-ComponentId localPositionId = layouts.Register<Position>(new SchemaId(5));
-
-var visitor = new MovementVisitor();
-layouts.Visit(positionId, visitor);
-layouts.Visit(localPositionId, visitor);
-
-if (layouts.TryVisit(positionId, visitor))
-{
-    // The registered component matched the visitor route.
-}
-
-public interface IMovable { }
-
-public struct Position : IMovable { }
-
-public sealed class MovementVisitor : IComponentVisitor<IMovable>
-{
-    public void Visit<T>(ComponentId componentId) where T : IMovable { }
-}
-```
-
-`IComponentVisitor` is the common marker. Visitors with a user-defined constraint inherit `IConstrainedComponentVisitor<TConstraint>`, which supplies `ConstraintType` by default. Implementing this property explicitly is optional. Specialized forms use `IStructComponentVisitor`, `IClassComponentVisitor`, `IUnmanagedComponentVisitor`, `INewComponentVisitor`, and `IClassNewComponentVisitor`, with or without a user-defined constraint.
-
-| Contract | Purpose |
+| Visitor contract | Accepted type / purpose |
 | --- | --- |
-| `IComponentVisitor` | Common marker accepted by `Visit` and `TryVisit`; does not receive callbacks by itself. |
-| `IUnconstrainedComponentVisitor` | Receives any registered CLR type through `Visit<TComponent>`. |
-| `IConstrainedComponentVisitor` | Exposes the runtime `ConstraintType` used to select an explicitly bound interface route. |
-| `IConstrainedComponentVisitor<TConstraint>` | Supplies `ConstraintType` by default for all typed constraint visitors. |
-| `IComponentVisitor<TConstraint>` | Receives types satisfying `TConstraint` through `Visit<TComponent>`. |
-
-The shape-specific generic contracts inherit `IConstrainedComponentVisitor<TConstraint>`. Visitor naming does not change `Register` or `BindInterface` calls, the selected registration route, or route priorities.
-
-The binding is explicit for each component type when using the interface-based visitor contracts. For example, a `Velocity` component that also implements `IMovable` needs its own `layouts.BindInterface<Velocity, IMovable>()` call.
-
-For virtual dispatch, derive from `GeneralComponentTypeVisitor<TConstraint>`. Override the named hooks for the registration shapes the visitor handles. The registry calls the matching hook through the explicitly bound interface route:
+| `IComponentVisitor` | Common marker; no callback by itself |
+| `IUnconstrainedComponentVisitor` | Any CLR type; `Visit<T>(ComponentId)` |
+| `IComponentVisitor<TConstraint>` | `T : TConstraint`; explicit interface binding |
+| `IStructComponentVisitor`, `IUnmanagedComponentVisitor`, `IClassComponentVisitor`, `INewComponentVisitor`, `IClassNewComponentVisitor` | `struct`, `unmanaged`, `class`, `new()`, `class, new()` respectively |
+| The same shape contracts with `<TConstraint>` | Both the shape and user constraint |
+| `IConstrainedComponentVisitor` / `<TConstraint>` | Constraint identity base; the generic form supplies `ConstraintType` automatically |
 
 ```csharp
-layouts.BindInterface<Position, IMovable>();
-ComponentId positionId = layouts.Register<Position>(new SchemaId(7));
-layouts.TryVisit(positionId, new RoutedMovementVisitor());
+layouts.BindInterface<Health, IDamageable>();
+ComponentId healthId = layouts.Register<Health>(new SchemaId(1));
+layouts.Visit(healthId, new DamageVisitor(world, target, 25));
 
-public sealed class RoutedMovementVisitor : GeneralComponentTypeVisitor<IMovable>
+public sealed class DamageVisitor(World world, Entity target, int amount)
+    : IComponentVisitor<IDamageable>
 {
-    protected override void VisitStruct<T>(ComponentId componentId)
+    public void Visit<T>(ComponentId id) where T : IDamageable
     {
-        // T is a struct that implements IMovable.
-    }
-
-    protected override void VisitClass<T>(ComponentId componentId)
-    {
-        // T is a class that implements IMovable.
+        if (world.Has(target, id))
+        {
+            world.GetRef<T>(target, id).ApplyDamage(amount);
+        }
     }
 }
 ```
 
-The hooks are `Visit<T>` for an unconstrained route, `VisitUnmanaged<T>`, `VisitStruct<T>`, `VisitClass<T>`, `VisitConstructible<T>`, and `VisitClassConstructible<T>`. They are ordinary virtual methods with their constraints declared by the base class; no marker argument is needed in an override. This path uses the closed generic component route and virtual dispatch. Interface binding remains explicit for each component CLR type.
+This fragment assumes `Health : IDamageable`, with `ApplyDamage(int)`; see the
+[complete example](API-EXAMPLES.md#visit-a-runtime-selected-component).
+`BindInterface<T, TInterface>()` covers every schema registration of that CLR
+type, before or after binding. Bind each concrete CLR type separately.
 
-Every registration route also supports `IUnconstrainedComponentVisitor`, which receives the registered CLR type and ID without requiring a marker or interface route. More constrained visitors still match only routes satisfying their constraints. Use `TryVisit` when the route may not match or the component IDs come from a dynamic list. It returns `false` for an invalid ID, a `null` visitor, or an unsupported constrained route. `Visit` has the same dispatch behavior but silently does nothing for those cases:
-
-```csharp
-ReadOnlySpan<ComponentId> componentIds = stackalloc ComponentId[] { positionId, localPositionId };
-var visitor = new MovementVisitor();
-
-foreach (ComponentId componentId in componentIds)
-{
-    if (layouts.TryVisit(componentId, visitor))
-    {
-        // This entry was visited as IMovable.
-    }
-}
-```
-
-The runtime APIs described here are available without adding the generator to the consuming project. The generated API grammar proof and runtime-only API grammar proof are kept in separate consumer projects so both dependency shapes are compiled and executed independently. The runtime-only proof covers registration and visitors, query construction, structural operations, typed single-component access, entity-only iteration, and the integration contract. Component-bearing iteration and other generated forms remain in the generated grammar proof. Both proofs are invoked by the grammar smoke application and the generator test suite.
-
-`Register<T>(SchemaId)` and `BindInterface<T, TInterface>()` select a route from the generic constraints visible at the call site. The registry exposes a hidden marker-interface chain to let ordinary C# overload resolution choose the most specific applicable route. This works with C# 9 and does not require a consumer source generator:
-
-```csharp
-ComponentId id = layouts.Register<Position>(new SchemaId(1));
-layouts.BindInterface<Position, IMovable>();
-```
-
-In a generic helper, declare any constraint that should select a narrower route:
-
-```csharp
-static ComponentId RegisterStruct<T>(ComponentRegistry layouts, SchemaId schemaId)
-    where T : struct
-    => layouts.Register<T>(schemaId);
-```
-
-An unconstrained `T` selects the unconstrained route even if its eventual closed type happens to be a struct.
+Every registration supports an unconstrained visitor. Narrower visitors require
+a compatible registration route. `TryVisit(id, visitor)` returns `false` for an
+invalid ID, null visitor or unsupported route; `Visit` silently skips those cases.
+For virtual hooks derive from `GeneralComponentTypeVisitor<TConstraint>` and
+override only needed routes: `Visit`, `VisitUnmanaged`, `VisitStruct`, `VisitClass`,
+`VisitConstructible`, or `VisitClassConstructible`. Constraints live on the base
+methods; overrides need no marker arguments.
 
 The registry exposes the primary registration and CLR type for existing
 components. `GetPrimary` throws if the type is not registered; `TryGetPrimary`
@@ -344,65 +280,45 @@ world/query.WhereAny<T>(ComponentId, in T value) -> Query
 world/query.WhereNone<T>(ComponentId, in T value) -> Query
 ```
 
-A grouping component retains one component ID and schema ID. Equal whole values
-share an archetype; the value remains an ordinary per-entity component. The
-primary and explicit-ID access, iteration, `EntityData`, and serialization forms
-remain the same. Registration selects the visible struct/unmanaged visitor
-route just as ordinary registration does. Registration mode is fixed: an
-existing ordinary registration cannot be converted to grouped registration.
-An empty grouping tag keeps ordinary tag membership semantics.
+Grouped types must be structs implementing `IEquatable<T>`; record structs supply
+it. Equal whole values share an archetype. The component keeps one ID/schema
+and ordinary per-entity data; primary/explicit-ID access, iteration, `EntityData`
+and serialization work normally. Empty grouped tags keep tag semantics. The
+mode is fixed at registration; value filters reject ordinary registrations.
+`ComponentSchema` passes the same flag through generated registration for both
+explicit and name-derived schemas; invalid annotated types report `DECS0007`.
 
 ```csharp
 ComponentId memberOfId = world.Components.Register<MemberOf>(new SchemaId(100), group: true);
-Query squad = world.WhereAll(new MemberOf(squadEntity));
+Query squad = world.WhereAll(new MemberOf(1));
+Query either = world.WhereAny(new MemberOf(1)).WhereAny(new MemberOf(2));
+Query others = world.WhereNone(memberOfId, new MemberOf(1));
 
-ref MemberOf membership = ref world.GetRef<MemberOf>(unit);
-membership = new MemberOf(otherSquadEntity);
-
-// Invoke resolves pending grouping changes before opening the cached query.
-world.ForEachEntity(in squad, static (EntityRef member) => Inspect(member)).Invoke();
-
-public readonly record struct MemberOf(Entity Entity);
+public readonly record struct MemberOf(int Squad);
 ```
 
-Writable access marks a chunk dirty. The next world data operation resolves
-pending dirty chunks before obtaining locations, query matches or cached row
-bindings. Completion of the writing operation itself does not regroup entities.
-Access inside an active iteration belongs to that operation and defers movement
-until its lease has ended; nested queries therefore use the existing group
-placement for that operation. Read-only access does not mark grouping dirty.
-The caller owns reference lifetime and must not reuse borrowed references after
-a subsequent operation can move the entity. No reference-lifetime checks are
-added. Partially completed writes remain pending after a callback exception.
+`All(value)` requires equality, `Any(value)` extends the shared OR set alongside
+IDs/tags, and `None(value)` excludes equality while permitting absence. Value
+filters borrow `in T` without boxing and select archetypes rather than checking
+every entity. They compose with ordinary component/tag filters. Parameterless
+generic and ID/span forms still test presence. Equality/hash implementations
+must be stable and consistent; normal string equality is ordinal.
 
-Grouping is opt-in; `group: false` keeps ordinary registration unchanged.
-Grouped registrations require a value type implementing `IEquatable<T>` for its
-own type. A record struct supplies that implementation. The same flag on
-`ComponentSchema` makes generated registration pass `group: true`; both explicit
-and name-derived schema IDs are supported. Invalid annotated grouping types
-report `DECS0007`, and pinning a name-derived schema preserves the group flag.
+Writable grouped access marks a chunk dirty. The **next world data operation**
+resolves pending regrouping before obtaining locations, matches or row bindings;
+the writing operation's completion does not trigger it. An active iteration
+defers movement, so nested work uses that operation's existing placement.
+Read-only access does not mark dirty. Borrowed refs must not be reused after
+another operation can relocate data; the caller owns this lifetime. Partial
+writes remain pending after a callback exception.
 
-The value overloads are typed and borrow `in T`, avoiding boxing. `WhereAll(value)`
-requires that exact grouped value. `WhereAny(value)` adds an alternative to the
-query's shared OR set alongside component IDs and tags; chain it to select
-several values. `WhereNone(value)` excludes that value and still allows entities
-without the component. Value filters on ordinary registrations are rejected.
-The existing ID/span and parameterless generated generic filters keep their
-membership semantics. Explicit-ID value overloads are runtime extensions, so
-generated calls containing several IDs continue selecting membership filters.
-
-Value filters compose with component/tag filters and other value filters.
-It selects archetypes by their grouping metadata rather than testing every
-entity value. Value equality/hash implementations must be stable and consistent;
-string fields using normal string equality compare ordinally. Group keys and
-archetype metadata are retained for the registry/world lifetime, so use a bounded
-set of recurring values when choosing this storage policy.
+Chunks grow from 16 to 1024 slots and do not automatically shrink. Group keys
+and archetype combinations retain metadata for the registry/world lifetime;
+prefer bounded recurring keys to mostly unique values. See
+[API selection](API-SELECTION.md#choose-grouping-for-recurring-equality-filters)
+for costs and a complete group/change example.
 
 ## Runtime component-change iteration
-
-`ForEachChange<T>` is a runtime API and does not require the source generator.
-It watches one explicit registration across the world or within a component-membership
-query and returns a retained operation:
 
 ```text
 world.ForEachChange<T>(ComponentId, ComponentChangeAction<T>) -> ComponentChangeOperation<T>
@@ -412,68 +328,38 @@ ComponentChangeAction<T>(Entity, ChangeKind, ref T) -> void
 ChangeKind = Added | Modified | Removed
 ```
 
-Keep the returned operation and invoke it when changes should be consumed:
+This runtime API needs no generator. Retain its operation: the first invocation
+reports existing matching instances as `Added`, later successful invocations
+consume coalesced changes. The query must belong to the same world and may use
+component/tag membership **and grouped values**. The observed registration must
+be present even if omitted from the query. `Where` predicate views are not accepted.
 
 ```csharp
-var healthChanges = world.ForEachChange<Health>(healthId,
+Query squad = world.WhereAll(new MemberOf(1)).WhereNone<Paused>();
+var changes = world.ForEachChange<Health>(in squad, healthId,
     static (Entity entity, ChangeKind kind, ref Health health) =>
-    {
-        if (kind == ChangeKind.Removed)
-        {
-            Console.WriteLine($"{entity}: removed");
-        }
-        else
-        {
-            Console.WriteLine($"{entity}: {kind}, health={health.Value}");
-        }
-    });
-
-healthChanges.Invoke();
+        Console.WriteLine(kind == ChangeKind.Removed
+            ? $"{entity}: removed from selection"
+            : $"{entity}: {kind}, health={health.Value}"));
+changes.Invoke();
 ```
 
-The first invocation reports existing instances as `Added`; later invocations
-report additions, writable accesses, and removals since the previous completed
-invocation. `ref` access counts as `Modified` even if the value is unchanged.
-Changes are coalesced by entity identity and component, so add-then-remove may
-cancel, while remove-then-add of an entity already present reports `Modified`.
-Entity generations keep removal of a destroyed entity separate from addition
-of a new entity reusing its index. For `Removed`, including entity destruction,
-the callback receives `Unsafe.NullRef<T>()` and the previous entity handle,
-which may be stale. Tags have no stored payload, but writable tag access still
-reports a change. Writes made by an operation's own callback are not reported
-to that same operation a second time.
+- Entry into the observed set reports `Added`; exit reports `Removed`, even when
+  the component still exists. Switching group value can therefore report an exit
+  in one observer and entry in another without writing their observed component.
+- Writable access reports `Modified` even if the value is unchanged. Tags follow
+  the same rule with a dummy ref. A filter-only change that leaves membership
+  unchanged does not report `Modified`.
+- `Removed` receives `Unsafe.NullRef<T>()` and the original, possibly stale entity.
+  Never read that ref. Generations separate old removal from new addition at a reused index.
+- Add then remove can cancel; remove then add for an already observed instance
+  becomes `Modified`. Intermediate filter exits/reentries coalesce to final
+  membership and writes to the tracked component.
+- Writes through an operation's own callback do not notify itself again.
+  Subsequent calls process pending membership and dirty chunks rather than
+  rescanning the world; recreating the operation restarts initial reporting.
 
-To restrict tracking to a query, pass it before the component ID:
-
-```csharp
-Query active = world.WhereAll<Health, Enemy>().WhereNone<Paused>();
-var activeHealthChanges = world.ForEachChange<Health>(in active, healthId,
-    static (Entity entity, ChangeKind kind, ref Health health) =>
-    {
-        if (kind != ChangeKind.Removed)
-        {
-            Console.WriteLine($"{entity}: {kind}, health={health.Value}");
-        }
-    });
-
-activeHealthChanges.Invoke();
-```
-
-The query supports `WhereAll`, `WhereAny`, and `WhereNone`, including tag filters,
-and must belong to the same world. The tracked component need not be explicitly
-required by the query: it must be present for an entity to enter the observed set.
-The first invocation reports only matching instances as `Added`. Entering the
-observed set reports `Added`; leaving it reports `Removed` with a null component
-reference, even if the entity still has the component. Writes outside the set
-produce no notification. A filter-only change that leaves an entity in the set
-does not report `Modified`. Intermediate exits and reentries coalesce to the
-membership at the next invocation; a write or removal and readdition of the
-tracked component still reports `Modified` for an entity that remains included.
-
-Filter membership changes are queued by the affected registrations. Subsequent
-invocations process pending membership changes and dirty chunks rather than
-rescanning the world. Value predicates from `Where` are not query-membership
-filters and are not accepted by this overload.
+For complete code, see [grouping and changes](API-EXAMPLES.md#group-entities-and-observe-changes).
 
 ## Object-based component access
 
