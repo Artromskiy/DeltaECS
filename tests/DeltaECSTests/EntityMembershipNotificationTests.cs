@@ -30,7 +30,7 @@ internal sealed class EntityMembershipNotificationTests
             }
         };
 
-        const int count = 2 * Chunk.Capacity + 7;
+        const int count = 2 * Chunk.MaxCapacity + 7;
         if (omitOutput)
         {
             world.Create(valueId, count);

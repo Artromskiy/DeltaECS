@@ -21,7 +21,7 @@ internal sealed class TagComponentTests
         ComponentId extraId = layouts.Register<ExtraData>(new SchemaId(98_005));
         using var world = new World(layouts);
 
-        var entities = new Entity[Chunk.Capacity + 3];
+        var entities = new Entity[Chunk.MaxCapacity + 3];
         world.Create([positionId], entities);
         Query query = world
             .WhereAll<Position>()
@@ -139,7 +139,7 @@ internal sealed class TagComponentTests
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_031));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_032));
         using var world = new World(layouts);
-        var entities = new Entity[Chunk.Capacity + 6];
+        var entities = new Entity[Chunk.MaxCapacity + 6];
         world.Create([valueId], entities);
         for (int index = 0; index < entities.Length; index += 2)
         {
@@ -169,9 +169,9 @@ internal sealed class TagComponentTests
         ComponentId valueId = layouts.Register<TagValue>(new SchemaId(98_033));
         ComponentId markedId = layouts.Register<MarkedTag>(new SchemaId(98_034));
         using var world = new World(layouts);
-        var entities = new Entity[Chunk.Capacity + 4];
+        var entities = new Entity[Chunk.MaxCapacity + 4];
         world.Create([valueId], entities);
-        for (int index = 0; index < Chunk.Capacity + 2; index++)
+        for (int index = 0; index < Chunk.MaxCapacity + 2; index++)
         {
             world.Add(entities[index], [markedId]);
         }
@@ -183,7 +183,7 @@ internal sealed class TagComponentTests
             ref visited,
             static (ref int count, in TagValue _) => count++).Invoke(ref visited);
 
-        Assert.That(visited, Is.EqualTo(Chunk.Capacity + 2));
+        Assert.That(visited, Is.EqualTo(Chunk.MaxCapacity + 2));
     }
 
     [Test]

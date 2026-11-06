@@ -77,6 +77,7 @@ public struct GeneratedEntityRefView
     internal Chunk? Chunk;
     internal int SlotIndex;
     private nint _entityAddress;
+    private int _storageVersion;
     private QueryPlan? _queryPlan;
     private Array[]? _componentRows;
     private int[]? _componentIndices;
@@ -108,6 +109,7 @@ public struct GeneratedEntityRefView
     {
         Chunk = chunk;
         _entityAddress = chunk.EntityAddress;
+        _storageVersion = chunk.StorageVersion;
         _queryPlan = null;
         _componentRows = null;
         _componentIndices = null;
@@ -122,6 +124,7 @@ public struct GeneratedEntityRefView
         int[] componentIndices)
     {
         if (ReferenceEquals(Chunk, chunk)
+            && _storageVersion == chunk.StorageVersion
             && ReferenceEquals(_queryPlan, queryPlan)
             && ReferenceEquals(_componentRows, componentRows)
             && ReferenceEquals(_componentIndices, componentIndices))

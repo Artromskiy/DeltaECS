@@ -2240,7 +2240,7 @@ public sealed partial class World : IDisposable
             while (sourceChunk.Count != 0
                    && targetArchetype.TryTakeBlockPartialChunk(out Chunk targetChunk))
             {
-                int copied = Math.Min(sourceChunk.Count, Chunk.Capacity - targetChunk.Count);
+                int copied = Math.Min(sourceChunk.Count, Chunk.MaxCapacity - targetChunk.Count);
                 int sourceSlot = sourceChunk.Count - copied;
                 int targetSlot = targetChunk.Count;
                 targetArchetype.ReserveExistingChunk(targetChunk, copied, out _);

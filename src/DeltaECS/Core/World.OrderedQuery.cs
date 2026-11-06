@@ -187,9 +187,9 @@ public sealed partial class World
             }
 
             ref OrderedQueryKeyRow row = ref _rows[chunkId];
-            // Layout adoption and chunk reuse replace this array. Values themselves
+            // Storage growth, layout adoption and chunk reuse invalidate the cached row. Values themselves
             // remain live so a comparer can mutate keys between comparisons.
-            if (!ReferenceEquals(row.Owner, chunk) || !ReferenceEquals(row.Identity, chunk.RawComponentRows))
+            if (!ReferenceEquals(row.Owner, chunk) || row.StorageVersion != chunk.StorageVersion)
             {
                 RefreshRow(world, entity, componentId, chunk, ref row);
             }
@@ -206,7 +206,7 @@ public sealed partial class World
             }
 
             row.Values = Unsafe.As<T[]>(chunk.GetRawComponentRowTrusted(componentIndex));
-            row.Identity = chunk.RawComponentRows;
+            row.StorageVersion = chunk.StorageVersion;
             row.Owner = chunk;
         }
 
@@ -217,7 +217,7 @@ public sealed partial class World
         private struct OrderedQueryKeyRow
         {
             internal Chunk? Owner;
-            internal Array[]? Identity;
+            internal int StorageVersion;
             internal T[]? Values;
         }
     }

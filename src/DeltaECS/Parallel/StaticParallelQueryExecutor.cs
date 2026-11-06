@@ -13,7 +13,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private const int DefaultWorkerCount = 2;
     private const int WorkerPollSpinCount = 8;
     private const int CacheLineSize = 64;
-    private const int MinimumEntitiesPerWorker = Chunk.Capacity / 2;
+    private const int MinimumEntitiesPerWorker = Chunk.MaxCapacity / 2;
     private WorkerSlot[] _workerSlots = [];
     private Worker[] _workers = [];
     private TInvoker[] _workerInvokers = [];

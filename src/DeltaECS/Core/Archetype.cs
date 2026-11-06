@@ -209,7 +209,8 @@ internal sealed class Archetype
                 chunkId,
                 Id,
                 chunkIndex,
-                _componentRowArrayPool);
+                _componentRowArrayPool,
+                initialCapacity: Math.Min(count, Chunk.MaxCapacity));
             _chunks.Add(chunk);
             EnsureAvailableChunkCapacity(chunkIndex);
             _activeChunkPositions.RefAt(chunkIndex) = -1;
@@ -217,7 +218,7 @@ internal sealed class Archetype
         }
 
         bool wasEmpty = chunk.IsEmpty;
-        int reserved = Math.Min(count, Chunk.Capacity - chunk.Count);
+        int reserved = Math.Min(count, Chunk.MaxCapacity - chunk.Count);
         chunk.ReserveRange(reserved, out reusedCount);
         if (wasEmpty && reserved > 0)
         {
@@ -230,6 +231,32 @@ internal sealed class Archetype
         }
 
         return reserved;
+    }
+
+    internal void OnChunkStorageChanged(Chunk chunk)
+    {
+        int activePosition = _activeChunkPositions.RefAt(chunk.ArchetypeIndex);
+        if (activePosition < 0)
+        {
+            return;
+        }
+
+        IncrementChunkTopologyVersion();
+        if (_deferQueryPlanUpdates)
+        {
+            return;
+        }
+        for (int index = 0; index < _queryPlans.Count;)
+        {
+            QueryPlanLink link = _queryPlans[index];
+            if (!link.Query.TryGetTarget(out QueryPlan? query))
+            {
+                RemoveQueryPlanLink(index);
+                continue;
+            }
+            query.OnChunkStorageChanged(link.PlanIndex, chunk, activePosition);
+            index++;
+        }
     }
 
     internal Entity RemoveEntity(int chunkIndex, int slotIndex)

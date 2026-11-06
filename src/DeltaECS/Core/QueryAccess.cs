@@ -399,6 +399,15 @@ internal sealed class QueryPlan
         MatchingVersion = MatchingVersion == int.MaxValue ? 1 : MatchingVersion + 1;
     }
 
+    internal void OnChunkStorageChanged(int planIndex, Chunk chunk, int activePosition)
+    {
+        ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
+        plan.OnChunkStorageChanged(chunk, activePosition);
+        plan.SetChunkTopologyVersion(plan.Archetype.ChunkTopologyVersion);
+        SynchronizeMatchingChunkPlans(planIndex, plan.ChunkCount);
+        IncrementMatchingVersion();
+    }
+
     internal void RefreshArchetype(int planIndex, Archetype archetype, List<QueryPlan>? dirtyPlans = null)
     {
         ref ArchetypePlan plan = ref _matchingPlans.RefAt(planIndex);
@@ -1017,6 +1026,9 @@ internal struct ArchetypePlan
         _chunks.RefAt(ChunkCount++) = CreateChunkPlan(chunk);
     }
 
+    internal void OnChunkStorageChanged(Chunk chunk, int activePosition)
+        => _chunks.RefAt(activePosition) = CreateChunkPlan(chunk);
+
     internal void OnChunkDeactivated(int activePosition, int lastPosition)
     {
         if ((uint)activePosition >= (uint)ChunkCount || lastPosition != ChunkCount - 1)
@@ -1050,13 +1062,14 @@ internal struct ArchetypePlan
         {
             Chunk chunk = archetype.GetActiveChunk(chunkIndex);
             if (chunkIndex < previousCount
-                && ReferenceEquals(_chunks.RefAt(chunkIndex).Chunk, chunk))
+                && ReferenceEquals(_chunks.RefAt(chunkIndex).Chunk, chunk)
+                && _chunks.RefAt(chunkIndex).StorageVersion == chunk.StorageVersion)
             {
                 continue;
             }
 
             int existingIndex = FindChunkIndex(chunk, chunkIndex + 1, previousCount);
-            if (existingIndex >= 0)
+            if (existingIndex >= 0 && _chunks.RefAt(existingIndex).StorageVersion == chunk.StorageVersion)
             {
                 ChunkPlan moved = _chunks.RefAt(existingIndex);
                 _chunks.RefAt(existingIndex) = _chunks.RefAt(chunkIndex);
@@ -1088,6 +1101,7 @@ internal struct ArchetypePlan
 
         ChunkPlan cached = _chunkPlansByIndex.RefAt(index);
         if (ReferenceEquals(cached.Chunk, chunk)
+            && cached.StorageVersion == chunk.StorageVersion
             && cached.ComponentRows.Length == ComponentRows.Length)
         {
             var currentRows = chunk.RawComponentRows;
@@ -1128,9 +1142,11 @@ internal readonly struct ChunkPlan
     internal Chunk Chunk { get; }
     internal Array[] ComponentRows { get; }
     internal int[] ComponentIndices { get; }
+    internal int StorageVersion { get; }
     internal ChunkPlan(Chunk chunk, Array[] componentRows, int[] componentIndices)
     {
         Chunk = chunk;
+        StorageVersion = chunk.StorageVersion;
         ComponentRows = componentRows;
         ComponentIndices = componentIndices;
     }

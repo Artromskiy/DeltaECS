@@ -20,7 +20,7 @@ internal sealed class ParallelIterationTests
         using var world = new World();
         ComponentId positionId = world.Components.Register<Position>(new SchemaId(70_100));
         ComponentId tagId = world.Components.Register<ParallelFilterTag>(new SchemaId(70_101));
-        var entities = new Entity[Chunk.Capacity * 4];
+        var entities = new Entity[Chunk.MaxCapacity * 4];
         world.Create([positionId], entities);
         for (int index = 0; index < entities.Length; index += 2)
         {
@@ -161,8 +161,8 @@ internal sealed class ParallelIterationTests
         var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(70_091));
         ComponentId velocityId = layouts.Register<Velocity>(new SchemaId(70_092));
-        using var world = new World(layouts, initialEntityCapacity: Chunk.Capacity * 4);
-        var entities = new Entity[Chunk.Capacity * 4];
+        using var world = new World(layouts, initialEntityCapacity: Chunk.MaxCapacity * 4);
+        var entities = new Entity[Chunk.MaxCapacity * 4];
         world.Create([positionId, velocityId], entities);
         for (int index = 0; index < entities.Length; index++)
         {
@@ -360,7 +360,7 @@ internal sealed class ParallelIterationTests
         var layouts = new ComponentRegistry();
         var positionId = layouts.Register<Position>(new SchemaId(70_050));
         var velocityId = layouts.Register<Velocity>(new SchemaId(70_051));
-        int entityCount = Chunk.Capacity * 4;
+        int entityCount = Chunk.MaxCapacity * 4;
         using var world = new World(layouts, initialEntityCapacity: entityCount);
         var entities = new Entity[entityCount];
         world.Create([positionId, velocityId], entities);

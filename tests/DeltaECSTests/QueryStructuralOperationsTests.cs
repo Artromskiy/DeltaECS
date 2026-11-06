@@ -188,7 +188,7 @@ internal sealed class QueryStructuralOperationsTests
 
         var existingTarget = new Entity[2];
         world.Create([PositionId, markerId], existingTarget.Length, existingTarget);
-        var source = new Entity[(Chunk.Capacity * 2) + 2];
+        var source = new Entity[(Chunk.MaxCapacity * 2) + 2];
         world.Create([PositionId], source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {
@@ -237,7 +237,7 @@ internal sealed class QueryStructuralOperationsTests
 
         var existingTarget = new Entity[2];
         world.Create([PositionId], existingTarget.Length, existingTarget);
-        var source = new Entity[(Chunk.Capacity * 2) + 2];
+        var source = new Entity[(Chunk.MaxCapacity * 2) + 2];
         world.Create([PositionId, markerId], source.Length, source);
         for (int index = 0; index < source.Length; index++)
         {

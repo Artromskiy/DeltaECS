@@ -284,7 +284,7 @@ internal interface IGeneratedDenseBinding
 internal static class GeneratedTagRows
 {
     // Registered tag structs have no instance fields and at most a one-byte layout.
-    private static readonly byte[] Row = new byte[Chunk.Capacity];
+    private static readonly byte[] Row = new byte[Chunk.MaxCapacity];
 
     internal static T[] GetRows<T>()
     {

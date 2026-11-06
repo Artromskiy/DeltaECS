@@ -13,7 +13,7 @@ internal sealed class ActiveChunkTests
         var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(1));
         using var world = new World(layouts);
-        const int chunkSize = Chunk.Capacity;
+        const int chunkSize = Chunk.MaxCapacity;
         var entities = new Entity[chunkSize * 3];
         world.Create([PositionId], entities);
 
@@ -50,7 +50,7 @@ internal sealed class ActiveChunkTests
         var layouts = new ComponentRegistry();
         layouts.Register<Position>(new SchemaId(2));
         using var world = new World(layouts);
-        var stale = new Entity[Chunk.Capacity];
+        var stale = new Entity[Chunk.MaxCapacity];
         world.Create([PositionId], stale);
 
         Assert.That(world.Destroy(stale), Is.EqualTo(stale.Length));

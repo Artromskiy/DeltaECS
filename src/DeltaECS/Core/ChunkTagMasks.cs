@@ -9,7 +9,7 @@ internal sealed class ChunkTagMasks
 {
     private const int WordShift = 6;
     private const int WordMask = (1 << WordShift) - 1;
-    private const int WordsPerTag = (Chunk.Capacity + WordMask) >> WordShift;
+    private int _wordsPerTag;
 
     private ulong[] _summaries = [];
     private ulong[] _words = [];
@@ -17,6 +17,26 @@ internal sealed class ChunkTagMasks
     private bool[] _activeTagFlags = [];
 
     internal int TagCapacity => _summaries.Length;
+
+    internal ChunkTagMasks(int capacity = Chunk.MaxCapacity)
+        => _wordsPerTag = (capacity + WordMask) >> WordShift;
+
+    internal void EnsureSlotCapacity(int capacity)
+    {
+        int wordsPerTag = (capacity + WordMask) >> WordShift;
+        if (wordsPerTag <= _wordsPerTag)
+        {
+            return;
+        }
+        var words = new ulong[checked(_summaries.Length * wordsPerTag)];
+        for (int tag = 0; tag < _summaries.Length; tag++)
+        {
+            _words.AsSpan(tag * _wordsPerTag, _wordsPerTag)
+                .CopyTo(words.AsSpan(tag * wordsPerTag, _wordsPerTag));
+        }
+        _words = words;
+        _wordsPerTag = wordsPerTag;
+    }
 
     internal void EnsureTagCapacity(int tagCount)
     {
@@ -26,7 +46,7 @@ internal sealed class ChunkTagMasks
         }
 
         Array.Resize(ref _summaries, tagCount);
-        Array.Resize(ref _words, checked(tagCount * WordsPerTag));
+        Array.Resize(ref _words, checked(tagCount * _wordsPerTag));
         Array.Resize(ref _activeTagFlags, tagCount);
     }
 
@@ -36,21 +56,21 @@ internal sealed class ChunkTagMasks
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool Contains(int tagIndex, int slotIndex)
     {
-        if ((uint)tagIndex >= (uint)_summaries.Length)
+        if ((uint)tagIndex >= (uint)_summaries.Length || (uint)(slotIndex >> WordShift) >= (uint)_wordsPerTag)
         {
             return false;
         }
 
         int wordIndex = slotIndex >> WordShift;
         ulong bit = 1UL << (slotIndex & WordMask);
-        return (_words[tagIndex * WordsPerTag + wordIndex] & bit) != 0;
+        return (_words[tagIndex * _wordsPerTag + wordIndex] & bit) != 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool Set(int tagIndex, int slotIndex)
     {
         int wordIndex = slotIndex >> WordShift;
-        int index = tagIndex * WordsPerTag + wordIndex;
+        int index = tagIndex * _wordsPerTag + wordIndex;
         ulong bit = 1UL << (slotIndex & WordMask);
         ulong previous = _words[index];
         if ((previous & bit) != 0)
@@ -71,13 +91,13 @@ internal sealed class ChunkTagMasks
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool Clear(int tagIndex, int slotIndex)
     {
-        if ((uint)tagIndex >= (uint)_summaries.Length)
+        if ((uint)tagIndex >= (uint)_summaries.Length || (uint)(slotIndex >> WordShift) >= (uint)_wordsPerTag)
         {
             return false;
         }
 
         int wordIndex = slotIndex >> WordShift;
-        int index = tagIndex * WordsPerTag + wordIndex;
+        int index = tagIndex * _wordsPerTag + wordIndex;
         ulong bit = 1UL << (slotIndex & WordMask);
         ulong previous = _words[index];
         if ((previous & bit) == 0)
@@ -102,7 +122,8 @@ internal sealed class ChunkTagMasks
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ulong Word(int tagIndex, int wordIndex)
-        => (uint)tagIndex < (uint)_summaries.Length ? _words[tagIndex * WordsPerTag + wordIndex] : 0;
+        => (uint)tagIndex < (uint)_summaries.Length && (uint)wordIndex < (uint)_wordsPerTag
+            ? _words[tagIndex * _wordsPerTag + wordIndex] : 0;
 
     internal void CopySlotTo(ChunkTagMasks target, int sourceSlot, int targetSlot)
     {
@@ -125,8 +146,8 @@ internal sealed class ChunkTagMasks
         int tag = 0;
         for (; tag < _summaries.Length; tag++)
         {
-            int sourceIndex = tag * WordsPerTag + sourceWord;
-            int destinationIndex = tag * WordsPerTag + targetWord;
+            int sourceIndex = tag * _wordsPerTag + sourceWord;
+            int destinationIndex = tag * target._wordsPerTag + targetWord;
             bool present = (_words[sourceIndex] & sourceBit) != 0;
             ulong old = target._words[destinationIndex];
             ulong next = present ? old | targetBit : old & ~targetBit;
@@ -150,7 +171,7 @@ internal sealed class ChunkTagMasks
         // A wider target may contain registrations absent from the source.
         for (; tag < target._summaries.Length; tag++)
         {
-            int index = tag * WordsPerTag + targetWord;
+            int index = tag * target._wordsPerTag + targetWord;
             ulong next = target._words[index] & ~targetBit;
             target._words[index] = next;
             if (next == 0)
@@ -189,9 +210,9 @@ internal sealed class ChunkTagMasks
                 continue;
             }
 
-            int start = tag * WordsPerTag;
-            ReadOnlySpan<ulong> sourceWords = _words.AsSpan(start, WordsPerTag);
-            Span<ulong> targetWords = target._words.AsSpan(start, WordsPerTag);
+            int start = tag * _wordsPerTag;
+            ReadOnlySpan<ulong> sourceWords = _words.AsSpan(start, _wordsPerTag);
+            Span<ulong> targetWords = target._words.AsSpan(tag * target._wordsPerTag, target._wordsPerTag);
 
             ComponentChangeMasks.CopyBits(sourceWords, sourceSlot, targetWords, targetSlot, count);
             target.RefreshSummaryWords(tag, firstWord, lastWord);
@@ -200,7 +221,7 @@ internal sealed class ChunkTagMasks
         // Extra target registrations correspond to absent source tags.
         for (int tag = _summaries.Length; tag < target._summaries.Length; tag++)
         {
-            int start = tag * WordsPerTag;
+            int start = tag * target._wordsPerTag;
             // Only the destination range is cleared, not the whole tag.
             ComponentChangeMasks.SetRange(target._words.AsSpan(), start * 64 + targetSlot, count, value: false);
             target.RefreshSummaryWords(tag, firstWord, lastWord);
@@ -232,7 +253,7 @@ internal sealed class ChunkTagMasks
                 continue;
             }
 
-            int baseIndex = tag * WordsPerTag;
+            int baseIndex = tag * _wordsPerTag;
             for (int word = firstWord; word <= lastWord; word++)
             {
                 ulong summaryBit = 1UL << word;
@@ -279,7 +300,7 @@ internal sealed class ChunkTagMasks
 
     private void RefreshSummaryWords(int tagIndex, int firstWord, int lastWord)
     {
-        int baseIndex = tagIndex * WordsPerTag;
+        int baseIndex = tagIndex * _wordsPerTag;
         ulong summary = _summaries[tagIndex];
         for (int word = firstWord; word <= lastWord; word++)
         {

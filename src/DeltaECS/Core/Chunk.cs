@@ -6,8 +6,9 @@ using System.Runtime.InteropServices;
 
 internal sealed class Chunk
 {
-    internal const int Capacity = 1024;
-    internal const int WordCount = (Capacity + 63) >> 6;
+    internal const int MaxCapacity = 1024;
+    internal const int InitialCapacity = 16;
+    internal const int WordCount = (MaxCapacity + 63) >> 6;
     private readonly ComponentRowArrayPool _componentRowArrayPool;
     private Archetype _archetype;
     private ComponentRowOperations[] _rowOperations;
@@ -27,11 +28,15 @@ internal sealed class Chunk
 
     internal int Count { get; private set; }
 
+    internal int Capacity => _entities.Length;
+
+    internal int StorageVersion { get; private set; }
+
     internal bool GroupingDirty { get; set; }
 
     internal int ComponentCount => RawComponentRows.Length;
 
-    internal bool IsFull => Count >= Capacity;
+    internal bool IsFull => Count >= MaxCapacity;
 
     internal bool IsEmpty => Count == 0;
 
@@ -54,7 +59,8 @@ internal sealed class Chunk
         int globalId,
         int archetypeId,
         int archetypeIndex,
-        ComponentRowArrayPool componentRowArrayPool)
+        ComponentRowArrayPool componentRowArrayPool,
+        int initialCapacity = InitialCapacity)
     {
         if (rowOperations.Length != layouts.Length)
         {
@@ -66,7 +72,12 @@ internal sealed class Chunk
         GlobalId = globalId;
         ArchetypeId = archetypeId;
         ArchetypeIndex = archetypeIndex;
-        _entities = new NativeMemory<Entity>(Capacity);
+        int capacity = InitialCapacity;
+        while (capacity < initialCapacity)
+        {
+            capacity *= 2;
+        }
+        _entities = new NativeMemory<Entity>(capacity);
         RawComponentRows = _componentRowArrayPool.RentRowReferences(layouts.Length);
         _rowOperations = rowOperations;
         for (int index = 0; index < layouts.Length; index++)
@@ -83,13 +94,13 @@ internal sealed class Chunk
     {
         if (tagCount != 0)
         {
-            (_tagMasks ??= new ChunkTagMasks()).EnsureTagCapacity(tagCount);
+            (_tagMasks ??= new ChunkTagMasks(Capacity)).EnsureTagCapacity(tagCount);
         }
     }
 
     internal bool HasTag(int tagIndex, int slotIndex) => _tagMasks?.Contains(tagIndex, slotIndex) ?? false;
 
-    internal bool SetTag(int tagIndex, int slotIndex) => (_tagMasks ??= new ChunkTagMasks()).Set(tagIndex, slotIndex);
+    internal bool SetTag(int tagIndex, int slotIndex) => (_tagMasks ??= new ChunkTagMasks(Capacity)).Set(tagIndex, slotIndex);
 
     internal bool ClearTag(int tagIndex, int slotIndex) => _tagMasks?.Clear(tagIndex, slotIndex) ?? false;
 
@@ -136,6 +147,7 @@ internal sealed class Chunk
             ThrowHelper.ThrowChunkFull();
         }
 
+        EnsureCapacity(Count + 1);
         int slotIndex = Count++;
         reusedSlot = slotIndex < _highWaterMark;
         if (Count > _highWaterMark)
@@ -150,11 +162,12 @@ internal sealed class Chunk
 
     internal int ReserveRange(int count, out int reusedCount)
     {
-        if (count < 0 || Count + count > Capacity)
+        if (count < 0 || count > MaxCapacity - Count)
         {
             ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }
 
+        EnsureCapacity(Count + count);
         _archetype.GroupingOwner?.MarkGroupingDirty(this);
         int start = Count;
         reusedCount = Math.Max(0, Math.Min(count, _highWaterMark - start));
@@ -268,6 +281,7 @@ internal sealed class Chunk
         _componentRowArrayPool.ReturnRowReferences(sourceRows);
         RawComponentRows = targetRows;
         _rowOperations = rowOperations;
+        StorageVersion++;
     }
 
     internal void AdoptLayoutFromEmptyChunk(
@@ -281,6 +295,12 @@ internal sealed class Chunk
             || donor.RawComponentRows.Length != layouts.Length)
         {
             ThrowHelper.ThrowChunkRowOperationsMismatch(nameof(sourceToTarget));
+        }
+
+        if (donor.Capacity != Capacity)
+        {
+            AdoptLayout(layouts, rowOperations, sourceToTarget);
+            return;
         }
 
         Array[] targetRows = donor.RawComponentRows;
@@ -302,6 +322,7 @@ internal sealed class Chunk
         donor.RawComponentRows = [];
         RawComponentRows = targetRows;
         _rowOperations = rowOperations;
+        StorageVersion++;
     }
 
     internal void TrimTail(int count)
@@ -467,6 +488,34 @@ internal sealed class Chunk
         _componentRowArrayPool.ReturnRowReferences(RawComponentRows);
         RawComponentRows = [];
         _entities.Dispose();
+    }
+
+    private void EnsureCapacity(int required)
+    {
+        if (required <= Capacity)
+        {
+            return;
+        }
+
+        int capacity = Capacity;
+        while (capacity < required)
+        {
+            capacity *= 2;
+        }
+        for (int index = 0; index < RawComponentRows.Length; index++)
+        {
+            Array previous = RawComponentRows.RefAt(index);
+            Array replacement = _componentRowArrayPool.Rent(
+                _archetype.Layouts.RefAt(index).RuntimeType, _rowOperations.RefAt(index), capacity);
+            Array.Copy(previous, replacement, Count);
+            RawComponentRows.RefAt(index) = replacement;
+            _componentRowArrayPool.Return(previous);
+        }
+        // The entity row may also contain a pending free-record block beyond Count.
+        _entities.Resize(capacity);
+        _tagMasks?.EnsureSlotCapacity(capacity);
+        StorageVersion++;
+        _archetype.OnChunkStorageChanged(this);
     }
 
     private void CopySlot(int sourceSlotIndex, int destinationSlotIndex)

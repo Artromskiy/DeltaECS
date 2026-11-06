@@ -5,12 +5,12 @@ using System.Collections.Generic;
 
 internal sealed class ComponentRowArrayPool
 {
-    private readonly Dictionary<Type, Stack<Array>> _arrays = new();
+    private readonly Dictionary<(Type Type, int Capacity), Stack<Array>> _arrays = new();
     private readonly Dictionary<int, Stack<Array[]>> _rowReferences = new();
 
     internal Array Rent(Type runtimeType, ComponentRowOperations rowOperations, int capacity)
     {
-        if (_arrays.TryGetValue(runtimeType, out Stack<Array>? arrays)
+        if (_arrays.TryGetValue((runtimeType, capacity), out Stack<Array>? arrays)
             && arrays.Count != 0)
         {
             return arrays.Pop();
@@ -29,10 +29,10 @@ internal sealed class ComponentRowArrayPool
             return;
         }
 
-        if (!_arrays.TryGetValue(runtimeType, out Stack<Array>? arrays))
+        if (!_arrays.TryGetValue((runtimeType, array.Length), out Stack<Array>? arrays))
         {
             arrays = new Stack<Array>();
-            _arrays.Add(runtimeType, arrays);
+            _arrays.Add((runtimeType, array.Length), arrays);
         }
 
         arrays.Push(array);

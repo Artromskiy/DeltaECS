@@ -191,7 +191,7 @@ internal sealed class GroupedComponentTests
     {
         using var world = CreateWorld(out ComponentId member);
         ComponentId payload = world.Components.Register<int>(new SchemaId(81_002));
-        var entities = new Entity[Chunk.Capacity * 3 + 7];
+        var entities = new Entity[Chunk.MaxCapacity * 3 + 7];
         world.Create([member, payload], entities);
         Query all = world.WhereAll([member, payload]);
         if (parallel)
@@ -476,7 +476,7 @@ internal sealed class GroupedComponentTests
         using var world = CreateWorld(out ComponentId member);
         ComponentId payload = world.Components.Register<int>(new SchemaId(81_002));
         ComponentId tag = world.Components.Register<Paused>(new SchemaId(81_003));
-        var entities = new Entity[Chunk.Capacity * 2 + 17];
+        var entities = new Entity[Chunk.MaxCapacity * 2 + 17];
         world.Create([member, tag], entities);
         Query all = world.WhereAll(member);
         world.ForEachEntity(in all, static (EntityRef entity, ref MemberOf group) => group = new MemberOf(entity.Index % 3)).Invoke();
@@ -520,7 +520,7 @@ internal sealed class GroupedComponentTests
     public void ParallelEntityRefWritesPublishDirtyFlagsAfterJoiningWorkers()
     {
         using var world = CreateWorld(out ComponentId member);
-        var entities = new Entity[Chunk.Capacity * 3];
+        var entities = new Entity[Chunk.MaxCapacity * 3];
         world.Create(member, entities.Length, entities);
         Query all = world.WhereAll(member);
         var update = world.ForEachEntityParallel(in all,

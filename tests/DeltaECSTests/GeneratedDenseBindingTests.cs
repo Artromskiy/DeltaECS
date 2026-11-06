@@ -24,7 +24,7 @@ internal sealed class GeneratedDenseBindingTests
         world.Destroy(second);
         Assert.That(Visit(world, in query), Is.EqualTo(1));
 
-        var entities = new Entity[Chunk.Capacity * 2 + 3];
+        var entities = new Entity[Chunk.MaxCapacity * 2 + 3];
         world.Create([health], entities.Length, entities);
         Entity target = world.Create([health, velocity]);
         int count = entities.Length + 2;
@@ -163,7 +163,7 @@ internal sealed class GeneratedDenseBindingTests
     {
         using var world = new World();
         ComponentId id = world.Components.Register<Health>(new SchemaId(96020));
-        var entities = new Entity[Chunk.Capacity * 2];
+        var entities = new Entity[Chunk.MaxCapacity * 2];
         world.Create([id], entities);
         Query query = world.WhereAll(id);
         ChunkPlan[] original = query.Cached.MatchingChunkPlans().ToArray();
@@ -186,7 +186,7 @@ internal sealed class GeneratedDenseBindingTests
         ComponentId health = layouts.Register<Health>(new SchemaId(96011));
         ComponentId velocity = layouts.Register<Velocity>(new SchemaId(96012));
         using var world = new World(layouts);
-        var entities = new Entity[Chunk.Capacity];
+        var entities = new Entity[Chunk.MaxCapacity];
         world.Create([health], entities.Length, entities);
         world.GetRef<Health>(entities[0], health).Value = 47;
         Query healthQuery = world.WhereAll<Health>();

@@ -109,7 +109,7 @@ internal sealed class EntityRefTests
         ComponentId missingId = layouts.Register<Velocity>(new SchemaId(40_078));
         using var world = new World(layouts);
 
-        int entityCount = Chunk.Capacity * 2 + 3;
+        int entityCount = Chunk.MaxCapacity * 2 + 3;
         var entities = new Entity[entityCount];
         world.Create([positionId], entities);
         for (int index = 1; index < entities.Length; index += 2)

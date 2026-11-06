@@ -53,7 +53,7 @@ internal sealed class ChunkActiveTagTests
     {
         const int tagCount = 70;
         var masks = new[] { new ChunkTagMasks(), new ChunkTagMasks() };
-        var model = new[] { new bool[tagCount, Chunk.Capacity], new bool[tagCount, Chunk.Capacity] };
+        var model = new[] { new bool[tagCount, Chunk.MaxCapacity], new bool[tagCount, Chunk.MaxCapacity] };
         foreach (ChunkTagMasks mask in masks)
         {
             mask.EnsureTagCapacity(tagCount);
@@ -64,7 +64,7 @@ internal sealed class ChunkActiveTagTests
             int source = random.Next(2);
             int target = random.Next(2);
             int tag = random.Next(tagCount);
-            int slot = random.Next(Chunk.Capacity);
+            int slot = random.Next(Chunk.MaxCapacity);
             switch (random.Next(6))
             {
                 case 0:
@@ -76,7 +76,7 @@ internal sealed class ChunkActiveTagTests
                     model[source][tag, slot] = false;
                     break;
                 case 2:
-                    int destination = random.Next(Chunk.Capacity);
+                    int destination = random.Next(Chunk.MaxCapacity);
                     masks[source].CopySlotTo(masks[target], slot, destination);
                     for (int i = 0; i < tagCount; i++)
                     {
@@ -85,8 +85,8 @@ internal sealed class ChunkActiveTagTests
                     break;
                 case 3:
                     int count = random.Next(1, 98);
-                    int from = random.Next(Chunk.Capacity - count + 1);
-                    int to = random.Next(Chunk.Capacity - count + 1);
+                    int from = random.Next(Chunk.MaxCapacity - count + 1);
+                    int to = random.Next(Chunk.MaxCapacity - count + 1);
                     var original = (bool[,])model[source].Clone();
                     masks[source].CopyRangeTo(masks[target], from, to, count);
                     for (int i = 0; i < tagCount; i++)
@@ -98,7 +98,7 @@ internal sealed class ChunkActiveTagTests
                     }
                     break;
                 case 4:
-                    int length = random.Next(1, Chunk.Capacity - slot + 1);
+                    int length = random.Next(1, Chunk.MaxCapacity - slot + 1);
                     masks[source].ClearRange(slot, length);
                     for (int i = 0; i < tagCount; i++)
                     {
@@ -118,7 +118,7 @@ internal sealed class ChunkActiveTagTests
                 var expected = new List<int>();
                 for (int i = 0; i < tagCount; i++)
                 {
-                    for (int j = 0; j < Chunk.Capacity; j++)
+                    for (int j = 0; j < Chunk.MaxCapacity; j++)
                     {
                         if (model[buffer][i, j])
                         {

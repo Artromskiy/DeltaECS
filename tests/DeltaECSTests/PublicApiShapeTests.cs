@@ -274,11 +274,11 @@ internal sealed class PublicApiShapeTests
     }
 
     [Test]
-    public void WorldUsesFixedChunkCapacity()
+    public void WorldUsesBoundedChunkCapacity()
     {
         Assert.Multiple(() =>
         {
-            Assert.That(Chunk.Capacity, Is.EqualTo(1024));
+            Assert.That(Chunk.MaxCapacity, Is.EqualTo(1024));
             Assert.That(
                 typeof(World).GetConstructors(BindingFlags.Public | BindingFlags.Instance)
                     .SelectMany(static constructor => constructor.GetParameters())
