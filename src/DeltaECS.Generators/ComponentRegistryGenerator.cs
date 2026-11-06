@@ -29,6 +29,11 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         "Component group must be identified by an enum",
         "Component group arguments must be enum values or arrays of enum values",
         "Component registration");
+    private static readonly DiagnosticDescriptor InvalidGrouping = GeneratorDiagnostics.Error(
+        "DECS0007",
+        "Grouping component requires typed equality",
+        "Grouping component '{0}' must implement System.IEquatable<T> for its own type",
+        "Component registration");
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -62,6 +67,14 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             }
 
             AttributeData? attribute = ComponentSchemaIdHash.ComponentAttribute(type);
+            bool group = attribute is not null && ComponentSchemaIdHash.IsGrouped(attribute);
+            if (group && !type.AllInterfaces.Any(candidate => candidate.OriginalDefinition.MetadataName == "IEquatable`1"
+                && candidate.ContainingNamespace.ToDisplayString() == "System"
+                && SymbolEqualityComparer.Default.Equals(candidate.TypeArguments[0], type)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(InvalidGrouping, marked.Location, type.ToDisplayString()));
+                continue;
+            }
             (bool hasExplicitSchemaId, ulong explicitSchemaId) = attribute is null
                 ? default
                 : ComponentSchemaIdHash.ExplicitSchemaId(attribute);
@@ -84,6 +97,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                 type,
                 schemaId,
                 IsTagType(type),
+                group,
                 ReadComponentAliases(type),
                 ReadComponentGroups(context, type));
             if (schemas.TryGetValue(schemaId, out ComponentRegistration previous))
@@ -240,6 +254,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
             string typeName = registration.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             string factoryName = "ComponentRegistration_" + GeneratorSupport.StableName(typeName);
             string schemaId = registration.SchemaId.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
+            string groupingArgument = registration.Group ? ", group: true" : string.Empty;
             string aliasCalls = string.Join("\n", registration.Aliases.Select(alias =>
                 $"layouts.AddAlias({Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(alias, quote: true)}, componentId);"));
             registrationCalls.Add($"global::Delta.ECS.GeneratedComponentRegistrationRegistry.Register(new global::Delta.ECS.Generated.{factoryName}());");
@@ -259,7 +274,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
                     {
                         global::Delta.ECS.ComponentId componentId = global::Delta.ECS.ComponentRegistryRegistrationExtensions.Register<{{typeName}}>(
                             layouts,
-                            SchemaId);
+                            SchemaId{{groupingArgument}});
                 {{GeneratorTemplates.Indent(string.Join("\n", registration.Groups.Select(group =>
                     $"layouts.RegisterGeneratedComponentGroup(typeof({group.EnumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}).TypeHandle, 0x{group.Value:X16}UL, componentId);")), "        ")}}
                 {{GeneratorTemplates.Indent(aliasCalls, "        ")}}
@@ -295,6 +310,7 @@ public sealed class ComponentRegistryGenerator : IIncrementalGenerator
         INamedTypeSymbol Type,
         ulong SchemaId,
         bool IsTag,
+        bool Group,
         List<string> Aliases,
         List<ComponentGroupRegistration> Groups);
 

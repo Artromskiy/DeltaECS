@@ -9,13 +9,16 @@ public sealed class ComponentSchemaAttribute : Attribute
 
     /// <summary>An explicitly assigned stable schema ID, or zero when the ID is name-derived.</summary>
     public ulong SchemaId { get; }
+    /// <summary>Gets whether equal component values partition archetype storage.</summary>
+    public bool Group { get; }
     /// <summary>Marks a component whose schema ID is derived from its qualified name.</summary>
-    public ComponentSchemaAttribute() { }
+    public ComponentSchemaAttribute(bool group = false) => Group = group;
 
     /// <summary>Marks a component with an explicitly assigned stable schema ID.</summary>
-    public ComponentSchemaAttribute(ulong schemaId)
+    public ComponentSchemaAttribute(ulong schemaId, bool group = false)
     {
         SchemaId = schemaId;
+        Group = group;
     }
 }
 

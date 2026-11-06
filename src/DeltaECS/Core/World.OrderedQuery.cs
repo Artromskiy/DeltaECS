@@ -38,7 +38,7 @@ public sealed partial class World
 
     internal void ValidateOrderedQueryKey<T>(in Query query, ComponentId componentId)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (!query.IsValid || query.Owner != this)
         {
             ThrowHelper.ThrowInvalidEntityQueryHandle();
@@ -64,7 +64,7 @@ public sealed partial class World
 
     internal void BeginOrderedQueryOperation()
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         ThrowHelper.ThrowIfDisposed(IsDisposed, this);
         if (_orderedQueryOperationActive)
         {

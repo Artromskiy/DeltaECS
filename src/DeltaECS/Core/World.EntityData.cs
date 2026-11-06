@@ -12,7 +12,7 @@ public sealed partial class World
 
     internal int CopyEntityData(Entity entity, EntityData destination, bool add, bool set)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             return 0;

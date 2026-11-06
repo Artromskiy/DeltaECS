@@ -27,6 +27,8 @@ internal sealed class Chunk
 
     internal int Count { get; private set; }
 
+    internal bool GroupingDirty { get; set; }
+
     internal int ComponentCount => RawComponentRows.Length;
 
     internal bool IsFull => Count >= Capacity;
@@ -141,6 +143,7 @@ internal sealed class Chunk
             _highWaterMark = Count;
         }
 
+        _archetype.GroupingOwner?.MarkGroupingDirty(this);
         _entities.RefAt(slotIndex) = entity;
         return slotIndex;
     }
@@ -152,6 +155,7 @@ internal sealed class Chunk
             ThrowHelper.ThrowChunkCountOutOfRange(nameof(count));
         }
 
+        _archetype.GroupingOwner?.MarkGroupingDirty(this);
         int start = Count;
         reusedCount = Math.Max(0, Math.Min(count, _highWaterMark - start));
         Count += count;
@@ -212,6 +216,7 @@ internal sealed class Chunk
     internal void SetArchetypeLocation(Archetype archetype, int archetypeIndex)
     {
         _archetype = archetype;
+        archetype.GroupingOwner?.MarkGroupingDirty(this);
         ArchetypeId = archetype.Id;
         ArchetypeIndex = archetypeIndex;
     }

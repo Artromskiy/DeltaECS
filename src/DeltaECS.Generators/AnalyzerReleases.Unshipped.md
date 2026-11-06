@@ -6,6 +6,7 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
+DECS0007 | Component registration | Error | Requires IEquatable<T> on value-grouped components
 DECSGEN001 | ForEach | Error | Reports unsupported demand-driven ForEach call shapes
 DECSGEN003 | ForEach | Error | Rejects functors with multiple supported Invoke overloads
 DECSGEN004 | ForEach | Error | Rejects functors inaccessible to generated callback code

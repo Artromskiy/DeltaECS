@@ -121,8 +121,12 @@ internal sealed class PublicApiShapeTests
             Assert.That(typedRegistrations, Is.Empty);
             Assert.That(registrationExtensions, Has.Length.EqualTo(6));
             Assert.That(registrationExtensions.All(static method => method.IsGenericMethod
-                && method.GetParameters().Length == 2
-                && method.GetParameters()[1].ParameterType == typeof(SchemaId)), Is.True);
+                && method.GetParameters().Length == 3
+                && method.GetParameters()[1].ParameterType == typeof(SchemaId)
+                && method.GetParameters()[2].ParameterType == typeof(bool)
+                && method.GetParameters()[2].Name == "group"
+                && method.GetParameters()[2].IsOptional
+                && Equals(method.GetParameters()[2].DefaultValue, false)), Is.True);
             Assert.That(interfaceBindingExtensions, Has.Length.EqualTo(6));
             Assert.That(interfaceBindingExtensions.All(static method => method.IsGenericMethod
                 && method.GetGenericArguments().Length == 2

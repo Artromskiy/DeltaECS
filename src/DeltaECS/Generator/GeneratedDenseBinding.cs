@@ -265,7 +265,7 @@ public static partial class GeneratedForEachRuntime
             return plan;
         }
 
-        world.EnsureExecutionAccess();
+        world.PrepareOperation();
         QueryPlan? cachedPlan = cachedBinding.CachedQueryPlan;
         if (world.IsDisposed || cachedPlan is null)
         {

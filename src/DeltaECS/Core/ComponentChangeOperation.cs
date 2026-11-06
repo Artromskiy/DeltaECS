@@ -557,6 +557,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
                     continue;
                 }
 
+                _world.MarkGroupingWrite(chunk, _observer.ComponentId);
                 Span<T> components = chunk.GetComponentRow<T>(componentIndex);
                 for (int slot = 0; slot < chunk.Count; slot++)
                 {
@@ -606,6 +607,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 ref T component = ref _world.Components.TryGetTagIndex(_observer.ComponentId, out _)
                     ? ref GeneratedTagRows.GetReference<T>(0)
                     : ref chunk.GetComponentRow<T>(GetComponentIndex(chunk)).RefAt(slot);
+                _world.MarkGroupingWrite(chunk, _observer.ComponentId);
                 _action(entity, existed ? ChangeKind.Modified : ChangeKind.Added, ref component);
             }
         }
@@ -724,6 +726,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
                 }
             }
 
+            _world.MarkGroupingWrite(chunk, _observer.ComponentId);
             Span<T> components = chunk.GetComponentRow<T>(componentIndex);
             Span<Entity> entities = chunk.RawEntities;
             if (kind == DirtyKind.All)

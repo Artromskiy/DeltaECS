@@ -27,6 +27,10 @@ internal sealed class Archetype
 
     internal ComponentMask Mask { get; }
 
+    internal World? GroupingOwner { get; set; }
+    internal GroupedComponentRow[] GroupingRows { get; set; } = [];
+    internal int[] GroupingScratch { get; set; } = [];
+
     internal ReadOnlySpan<ComponentId> ComponentIds => _componentIds.ReadOnlySpan;
 
     internal int ComponentCount => _componentIds.Length;

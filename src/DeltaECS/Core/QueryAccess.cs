@@ -43,6 +43,7 @@ internal sealed class QueryPlan
     private readonly int[] _allTagIndices;
     private readonly int[] _anyTagIndices;
     private readonly int[] _noneTagIndices;
+    private readonly bool _hasAnyGroups;
     private readonly WeakReference<QueryPlan> _weakReference;
     private int[] _matchingArchetypes = [];
     private ArchetypePlan[] _matchingPlans = [];
@@ -75,6 +76,7 @@ internal sealed class QueryPlan
     {
         Owner = world;
         _description = spec;
+        _hasAnyGroups = spec.HasAnyGroups;
         (_allDataMask, _allTagIndices) = PartitionQueryMask(world, spec.AllMask);
         (_anyDataMask, _anyTagIndices) = PartitionQueryMask(world, spec.AnyMask);
         (_noneDataMask, _noneTagIndices) = PartitionQueryMask(world, spec.NoneMask);
@@ -169,7 +171,7 @@ internal sealed class QueryPlan
         }
 
         if (_anyTagIndices.Length != 0
-            && !Owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask))
+            && !MatchesAnyArchetype(chunk.Archetype))
         {
             bool matchesAny = false;
             for (int index = 0; index < _anyTagIndices.Length; index++)
@@ -482,7 +484,8 @@ internal sealed class QueryPlan
 
     internal bool MatchesArchetype(Archetype archetype) => archetype.Mask.ContainsAll(_allDataMask)
         && !archetype.Mask.Intersects(_noneDataMask)
-        && (_anyDataMask.IsEmpty || _anyTagIndices.Length != 0 || archetype.Mask.Intersects(_anyDataMask));
+        && ((_anyDataMask.IsEmpty && !_hasAnyGroups) || _anyTagIndices.Length != 0 || MatchesAnyArchetype(archetype))
+        && MatchesGroups(archetype);
 
     internal bool RequiresAll(ComponentId componentId)
         => _allDataMask.Contains(componentId)
@@ -525,10 +528,58 @@ internal sealed class QueryPlan
         return (ComponentMask.From(dataIds), tagIndices);
     }
 
+    private static bool MatchesGroup(Archetype archetype, GroupFilter filter)
+    {
+        foreach (GroupedComponentRow row in archetype.GroupingRows)
+        {
+            if (ReferenceEquals(row.Grouping, filter.Grouping) && row.ValueId == filter.ValueId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool MatchesGroups(Archetype archetype)
+    {
+        foreach (GroupFilter filter in _description.Groups)
+        {
+            if (filter.Kind == GroupMatchKind.Any)
+            {
+                continue;
+            }
+            bool found = MatchesGroup(archetype, filter);
+            if (filter.Kind == GroupMatchKind.All ? !found : found)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private bool MatchesAnyArchetype(Archetype archetype)
+    {
+        if (archetype.Mask.Intersects(_anyDataMask))
+        {
+            return true;
+        }
+        if (_hasAnyGroups)
+        {
+            foreach (GroupFilter filter in _description.Groups)
+            {
+                if (filter.Kind == GroupMatchKind.Any && MatchesGroup(archetype, filter))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private bool TryGetTagSelection(Chunk chunk, out TagSlotCacheEntry? entry)
     {
         bool constrainByAnyTags = _anyTagIndices.Length != 0
-            && !Owner.Archetypes[chunk.ArchetypeId].Mask.Intersects(_anyDataMask);
+            && !MatchesAnyArchetype(chunk.Archetype);
         if (_allTagIndices.Length == 0 && _noneTagIndices.Length == 0 && !constrainByAnyTags)
         {
             entry = null;

@@ -55,7 +55,7 @@ public sealed partial class World
     public int Set(Entity entity, EntityData data)
     {
         ThrowHelper.ThrowIfNull(data, nameof(data));
-        EnsureExecutionAccess();
+        PrepareOperation();
         EntityDataPlan plan = GetEntityDataPlan(data);
         var initializer = new EntityDataInitializer(data, isCreate: false);
         SetGeneratedComponentValues(entity, data.ComponentIds, ref initializer, out int appliedCount, plan, data);
@@ -104,7 +104,7 @@ public sealed partial class World
     /// <returns><see langword="true"/> when the value was set; otherwise, <see langword="false"/>.</returns>
     public bool Set<T>(Entity entity, ComponentId componentId, in T value)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         return IsRegisteredType<T>(componentId) && SetCore(entity, componentId, in value);
     }
 
@@ -119,7 +119,7 @@ public sealed partial class World
     /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Set<T>(ReadOnlySpan<Entity> entities, ComponentId componentId, in T value)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         EnsureUniqueEntityList(entities, nameof(entities));
         if (!IsRegisteredType<T>(componentId))
         {
@@ -185,7 +185,7 @@ public sealed partial class World
     /// <summary>Reads the primary component or reports tag presence, returning default for a tag.</summary>
     public bool TryGet<T>(Entity entity, out T value)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
         {
             value = default!;
@@ -198,14 +198,14 @@ public sealed partial class World
     /// <summary>Reads one component or reports tag presence, returning default for a tag.</summary>
     public bool TryGet<T>(Entity entity, ComponentId componentId, out T value)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         return TryGetCore(entity, componentId, out value);
     }
 
     /// <summary>Reports whether an alive entity owns the primary component for <typeparamref name="T"/>.</summary>
     public bool Has<T>(Entity entity)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
         {
             return false;
@@ -220,6 +220,7 @@ public sealed partial class World
     /// </summary>
     public T Get<T>(Entity entity, ComponentId componentId)
     {
+        PrepareOperation();
         EnsureRegisteredType<T>(componentId);
         if (!TryGetRegisteredCore(entity, componentId, out T value))
         {
@@ -232,6 +233,7 @@ public sealed partial class World
     /// <summary>Reads the primary component for <typeparamref name="T"/> or throws when it is missing.</summary>
     public T Get<T>(Entity entity)
     {
+        PrepareOperation();
         ComponentId componentId = GetPrimaryComponentId<T>();
         if (TryGetRegisteredCore(entity, componentId, out T value))
         {
@@ -251,13 +253,17 @@ public sealed partial class World
     /// </remarks>
     public ref T GetRef<T>(Entity entity, ComponentId componentId)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         EnsureRegisteredType<T>(componentId);
         return ref GetRefUnchecked<T>(entity, componentId);
     }
 
     /// <summary>Returns a writable reference to the primary component row.</summary>
-    public ref T GetRef<T>(Entity entity) => ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+    public ref T GetRef<T>(Entity entity)
+    {
+        PrepareOperation();
+        return ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+    }
 
     /// <summary>Returns a read-only reference to one component row.</summary>
     /// <remarks>
@@ -267,14 +273,17 @@ public sealed partial class World
     /// </remarks>
     public ref readonly T GetReadRef<T>(Entity entity, ComponentId componentId)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         EnsureRegisteredType<T>(componentId);
         return ref GetReadRefUnchecked<T>(entity, componentId);
     }
 
     /// <summary>Returns a read-only reference to the primary component row.</summary>
     public ref readonly T GetReadRef<T>(Entity entity)
-        => ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+    {
+        PrepareOperation();
+        return ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetTrusted<T>(Entity entity, out T value)
@@ -376,7 +385,7 @@ public sealed partial class World
         {
             if (isTag)
             {
-                if (_componentChangeObservers is not null)
+                if (_componentChangeObservers is not null || _layouts.GetGrouping(componentId) is not null)
                 {
                     RecordComponentChange(view.Chunk!, view.SlotIndex, componentId);
                 }
@@ -384,7 +393,7 @@ public sealed partial class World
                 return ref GeneratedTagRows.GetReference<T>(0);
             }
 
-            if (_componentChangeObservers is not null)
+            if (_componentChangeObservers is not null || _layouts.GetGrouping(componentId) is not null)
             {
                 RecordComponentChange(view.Chunk!, view.SlotIndex, componentId);
             }
@@ -608,7 +617,7 @@ public sealed partial class World
         EntityData? entityData = null)
         where TInitializer : struct, IGeneratedComponentValueInitializer
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (componentIds.IsEmpty
             || !TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
@@ -1113,7 +1122,7 @@ public sealed partial class World
                 ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
             }
 
-            if (_componentChangeObservers is not null)
+            if (_componentChangeObservers is not null || _layouts.GetGrouping(componentId) is not null)
             {
                 RecordComponentChange(chunk, slotIndex, componentId);
             }
@@ -1127,7 +1136,7 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
         }
 
-        if (_componentChangeObservers is not null)
+        if (_componentChangeObservers is not null || _layouts.GetGrouping(componentId) is not null)
         {
             RecordComponentChange(chunk, slotIndex, componentId);
         }
@@ -1145,7 +1154,7 @@ public sealed partial class World
                 ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
             }
 
-            if (_componentChangeObservers is not null)
+            if (_componentChangeObservers is not null || _layouts.GetGrouping(componentId) is not null)
             {
                 RecordComponentChange(chunk, slotIndex, componentId);
             }
@@ -1159,7 +1168,7 @@ public sealed partial class World
             ThrowHelper.ThrowMissingComponent<T>(view.CurrentEntity, componentId);
         }
 
-        if (_componentChangeObservers is not null)
+        if (_componentChangeObservers is not null || _layouts.GetGrouping(componentId) is not null)
         {
             RecordComponentChange(chunk, slotIndex, componentId);
         }

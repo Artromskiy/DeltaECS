@@ -26,12 +26,20 @@ public sealed class ComponentRegistryGeneratorTests
             using Delta.ECS;
             namespace Example
             {
-                [ComponentSchema]
+                [ComponentSchema(group: true)]
                 [ComponentAlias("position")]
-                public struct Position { public float X; }
+                public struct Position : System.IEquatable<Position>
+                {
+                    public float X;
+                    public bool Equals(Position other) => X == other.X;
+                }
 
-                [ComponentSchema(42UL)]
-                public struct Health { public float Value; }
+                [ComponentSchema(42UL, group: true)]
+                public struct Health : System.IEquatable<Health>
+                {
+                    public float Value;
+                    public bool Equals(Health other) => Value == other.Value;
+                }
 
                 [ComponentSchema]
                 public struct Marker { }
@@ -42,6 +50,20 @@ public sealed class ComponentRegistryGeneratorTests
 
                     public static IGeneratedComponentRegistration GetPositionRegistration()
                         => GeneratedComponentCatalog.GetRegistration<Position>();
+
+                    public static bool VerifyGrouping(ComponentRegistry layouts)
+                    {
+                        using var world = new World(layouts);
+                        ComponentId id = layouts.GetPrimary<Health>();
+                        Entity entity = world.Create(id);
+                        world.Set(entity, id, new Health { Value = 1 });
+                        Query selected = world.WhereAll(new Health { Value = 1 });
+                        if (selected.First().Invoke() != entity) return false;
+                        world.GetRef<Health>(entity).Value = 2;
+                        return !selected.First().Invoke().IsValid
+                            && world.WhereAny(new Health { Value = 2 }).First().Invoke() == entity
+                            && !world.WhereNone(new Health { Value = 2 }).First().Invoke().IsValid;
+                    }
                 }
             }
             """;
@@ -70,6 +92,7 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(catalog, Does.Contain("layouts.AddAlias(\"position\", componentId);"));
         Assert.That(catalog, Does.Contain("ComponentRegistryRegistrationExtensions.Register<global::Example.Position>"));
         Assert.That(catalog, Does.Contain("ComponentRegistryRegistrationExtensions.Register<global::Example.Health>"));
+        Assert.That(catalog, Does.Contain("SchemaId, group: true"));
         Assert.That(catalog, Does.Contain("SchemaId => new(0x000000000000002AUL)"));
         Assert.That(catalog, Does.Contain("public bool IsTag => true;"));
         Assert.That(catalog, Does.Contain("public bool IsTag => false;"));
@@ -123,6 +146,8 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(selectedRegistrationLayouts.GetComponentType(selectedPositionId).FullName, Is.EqualTo("Example.Position"));
         Assert.That(selectedRegistrationLayouts.GetAlias("position"), Is.EqualTo(selectedPositionId));
         Assert.Throws<InvalidOperationException>(() => GeneratedComponentCatalog.GetRegistration<Guid>());
+        Assert.That(entryType.GetMethod("VerifyGrouping", BindingFlags.Public | BindingFlags.Static)!
+            .Invoke(null, [layouts]), Is.EqualTo(true));
     }
 
     [Test]
@@ -149,13 +174,14 @@ public sealed class ComponentRegistryGeneratorTests
         Assert.That(diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0002"));
     }
 
-    [TestCase(null)]
-    [TestCase(FixAllScope.Document)]
-    [TestCase(FixAllScope.Project)]
-    [TestCase(FixAllScope.Solution)]
-    public async Task SchemaIdCodeFixPinsTheNameDerivedId(FixAllScope? scope)
+    [TestCase(null, "group: true")]
+    [TestCase(FixAllScope.Document, "group: true")]
+    [TestCase(FixAllScope.Project, "group: true")]
+    [TestCase(FixAllScope.Solution, "group: true")]
+    [TestCase(FixAllScope.Document, "true")]
+    public async Task SchemaIdCodeFixPinsTheNameDerivedId(FixAllScope? scope, string groupArgument)
     {
-        const string source = "using Delta.ECS;\n[ComponentSchema]\npublic struct Position { }\n[ComponentSchema]\npublic struct Velocity { }";
+        string source = $"using Delta.ECS;\n[ComponentSchema]\npublic struct Position {{ }}\n[ComponentSchema({groupArgument})]\npublic struct Velocity {{ }}";
         CSharpCompilation compilation = CreateCompilation(source);
         Diagnostic diagnostic = (await compilation
                 .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ComponentSchemaIdAnalyzer()))
@@ -215,13 +241,24 @@ public sealed class ComponentRegistryGeneratorTests
         ulong expectedSchemaId = ComputeFNV1A("Position");
 
         Assert.That(fixedSource, Does.Contain($"[ComponentSchema(0x{expectedSchemaId:X16}UL)]"));
-        Assert.That(fixedSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Velocity"):X16}UL)]"), Is.EqualTo(scope.HasValue));
+        Assert.That(fixedSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Velocity"):X16}UL, group: true)]", StringComparison.Ordinal), Is.EqualTo(scope.HasValue));
         string otherSource = (await fixedSolution.GetDocument(otherDocumentId)!.GetTextAsync().ConfigureAwait(false)).ToString();
         string otherProjectSource = (await fixedSolution.GetDocument(otherProjectDocumentId)!.GetTextAsync().ConfigureAwait(false)).ToString();
-        Assert.That(otherSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Health"):X16}UL)]"),
+        Assert.That(otherSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Health"):X16}UL)]", StringComparison.Ordinal),
             Is.EqualTo(scope is FixAllScope.Project or FixAllScope.Solution));
-        Assert.That(otherProjectSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Damage"):X16}UL)]"),
+        Assert.That(otherProjectSource.Contains($"[ComponentSchema(0x{ComputeFNV1A("Damage"):X16}UL)]", StringComparison.Ordinal),
             Is.EqualTo(scope == FixAllScope.Solution));
+    }
+
+    [Test]
+    public void GroupingAttributeRejectsStructsWithoutTypedEquality()
+    {
+        const string source = "using Delta.ECS; [ComponentSchema(10UL, group: true)] public struct MissingEquality { public int Value; }";
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            new[] { new ComponentRegistryGenerator().AsSourceGenerator() },
+            parseOptions: new CSharpParseOptions(LanguageVersion.CSharp9));
+        driver = driver.RunGenerators(CreateCompilation(source));
+        Assert.That(driver.GetRunResult().Diagnostics.Select(static diagnostic => diagnostic.Id), Does.Contain("DECS0007"));
     }
 
     [Test]

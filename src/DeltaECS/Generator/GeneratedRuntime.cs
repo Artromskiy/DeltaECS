@@ -1149,14 +1149,14 @@ public static partial class GeneratedForEachRuntime
 
     internal static void RecordComponentWrites(QueryPlan plan, scoped ReadOnlySpan<int> routes)
     {
-        if (routes.IsEmpty || !plan.Owner.HasComponentChangeObserverRoutes)
-        {
-            return;
-        }
-
         if (routes.Length == 1)
         {
             RecordComponentWrite(plan, routes[0]);
+            return;
+        }
+        plan.Owner.RecordGroupedComponentWrites(plan, routes);
+        if (routes.IsEmpty || !plan.Owner.HasComponentChangeObserverRoutes)
+        {
             return;
         }
 
@@ -1218,6 +1218,7 @@ public static partial class GeneratedForEachRuntime
 
     internal static void RecordComponentWrite(QueryPlan plan, int route)
     {
+        plan.Owner.RecordGroupedComponentWrites(plan, [route]);
         World world = plan.Owner;
         if (!world.HasComponentChangeObserverRoutes)
         {
@@ -1436,6 +1437,7 @@ public static partial class GeneratedForEachRuntime
         ReadOnlySpan<Entity> entities,
         ReadOnlySpan<int> routes)
     {
+        world.RecordGroupedEntityListWrites(plan, entities, routes);
         if (entities.IsEmpty || routes.IsEmpty || !world.HasComponentChangeObserverRoutes)
         {
             return;
@@ -1505,7 +1507,7 @@ public static partial class GeneratedForEachRuntime
     private static QueryPlan ValidateQuery(World world, in Query query)
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
-        world.EnsureExecutionAccess();
+        world.PrepareOperation();
         if (!ReferenceEquals(query.Owner, world) || !query.IsValid)
         {
             ThrowHelper.ThrowInvalidQuery(nameof(query));

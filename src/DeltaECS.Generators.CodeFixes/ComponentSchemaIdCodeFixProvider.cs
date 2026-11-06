@@ -88,8 +88,13 @@ public sealed class ComponentSchemaIdCodeFixProvider : CodeFixProvider
             SyntaxFactory.LiteralExpression(
                 SyntaxKind.NumericLiteralExpression,
                 SyntaxFactory.Literal(literalText, schemaId)));
+        SeparatedSyntaxList<AttributeArgumentSyntax> arguments = attribute.ArgumentList?.Arguments ?? default;
+        arguments = SyntaxFactory.SeparatedList(arguments.Select(static item =>
+            item.NameColon is null && item.NameEquals is null
+                ? item.WithNameColon(SyntaxFactory.NameColon("group"))
+                : item));
         AttributeSyntax updatedAttribute = attribute
-            .WithArgumentList(SyntaxFactory.AttributeArgumentList(SyntaxFactory.SingletonSeparatedList(argument)))
+            .WithArgumentList(SyntaxFactory.AttributeArgumentList(arguments.Insert(0, argument)))
             .WithAdditionalAnnotations(Formatter.Annotation);
 
         return document.WithSyntaxRoot(root.ReplaceNode(attribute, updatedAttribute));

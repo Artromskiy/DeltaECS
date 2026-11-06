@@ -329,6 +329,75 @@ array, or use a combined value from a `[Flags]` enum. Each generated flag bit is
 registered as a separate group; querying with a combined flags value does not
 union those groups.
 
+## Experimental value grouping
+
+```text
+layouts.Register<T>(SchemaId, bool group = false) -> ComponentId
+[ComponentSchema(group: true)]
+[ComponentSchema(100UL, group: true)]
+
+world/query.WhereAll<T>(in T value) -> Query
+world/query.WhereAny<T>(in T value) -> Query
+world/query.WhereNone<T>(in T value) -> Query
+world/query.WhereAll<T>(ComponentId, in T value) -> Query
+world/query.WhereAny<T>(ComponentId, in T value) -> Query
+world/query.WhereNone<T>(ComponentId, in T value) -> Query
+```
+
+A grouping component retains one component ID and schema ID. Equal whole values
+share an archetype; the value remains an ordinary per-entity component. The
+primary and explicit-ID access, iteration, `EntityData`, and serialization forms
+remain the same. Registration selects the visible struct/unmanaged visitor
+route just as ordinary registration does. Registration mode is fixed: an
+existing ordinary registration cannot be converted to grouped registration.
+An empty grouping tag keeps ordinary tag membership semantics.
+
+```csharp
+ComponentId memberOfId = world.Components.Register<MemberOf>(new SchemaId(100), group: true);
+Query squad = world.WhereAll(new MemberOf(squadEntity));
+
+ref MemberOf membership = ref world.GetRef<MemberOf>(unit);
+membership = new MemberOf(otherSquadEntity);
+
+// Invoke resolves pending grouping changes before opening the cached query.
+world.ForEachEntity(in squad, static (EntityRef member) => Inspect(member)).Invoke();
+
+public readonly record struct MemberOf(Entity Entity);
+```
+
+Writable access marks a chunk dirty. The next world data operation resolves
+pending dirty chunks before obtaining locations, query matches or cached row
+bindings. Completion of the writing operation itself does not regroup entities.
+Access inside an active iteration belongs to that operation and defers movement
+until its lease has ended; nested queries therefore use the existing group
+placement for that operation. Read-only access does not mark grouping dirty.
+The caller owns reference lifetime and must not reuse borrowed references after
+a subsequent operation can move the entity. No reference-lifetime checks are
+added. Partially completed writes remain pending after a callback exception.
+
+Grouping is opt-in; `group: false` keeps ordinary registration unchanged.
+Grouped registrations require a value type implementing `IEquatable<T>` for its
+own type. A record struct supplies that implementation. The same flag on
+`ComponentSchema` makes generated registration pass `group: true`; both explicit
+and name-derived schema IDs are supported. Invalid annotated grouping types
+report `DECS0007`, and pinning a name-derived schema preserves the group flag.
+
+The value overloads are typed and borrow `in T`, avoiding boxing. `WhereAll(value)`
+requires that exact grouped value. `WhereAny(value)` adds an alternative to the
+query's shared OR set alongside component IDs and tags; chain it to select
+several values. `WhereNone(value)` excludes that value and still allows entities
+without the component. Value filters on ordinary registrations are rejected.
+The existing ID/span and parameterless generated generic filters keep their
+membership semantics. Explicit-ID value overloads are runtime extensions, so
+generated calls containing several IDs continue selecting membership filters.
+
+Value filters compose with component/tag filters and other value filters.
+It selects archetypes by their grouping metadata rather than testing every
+entity value. Value equality/hash implementations must be stable and consistent;
+string fields using normal string equality compare ordinally. Group keys and
+archetype metadata are retained for the registry/world lifetime, so use a bounded
+set of recurring values when choosing this storage policy.
+
 ## Runtime component-change iteration
 
 `ForEachChange<T>` is a runtime API and does not require the source generator.

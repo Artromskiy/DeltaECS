@@ -15,10 +15,13 @@ internal static class ComponentSchemaIdHash
 
     internal static (bool IsPresent, ulong Value) ExplicitSchemaId(AttributeData attribute)
     {
-        return attribute.ConstructorArguments.Length != 0
+        return attribute.ConstructorArguments.Length != 0 && attribute.ConstructorArguments[0].Type?.SpecialType == SpecialType.System_UInt64
             ? (true, attribute.ConstructorArguments[0].Value is ulong value ? value : 0UL)
             : default;
     }
+
+    internal static bool IsGrouped(AttributeData attribute)
+        => attribute.ConstructorArguments.Any(static argument => argument.Type?.SpecialType == SpecialType.System_Boolean && argument.Value is true);
 
     internal static ulong Compute(string metadataName)
     {

@@ -60,48 +60,48 @@ public static class ComponentRegistryRegistrationExtensions
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         this IComponentRegistryRoute layouts,
-        SchemaId schemaId)
-        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new UnconstrainedComponentTypeRegistrationRoute<T>());
+        SchemaId schemaId, bool group = false)
+        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new UnconstrainedComponentTypeRegistrationRoute<T>(), group);
 
     /// <summary>Registers a component with a public parameterless constructor.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         this IComponentRegistryNewRoute layouts,
-        SchemaId schemaId)
+        SchemaId schemaId, bool group = false)
         where T : new()
-        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new NewComponentTypeRegistrationRoute<T>());
+        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new NewComponentTypeRegistrationRoute<T>(), group);
 
     /// <summary>Registers a struct component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         this IComponentRegistryStructRoute layouts,
-        SchemaId schemaId)
+        SchemaId schemaId, bool group = false)
         where T : struct
-        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new StructComponentTypeRegistrationRoute<T>());
+        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new StructComponentTypeRegistrationRoute<T>(), group);
 
     /// <summary>Registers an unmanaged component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         this IComponentRegistryUnmanagedRoute layouts,
-        SchemaId schemaId)
+        SchemaId schemaId, bool group = false)
         where T : unmanaged
-        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new UnmanagedComponentTypeRegistrationRoute<T>());
+        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new UnmanagedComponentTypeRegistrationRoute<T>(), group);
 
     /// <summary>Registers a class component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         this IComponentRegistryClassRoute layouts,
-        SchemaId schemaId)
+        SchemaId schemaId, bool group = false)
         where T : class
-        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new ClassComponentTypeRegistrationRoute<T>());
+        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new ClassComponentTypeRegistrationRoute<T>(), group);
 
     /// <summary>Registers a constructible class component.</summary>
     public static ComponentId Register<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         this IComponentRegistryClassNewRoute layouts,
-        SchemaId schemaId)
+        SchemaId schemaId, bool group = false)
         where T : class, new()
-        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new ClassNewComponentTypeRegistrationRoute<T>());
+        => ResolveRegistry(layouts).RegisterTypedComponent<T>(schemaId, new ClassNewComponentTypeRegistrationRoute<T>(), group);
 
     /// <summary>Binds an interface visitor route for every registration of one component CLR type.</summary>
     public static void BindInterface<

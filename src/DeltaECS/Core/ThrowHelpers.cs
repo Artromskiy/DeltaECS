@@ -10,6 +10,16 @@ internal static class ThrowHelper
 {
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static void ThrowInvalidGroupingComponent(Type type)
+        => throw new ArgumentException($"Grouping component {type} must be a value type implementing IEquatable<T>.");
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static T ThrowComponentNotGrouped<T>(ComponentId componentId)
+        => throw new ArgumentException($"Component {componentId.Value} is not registered for grouping.", nameof(componentId));
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static void ThrowComponentVisitorConstraintMustBeInterface(Type constraintType)
         => throw new ArgumentException($"{constraintType} is not an interface.");
 

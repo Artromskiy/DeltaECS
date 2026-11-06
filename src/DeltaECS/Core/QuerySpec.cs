@@ -8,12 +8,28 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     private readonly ComponentMask _allMask;
     private readonly ComponentMask _anyMask;
     private readonly ComponentMask _noneMask;
+    private readonly GroupFilter[]? _groups;
 
     /// <summary>Gets an empty query specification that can be extended with generated filters.</summary>
     public static QuerySpec Empty => new(
         default(ComponentMask),
         default(ComponentMask),
         default(ComponentMask));
+    internal ReadOnlySpan<GroupFilter> Groups => _groups;
+    internal bool HasAnyGroups
+    {
+        get
+        {
+            foreach (GroupFilter group in Groups)
+            {
+                if (group.Kind == GroupMatchKind.Any)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 
     internal ComponentMask AllMask => _allMask;
 
@@ -28,14 +44,16 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         ReadOnlySpan<ComponentId> anyComponents,
         ReadOnlySpan<ComponentId> noneComponents)
     {
+        _groups = null;
         _allMask = BuildMask(allComponents);
         _anyMask = BuildMask(anyComponents);
         _noneMask = BuildMask(noneComponents);
         Hash = ComputeHash();
     }
 
-    private QuerySpec(ComponentMask allMask, ComponentMask anyMask, ComponentMask noneMask)
+    private QuerySpec(ComponentMask allMask, ComponentMask anyMask, ComponentMask noneMask, GroupFilter[]? groups = null)
     {
+        _groups = groups;
         _allMask = allMask;
         _anyMask = anyMask;
         _noneMask = noneMask;
@@ -73,7 +91,8 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
     public bool Equals(QuerySpec other) => Hash == other.Hash
         && _allMask == other._allMask
         && _anyMask == other._anyMask
-        && _noneMask == other._noneMask;
+        && _noneMask == other._noneMask
+        && Groups.SequenceEqual(other.Groups);
 
     /// <summary>Determines whether this filter equals the specified object.</summary>
     public override bool Equals(object? obj) => obj is QuerySpec other && Equals(other);
@@ -94,9 +113,29 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         => new(
             _allMask.Or(additions._allMask),
             _anyMask.Or(additions._anyMask),
-            _noneMask.Or(additions._noneMask));
+            _noneMask.Or(additions._noneMask),
+            CombineGroups(additions));
+
+    internal QuerySpec WithGroup(GroupFilter group)
+        => new(_allMask, _anyMask, _noneMask, [group]);
 
     private static ComponentMask BuildMask(ReadOnlySpan<ComponentId> ids) => ComponentMask.From(ids);
+
+    private GroupFilter[]? CombineGroups(QuerySpec additions)
+    {
+        if (Groups.IsEmpty)
+        {
+            return additions._groups;
+        }
+        if (additions.Groups.IsEmpty)
+        {
+            return _groups;
+        }
+        GroupFilter[] groups = new GroupFilter[Groups.Length + additions.Groups.Length];
+        Groups.CopyTo(groups);
+        additions.Groups.CopyTo(groups.AsSpan(Groups.Length));
+        return groups;
+    }
 
     private int ComputeHash()
     {
@@ -104,6 +143,10 @@ public readonly struct QuerySpec : IEquatable<QuerySpec>
         hash.Add(AllMask);
         hash.Add(AnyMask);
         hash.Add(NoneMask);
+        foreach (GroupFilter group in Groups)
+        {
+            hash.Add(group);
+        }
         return hash.ToHashCode();
     }
 

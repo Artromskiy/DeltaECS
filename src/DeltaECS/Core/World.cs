@@ -80,10 +80,9 @@ public sealed partial class World : IDisposable
     {
         get
         {
-            EnsureExecutionAccess();
+            PrepareOperation();
             return _aliveEntityCount;
         }
-        private set => _aliveEntityCount = value;
     }
 
     /// <summary>Gets the registry containing this world's components.</summary>
@@ -152,7 +151,7 @@ public sealed partial class World : IDisposable
             return;
         }
 
-        EnsureNoActiveLease("dispose the world");
+        EnsureNoActiveLease("dispose the world", resolveGroups: false);
 
         IsDisposed = true;
         EntityMembershipChanged = null;
@@ -169,6 +168,10 @@ public sealed partial class World : IDisposable
         _primaryComponentIdsByType.Clear();
         _entityDataReaders.Clear();
         _entityDataSourceReadRoutes.Clear();
+        _groupedArchetypes.Clear();
+        _groupingTransitions.Clear();
+        _dirtyGroupingChunks.Clear();
+        _groupingDirty = false;
         _genericFunctors.Clear();
         _lastGenericFunctorEntry = null;
         DisposeGenericFunctorInputBlocks();
@@ -202,7 +205,7 @@ public sealed partial class World : IDisposable
     /// <summary>Creates a cached query from a component filter specification.</summary>
     public Query CreateQuery(in QuerySpec spec)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         return new Query(this, GetOrCreateQuery(spec), spec);
     }
 
@@ -416,14 +419,14 @@ public sealed partial class World : IDisposable
     /// <summary>Determines whether an entity handle is alive in this world.</summary>
     public bool IsAlive(Entity entity)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         return IsAliveCore(entity);
     }
 
     /// <summary>Reports whether an alive entity owns the specified component.</summary>
     public bool Has(Entity entity, ComponentId componentId)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (!TryResolveAliveLocation(entity, out Chunk chunk, out int slotIndex))
         {
             return false;
@@ -504,7 +507,7 @@ public sealed partial class World : IDisposable
     /// <remarks>Returns the default value for a present tag and false when the entity, component, or value is unavailable.</remarks>
     public bool TryRead(Entity entity, ComponentId componentId, out object? value)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         var visitor = new ComponentReadVisitor(this, entity);
         _layouts.Visit(componentId, visitor);
         value = visitor.Value;
@@ -515,7 +518,7 @@ public sealed partial class World : IDisposable
     /// <remarks>Returns false when the entity is not alive, the component ID is unknown, or the value type does not match.</remarks>
     public bool TryWrite(Entity entity, ComponentId componentId, object? value)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         if (!IsAlive(entity))
         {
             return false;
@@ -529,7 +532,7 @@ public sealed partial class World : IDisposable
     /// <summary>Destroys every entity selected by a query and returns the number destroyed.</summary>
     public int Destroy(in Query query)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         ValidateQuery(query);
         EnsureNoActiveLease("destroy entities");
 
@@ -677,6 +680,10 @@ public sealed partial class World : IDisposable
     internal void RegisterComponentChangeFilterObserver(ComponentChangeObserver observer, QuerySpec filter)
     {
         ComponentMask dependencies = filter.AllMask.Or(filter.AnyMask).Or(filter.NoneMask);
+        foreach (GroupFilter group in filter.Groups)
+        {
+            dependencies = dependencies.Or(ComponentMask.From([group.Grouping.ComponentId]));
+        }
         foreach (ComponentId id in dependencies)
         {
             if (id == observer.ComponentId)
@@ -847,7 +854,7 @@ public sealed partial class World : IDisposable
         ReadOnlySpan<ComponentId> componentIds,
         out GeneratedDenseExecution execution)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         EnsureNoActiveLease(isDestroy ? "destroy entities" : isAdd ? "add components" : "remove components");
         ValidateQuery(in query);
 
@@ -1120,7 +1127,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void CommitGeneratedWhereDestroy(int count)
     {
-        AliveEntityCount -= count;
+        _aliveEntityCount -= count;
         if (count != 0 && _layouts.TagCount != 0)
         {
             TagVersion++;
@@ -1455,6 +1462,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void RecordComponentChange(Chunk chunk, int slotIndex, ComponentId componentId)
     {
+        MarkGroupingWrite(chunk, componentId);
         ComponentChangeObserverRoute?[]? routes = _componentChangeObservers;
         if (routes is null || (uint)componentId.Value >= (uint)routes.Length)
         {
@@ -1688,7 +1696,7 @@ public sealed partial class World : IDisposable
             RecordEntityMembershipRange(chunk, slotIndex, reserved, present: true);
         }
 
-        AliveEntityCount += count;
+        _aliveEntityCount += count;
         if (_layouts.TagCount != 0)
         {
             TagVersion++;
@@ -1785,7 +1793,7 @@ public sealed partial class World : IDisposable
             created += reserved;
         }
 
-        AliveEntityCount += count;
+        _aliveEntityCount += count;
         if (_layouts.TagCount != 0)
         {
             TagVersion++;
@@ -1983,7 +1991,7 @@ public sealed partial class World : IDisposable
 
     private int ApplyQueryComponents(in Query query, bool isAdd, ReadOnlySpan<ComponentId> componentIds)
     {
-        EnsureExecutionAccess();
+        PrepareOperation();
         ValidateQuery(query);
         EnsureNoActiveLease(isAdd ? "add components" : "remove components");
         if (componentIds.Length == 0)
@@ -2361,7 +2369,7 @@ public sealed partial class World : IDisposable
         ClearComponentChangeChunk(chunk);
         chunk.ClearAll();
         archetype.ReleaseChunk(chunkIndex);
-        AliveEntityCount -= count;
+        _aliveEntityCount -= count;
         if (_layouts.TagCount != 0)
         {
             TagVersion++;
@@ -2458,7 +2466,7 @@ public sealed partial class World : IDisposable
         record.Chunk = null;
         record.SlotIndex = -1;
         PushFree(recordIndex);
-        AliveEntityCount--;
+        _aliveEntityCount--;
         if (_layouts.TagCount != 0)
         {
             TagVersion++;
@@ -2546,7 +2554,7 @@ public sealed partial class World : IDisposable
         ComponentMask targetMask = isAdd
             ? source.Mask.Or(changeSet.Mask)
             : source.Mask.Except(changeSet.Mask);
-        var target = GetOrCreateArchetype(targetMask);
+        var target = GetTransitionArchetype(source, targetMask);
         int[] mapping = new int[source.ComponentCount];
         bool[] copiedTargetRows = new bool[target.ComponentCount];
         for (int i = 0; i < mapping.Length; i++)
@@ -2579,9 +2587,13 @@ public sealed partial class World : IDisposable
         return edge;
     }
 
-    private Archetype GetOrCreateArchetype(ComponentMask mask)
+    private Archetype GetOrCreateArchetype(ComponentMask mask, int[]? groupingValues = null)
     {
-        if (_archetypeByMask.TryGetValue(mask, out int existing))
+        if (groupingValues is not null && _groupedArchetypes.TryGetValue(new GroupedArchetypeKey(mask, groupingValues), out Archetype? grouped))
+        {
+            return grouped;
+        }
+        if (groupingValues is null && _archetypeByMask.TryGetValue(mask, out int existing))
         {
             return Archetypes[existing];
         }
@@ -2608,7 +2620,32 @@ public sealed partial class World : IDisposable
             rowOperations,
             componentIds,
             _componentRowArrayPool);
-        _archetypeByMask.Add(mask, archetype.Id);
+        var groupingRows = new List<GroupedComponentRow>();
+        for (int row = 0; row < componentIds.Length; row++)
+        {
+            ComponentGrouping? grouping = _layouts.GetGrouping(componentIds[row]);
+            if (grouping is not null)
+            {
+                int index = groupingRows.Count;
+                groupingRows.Add(new GroupedComponentRow(grouping, row, groupingValues is null ? 0 : groupingValues[index]));
+            }
+        }
+        archetype.GroupingRows = groupingRows.ToArray();
+        if (groupingRows.Count != 0)
+        {
+            archetype.GroupingOwner = this;
+            archetype.GroupingScratch = new int[groupingRows.Count];
+            int[] values = groupingValues is null ? new int[groupingRows.Count] : (int[])groupingValues.Clone();
+            _groupedArchetypes.Add(new GroupedArchetypeKey(mask, values), archetype);
+            if (Array.TrueForAll(values, static value => value == 0))
+            {
+                _archetypeByMask.Add(mask, archetype.Id);
+            }
+        }
+        else
+        {
+            _archetypeByMask.Add(mask, archetype.Id);
+        }
         Archetypes.Add(archetype);
         List<QuerySpec>? deadQueries = null;
         foreach (var entry in _queryCache)
@@ -2966,9 +3003,16 @@ public sealed partial class World : IDisposable
         }
     }
 
-    private void EnsureNoActiveLease(string operation)
+    private void EnsureNoActiveLease(string operation, bool resolveGroups = true)
     {
-        EnsureExecutionAccess();
+        if (resolveGroups)
+        {
+            PrepareOperation();
+        }
+        else
+        {
+            EnsureExecutionAccess();
+        }
         if (_activeChunkLeases > 0 || _generatedWhereStructuralActive)
         {
             ThrowHelper.ThrowStructuralChangeWhileLeased(operation);

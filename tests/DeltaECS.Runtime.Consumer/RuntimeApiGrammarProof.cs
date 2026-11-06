@@ -27,6 +27,7 @@ public static partial class RuntimeApiGrammarProof
         VerifyObjectAccess();
         VerifyEntityData();
         VerifyComponentChanges();
+        VerifyGrouping();
     }
 
     private static void VerifyRegistrationAndVisitors()

@@ -85,6 +85,36 @@ public readonly struct Query
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query WhereNone(ReadOnlySpan<ComponentId> components) => Compose(QuerySpec.WhereNone(components));
 
+    /// <summary>Extends this query's required component registrations.</summary>
+    public Query WhereAll(ComponentId component) => Compose(QuerySpec.WhereAll(component));
+
+    /// <summary>Extends this query's optional component registrations.</summary>
+    public Query WhereAny(ComponentId component) => Compose(QuerySpec.WhereAny(component));
+
+    /// <summary>Extends this query's excluded component registrations.</summary>
+    public Query WhereNone(ComponentId component) => Compose(QuerySpec.WhereNone(component));
+
+    /// <summary>Requires the supplied value of a primary grouping component.</summary>
+    public Query WhereAll<T>(in T value) where T : struct => CreateValueQuery(in value, GroupMatchKind.All);
+
+    /// <summary>Adds a value of a primary grouping component to this query's alternatives.</summary>
+    public Query WhereAny<T>(in T value) where T : struct => CreateValueQuery(in value, GroupMatchKind.Any);
+
+    /// <summary>Excludes the supplied value of a primary grouping component.</summary>
+    public Query WhereNone<T>(in T value) where T : struct => CreateValueQuery(in value, GroupMatchKind.None);
+
+    internal Query CreateValueQuery<T>(ComponentId componentId, in T value, GroupMatchKind kind) where T : struct
+    {
+        EnsureValid();
+        return Compose(Owner.CreateGroupFilter(componentId, in value, kind));
+    }
+
+    private Query CreateValueQuery<T>(in T value, GroupMatchKind kind) where T : struct
+    {
+        EnsureValid();
+        return CreateValueQuery(Owner.Components.GetPrimary<T>(), in value, kind);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Query Compose(QuerySpec additions)
     {
