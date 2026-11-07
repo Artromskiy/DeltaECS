@@ -729,13 +729,13 @@ world.WhereEntity(Q, C?, Predicate) -> WhereView
 
 view.Destroy().Invoke()
 view.Add<T...>().Invoke()
-view.Add<T...>(I... | D).Invoke()
+view.Add(I... | D).Invoke()
 view.Add<T...>(V...).Invoke()
 view.Add<T...>(I..., V...).Invoke()
 view.Remove<T...>().Invoke()
-view.Remove<T...>(I... | D).Invoke()
-view.ForEach(...).Invoke()
-view.ForEachEntity(...).Invoke()     // EntityRef-only or EntityRef plus components
+view.Remove(I... | D).Invoke()
+view.ForEach(C?, A | F).Invoke()
+view.ForEachEntity(C?, A | F).Invoke() // EntityRef-only or EntityRef plus components
 ```
 
 The ordinary `Where` predicate is component-only. `WhereEntity` adds the
@@ -743,10 +743,32 @@ current `Entity` as its first predicate parameter. Predicate component rows
 use `in` or `ref readonly`. A structural terminal applies component writes
 before it performs the structural change.
 
+Iteration terminals accept an independent `ref` context before the callback,
+whose first parameter is `ref TContext`. The returned operation implements
+`IOperation<TContext>`: `Invoke()` updates its owned context copy, while
+`Invoke(ref context)` uses caller-owned state. Reference-type contexts retain
+the same object. Predicate context and terminal context are separate.
+
+```csharp
+var completed = new List<Entity>();
+IOperation<List<Entity>> collect = world.Where(in query,
+        static (in Health health) => health.Value <= 0)
+    .ForEachEntity(ref completed,
+        static (ref List<Entity> result, EntityRef entity) => result.Add(entity));
+
+completed.Clear();
+collect.Invoke();
+```
+
+C# 13+ uses overload priorities to distinguish read-only callbacks from
+writable callback shapes. C# 9–11 also distinguishes these modes. In C# 12,
+mixing `in` and `ref` callback overloads with the same component arity can be
+ambiguous; use a functor or a C# 13+ compiler for that combination.
+
 Zero-component `ForEach` forms throw `InvalidOperationException`.
 `ForEachEntity`, `ForEachEntityParallel`, and a
 `Where` view's `ForEachEntity` may omit component parameters because the
-callback still receives `Entity`. Functor forms use the generated callback-slot pass mode so the caller can
+callback still receives `EntityRef`. Functor forms use the generated callback-slot pass mode so the caller can
 choose `ref` (mutations returned), `in` / `ref readonly`, or by value. Value and
 `in` forms accept temporaries such as `new Functor()` and keep the functor
 eligible for full inlining when it has no observable state.
@@ -1116,7 +1138,9 @@ Entity target = world.WhereEntity(in candidates,
 
 The filtered ordering supports `OrderBy`, `ThenBy`, `First`, `FirstEntity`,
 `ForEach`, and `ForEachEntity`. It preserves the predicate view's context and
-functor state. `First` scans matching entities and selects the minimum by the
+functor state. Both iteration terminals also accept their own `ref` callback
+context, including after `ThenBy`. The same forms are available on an
+unfiltered `OrderedQuery`. `First` scans matching entities and selects the minimum by the
 ordering keys. `ForEach` collects only entities that pass the predicate, sorts
 that list, then invokes the generated iteration path in that order. Neither
 operation changes the source `Query`.
@@ -1127,8 +1151,8 @@ world.WhereEntity(Q, C?, A | F) -> WhereView
 WhereView.OrderBy(I... | D, C?, A | F) -> OrderedWhereView
 OrderedWhereView.ThenBy(I... | D, C?, A | F) -> OrderedWhereView
 OrderedWhereView.First(P?) -> EcsResultOperation<Entity>; Invoke() -> Entity
-OrderedWhereView.ForEach(...) -> EcsOperation<TInvoker>; Invoke() executes
-OrderedWhereView.ForEachEntity(...) -> EcsOperation<TInvoker>; Invoke() executes
+OrderedWhereView.ForEach(C?, A | F).Invoke()
+OrderedWhereView.ForEachEntity(C?, A | F).Invoke()
 ```
 
 `WhereView` and `OrderedWhereView` in this grammar name generated API families;

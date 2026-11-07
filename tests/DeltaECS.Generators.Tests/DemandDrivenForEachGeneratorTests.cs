@@ -21,7 +21,7 @@ public sealed class DemandDrivenForEachGeneratorTests
         using System;
         public readonly struct Entity { public int Index { get; } }
         public struct GeneratedEntityRefView { }
-        public ref struct EntityRef { public int Index { get; } }
+        public ref struct EntityRef { public int Index { get; } public static implicit operator Entity(EntityRef entity) => default; }
         public readonly struct ComponentId { }
         public interface IComponentComparer { }
         public interface IComponentComparerEntity { }
@@ -629,6 +629,60 @@ public sealed class DemandDrivenForEachGeneratorTests
                 world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value <= entity.Index)
                     .ForEachEntity(static (EntityRef entity) => _ = entity);
             }
+        }
+        """;
+
+    private const string WhereCallbackContextSource = """
+        namespace Delta.ECS
+        {
+        struct Health { public int Value; }
+        struct Position { public int Value; }
+        struct ActionState { public int Count; }
+        static class ContextWhereSystem
+        {
+            public static void Run(World world, in Query query)
+            {
+                int total = 0;
+                var state = new ActionState();
+                var entities = new global::System.Collections.Generic.List<Entity>();
+                int multiplier = 2;
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEach(ref total, (ref int count, in Health health) => count += health.Value * multiplier);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEach(ref total, static (ref int count, ref Health health) => health.Value = ++count);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEach(ref total, static (ref int count, in Health health) => count += health.Value);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEach(ref state, static (ref ActionState context, in Health health) => context.Count += health.Value);
+                world.WhereEntity(in query, static (Entity entity, in Health health) => health.Value > entity.Index)
+                    .ForEachEntity(ref entities, static (ref global::System.Collections.Generic.List<Entity> result, EntityRef entity) => result.Add(entity));
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEachEntity(ref total, static (ref int count, EntityRef entity, ref Health health, in Position position) =>
+                    {
+                        count += entity.Index;
+                        health.Value += position.Value;
+                    });
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEachEntity(ref total, static (ref int count, EntityRef entity, in Health health, in Position position) => count += health.Value + position.Value);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEachEntity(ref total, static (ref int count, EntityRef entity, in Health health, ref Position position) => position.Value += health.Value);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEachEntity(ref total, static (ref int count, EntityRef entity, ref Health health, ref Position position) =>
+                    {
+                        health.Value++;
+                        position.Value++;
+                    });
+                world.Where(in query, ref state, static (ref ActionState context, in Health health) => health.Value > context.Count)
+                    .ForEach(ref total, static (ref int count, in Health health) => count += health.Value);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEach(ref total, Count);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEachEntity(ref entities, Collect);
+            }
+
+            internal static void Count(ref int count, in Health health) => count += health.Value;
+            internal static void Collect(ref global::System.Collections.Generic.List<Entity> result, EntityRef entity) => result.Add(entity);
+        }
         }
         """;
 
@@ -2884,6 +2938,62 @@ public sealed class DemandDrivenForEachGeneratorTests
         Assert.That(generated, Does.Contain("(scoped EntityRef entity)"));
         Assert.That(generated, Does.Not.Contain("(entity, )"));
         AssertCompiles(new[] { RuntimeStubSource, WhereZeroArityTerminalSource }, run.GeneratedTrees);
+    }
+
+    [TestCase(LanguageVersion.CSharp9, true)]
+    [TestCase(LanguageVersion.CSharp10, true)]
+    [TestCase(LanguageVersion.CSharp11, true)]
+    [TestCase(LanguageVersion.CSharp13, true)]
+    [TestCase(LanguageVersion.Latest, true)]
+    [TestCase(LanguageVersion.Latest, false)]
+    public void WhereCallbackContextTerminalsCompile(LanguageVersion languageVersion, bool interceptors)
+    {
+        string source = WhereCallbackContextSource;
+        if (languageVersion >= LanguageVersion.CSharp13)
+        {
+            source = source.Replace(".ForEach(ref total, Count);", """
+                .ForEach(ref total, Count);
+                world.Where(in query, static (in Health health) => health.Value > 0)
+                    .ForEach(ref total, static (ref int count, ref readonly Health health) => count += health.Value);
+                """, StringComparison.Ordinal);
+        }
+
+        GeneratorDriverRunResult run = interceptors
+            ? RunGeneratorWithInterceptors(source, languageVersion)
+            : RunGenerator(source);
+        string generated = GeneratedText(run);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        Assert.That(generated, Does.Contain("ForEach<TActionContext, U1>(ref TActionContext context,"));
+        Assert.That(generated, Does.Contain("ForEachEntity<TActionContext>(ref TActionContext context,"));
+        Assert.That(generated, Does.Contain("context = invoker.Context;"));
+        Assert.That(generated, Does.Contain("IEcsOperationInvoker<TActionContext>"));
+        AssertCompiles(
+            new[] { RuntimeStubFor(languageVersion), source },
+            run.GeneratedTrees,
+            languageVersion);
+    }
+
+    [Test]
+    public void CSharp12WhereEntityOnlyCallbackContextCompiles()
+    {
+        const string source = """
+            namespace Delta.ECS;
+            struct Health { public int Value; }
+            static class Consumer
+            {
+                internal static void Run(World world, in Query query)
+                {
+                    var entities = new global::System.Collections.Generic.List<Entity>();
+                    world.Where(in query, static (in Health health) => health.Value <= 0)
+                        .ForEachEntity(ref entities, static (ref global::System.Collections.Generic.List<Entity> result, EntityRef entity) => result.Add(entity));
+                }
+            }
+            """;
+        GeneratorDriverRunResult run = RunGeneratorWithInterceptors(source, LanguageVersion.CSharp12);
+
+        AssertNoDiagnostics(run.Diagnostics);
+        AssertCompiles(new[] { RuntimeStubFor(LanguageVersion.CSharp12), source }, run.GeneratedTrees, LanguageVersion.CSharp12);
     }
 
     [Test]

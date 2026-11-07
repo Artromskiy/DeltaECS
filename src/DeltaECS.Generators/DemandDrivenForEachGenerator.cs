@@ -372,7 +372,7 @@ public sealed class DemandDrivenForEachGenerator : IIncrementalGenerator
             model,
             out PredicateModel? orderedWhereSource);
         bool orderedQueryReceiver = isOrderedWhereReceiver
-            || GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "OrderedQuery");
+            || OrderedQueryInvocationGrammar.IsOrderedQueryExpression(member.Expression, model);
         if (!GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "World")
             && !orderedQueryReceiver)
         {

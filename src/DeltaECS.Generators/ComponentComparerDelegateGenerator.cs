@@ -235,7 +235,7 @@ public sealed class ComponentComparerDelegateGenerator : IIncrementalGenerator
         int selectedIndex = selectedIndices[0];
         var selected = matches[selectedIndex];
         string id = GeneratorSupport.StableName(
-            $"{invocation.SyntaxTree.FilePath}|{invocation.SpanStart}|{selected.Model.Key}");
+            $"{invocation.SyntaxTree.FilePath}|{member.Name.SpanStart}|{selected.Model.Key}");
         string callbackBody = lambda.Body switch
         {
             ExpressionSyntax expression => "return " + expression + ";",

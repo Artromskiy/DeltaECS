@@ -104,9 +104,11 @@ internal static class OrderedQueryInvocationGrammar
         return result.HasComponentIdSpan || result.ComponentIdCount == 0 || result.ComponentIdCount == componentArity;
     }
 
-    private static bool IsOrderedQueryExpression(ExpressionSyntax expression, SemanticModel model)
+    internal static bool IsOrderedQueryExpression(ExpressionSyntax expression, SemanticModel model)
         => GeneratorSupport.IsEcsType(model.GetTypeInfo(expression).Type, "OrderedQuery")
             || expression is InvocationExpressionSyntax invocation && invocation.Expression is MemberAccessExpressionSyntax member
-                && member.Name.Identifier.ValueText == "OrderBy"
-                && GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query");
+                && (member.Name.Identifier.ValueText == "OrderBy"
+                    && GeneratorSupport.IsEcsType(model.GetTypeInfo(member.Expression).Type, "Query")
+                    || member.Name.Identifier.ValueText == "ThenBy"
+                    && IsOrderedQueryExpression(member.Expression, model));
 }

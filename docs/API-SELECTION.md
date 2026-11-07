@@ -52,6 +52,14 @@ Zero-arity `ForEach` without an entity or component parameter is a generator anc
 
 `OrderBy` and `ThenBy` describe ordering; the terminal determines its cost. Do not pay for sorting all results just to select one. Ordered iteration is sequential.
 
+To accumulate results without a capturing callback, pass a context to the
+terminal: `view.ForEach(ref state, callback)` or
+`view.ForEachEntity(ref state, callback)`. These forms work after `Where`,
+`OrderBy` and `ThenBy`; the callback starts with `ref TState`, followed by
+`EntityRef` for entity-aware forms and any component parameters. Retain the
+operation as `IOperation<TState>` and use `Invoke()` for its owned state or
+`Invoke(ref state)` for caller-owned state.
+
 ## Compose the work
 
 1. Select a supplied entity list in `O(L)`, or build a live world query.

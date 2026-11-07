@@ -35,13 +35,14 @@ internal static class GeneratedWhereTemplates
             + (terminal.IsGeneratedEntityConsumer
                 ? "<TWhereAction>"
                 : terminal.IsCallback && !terminal.IsFunctor
-                    ? SignatureProjection.TypeArguments(site.ActionComponents)
+                    ? SignatureProjection.TypeArguments(terminal.HasContext
+                        ? new[] { terminal.ContextType! }.Concat(site.ActionComponents) : site.ActionComponents)
                     : string.Empty);
         operationInvokerType = viewType + SignatureProjection.TypeArguments(viewTypeArguments) + "." + operationInvokerType;
         string operationResult = terminal.IsCallback
             ? EcsOperationTemplates.OperationType(
                 operationInvokerType,
-                terminal.HasContext && terminal.IsFunctor ? terminal.ContextType : null,
+                terminal.HasContext ? terminal.ContextType : null,
                 terminal.IsFunctor ? terminal.FunctorType : null)
             : "global::Delta.ECS.EcsResultOperation<int>";
         string executeInvocation = terminal.HasValues
@@ -52,7 +53,7 @@ internal static class GeneratedWhereTemplates
             : terminal.IsCallback
             ? terminal.IsFunctor
                 ? $$""", {{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, terminal.FunctorType!, "action")}})"""
-                : $$""", {{GeneratorSupport.QualifiedName(shape.Namespace, "GeneratedWhereAction_" + hash + "_" + terminalHash)}}{{SignatureProjection.TypeArguments(site.ActionComponents)}} action)"""
+                : $$""", {{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{GeneratorSupport.QualifiedName(shape.Namespace, "GeneratedWhereAction_" + hash + "_" + terminalHash)}}{{SignatureProjection.TypeArguments(terminal.HasContext ? new[] { terminal.ContextType! }.Concat(site.ActionComponents) : site.ActionComponents)}} action)"""
             : terminalSlots.HasExplicitIds
                 ? ", " + terminalSlots.ComponentIdParameters("componentId") + ")"
                 : ")";
@@ -76,7 +77,7 @@ internal static class GeneratedWhereTemplates
             ? "return " + EcsOperationTemplates.CreationExpression(
                 operationResult,
                 operationInvoker,
-                terminal.HasContext && terminal.IsFunctor ? terminal.ContextType : null,
+                terminal.HasContext ? terminal.ContextType : null,
                 terminal.IsFunctor ? terminal.FunctorType : null,
                 functorName: "action") + ";"
             : $$"""return new global::Delta.ECS.EcsResultOperation<int>(() => { int result = {{executeInvocation}}; {{(shape.HasContext ? "operationView.PredicateContext = operationPredicateContext;" : string.Empty)}} return result; });""";
@@ -129,7 +130,11 @@ internal static class GeneratedWhereTemplates
                 shape.HasContext ? $"ref {InterceptedPredicateContextType(site)} {parameters[parameterIndex++]}" : string.Empty,
                 hasEntity ? $"Entity {parameters[parameterIndex++]}" : string.Empty
             ]
-            : [hasEntity ? $"EntityRef {parameters[parameterIndex++]}" : string.Empty];
+            :
+            [
+                terminal.HasContext ? $"ref {terminal.ContextType} {parameters[parameterIndex++]}" : string.Empty,
+                hasEntity ? $"EntityRef {parameters[parameterIndex++]}" : string.Empty
+            ];
         string[] declarations = prefixes
             .Concat(Enumerable.Range(0, slots.Arity).Select(index =>
                 slots.ComponentParameter(index, componentTypes[index], parameters[parameterIndex++])))
@@ -359,7 +364,7 @@ internal static class GeneratedWhereTemplates
         return string.Join(", ", arguments);
     }
 
-    internal static string Render(PredicateModel shape, bool supportsScoped)
+    internal static string Render(PredicateModel shape, bool supportsScoped, bool supportsOverloadPriority)
     {
         string hash = GeneratorSupport.StableName(shape.Key);
         string predicate = RenderPredicateDelegate(shape, hash);
@@ -380,7 +385,7 @@ internal static class GeneratedWhereTemplates
         string[] members = componentSetKeys
             .Concat(new[] { predicate.Length == 0 ? null : predicate })
             .Concat(terminalMembers)
-            .Append(GeneratorTemplates.RenderBlock(ViewDeclaration(shape, hash), RenderViewBody(shape, hash)))
+            .Append(GeneratorTemplates.RenderBlock(ViewDeclaration(shape, hash), RenderViewBody(shape, hash, supportsOverloadPriority)))
             .Append(shape.HasOrderedQuerySource ? RenderOrderedView(shape, hash) : null)
             .Append(GeneratorTemplates.ExtensionTemplate(
                 "GeneratedWhereExtensions_" + hash,
@@ -439,12 +444,13 @@ internal static class GeneratedWhereTemplates
 
         string[] parameters = new[]
             {
+                terminal.HasContext ? $"ref {ActionContextType(terminal)} context" : string.Empty,
                 entityParameter
             }
             .Append(slots.ComponentParameters(genericPrefix: "U"))
             .Where(static parameter => parameter.Length != 0).ToArray();
         string declaration = $$"""
-            public delegate void GeneratedWhereAction_{{predicateHash}}_{{hash}}{{slots.GenericParameters("U")}}({{string.Join(", ", parameters)}});
+            public delegate void GeneratedWhereAction_{{predicateHash}}_{{hash}}{{SignatureProjection.TypeArguments(InvokerGenericList(terminal))}}({{string.Join(", ", parameters)}});
             """.Trim();
         return GeneratorTemplates.Declaration(terminal.Api, declaration);
     }
@@ -475,7 +481,7 @@ internal static class GeneratedWhereTemplates
             fields.Add($$"""private {{(terminal.IsFunctor ? string.Empty : "readonly ")}}{{ActionType(terminal, hash, terminalHash)}} _action;""");
             if (terminal.HasContext)
             {
-                fields.Add($$"""private {{terminal.ContextType}} _context;""");
+                fields.Add($$"""private {{ActionContextType(terminal)}} _context;""");
             }
         }
 
@@ -491,7 +497,7 @@ internal static class GeneratedWhereTemplates
         {
             if (terminal.HasContext)
             {
-                constructorParameters.Add($$"""{{terminal.ContextType}} context""");
+                constructorParameters.Add($$"""{{ActionContextType(terminal)}} context""");
             }
 
             constructorParameters.Add($$"""{{ActionType(terminal, hash, terminalHash)}} action""");
@@ -552,10 +558,11 @@ internal static class GeneratedWhereTemplates
         if (terminal.IsFunctor)
         {
             properties.Add($$"""internal {{terminal.FunctorType}} Action => _action;""");
-            if (terminal.HasContext)
-            {
-                properties.Add($$"""internal {{terminal.ContextType}} Context => _context;""");
-            }
+        }
+
+        if (terminal.HasContext)
+        {
+            properties.Add($$"""internal {{ActionContextType(terminal)}} Context => _context;""");
         }
 
         string executeSignature = terminal.IsCallback
@@ -741,12 +748,21 @@ internal static class GeneratedWhereTemplates
     private static string InvokerGenericList(TerminalModel terminal) => terminal.IsGeneratedEntityConsumer
         ? "TWhereAction"
         : terminal.HasValues || terminal.IsCallback && !terminal.IsFunctor
-            ? terminal.Api.Signature.GenericList("U")
+            ? SignatureProjection.JoinGeneric(
+                terminal.HasContext ? ActionContextType(terminal) : string.Empty,
+                terminal.Api.Signature.GenericList("U"))
             : string.Empty;
 
     private static string TerminalGenericList(TerminalModel terminal) => terminal.Kind is TerminalKind.Add or TerminalKind.AddOrSet or TerminalKind.Set or TerminalKind.Remove
             ? terminal.Api.Signature.HasGenericSelectors ? terminal.Api.Signature.GenericList("U") : string.Empty
-            : terminal.IsCallback && !terminal.IsFunctor ? terminal.Api.Signature.GenericList("U") : string.Empty;
+            : terminal.IsCallback && !terminal.IsFunctor ? InvokerGenericList(terminal) : string.Empty;
+
+    private static string ActionContextType(TerminalModel terminal) => terminal.IsFunctor ? terminal.ContextType! : "TActionContext";
+
+    private static string CallbackOverloadPriority(TerminalModel terminal, bool supportsOverloadPriority)
+        => supportsOverloadPriority && terminal.IsCallback && !terminal.IsFunctor
+            ? $"[global::System.Runtime.CompilerServices.OverloadResolutionPriority({-terminal.ComponentModels.Sum(component => component.IsWrite ? terminal.Arity + 1 : component.Access == AccessKind.RefReadonly ? 1 : 0)})]"
+            : string.Empty;
 
     private static string RenderValueParameters(SignatureProjection slots, IReadOnlyList<string> types)
         => GeneratorTemplates.JoinNonEmpty(new[]
@@ -805,7 +821,7 @@ internal static class GeneratedWhereTemplates
     private static string ActionType(TerminalModel terminal, string predicateHash, string terminalHash)
         => terminal.IsFunctor
             ? terminal.FunctorType!
-            : $"GeneratedWhereAction_{predicateHash}_{terminalHash}{terminal.Api.Signature.GenericParameters("U")}";
+            : $"GeneratedWhereAction_{predicateHash}_{terminalHash}{SignatureProjection.TypeArguments(InvokerGenericList(terminal))}";
 
     private static string ViewDeclaration(PredicateModel shape, string hash)
     {
@@ -813,7 +829,7 @@ internal static class GeneratedWhereTemplates
         return $"{visibility}GeneratedWhereQuery_{hash}{PredicateGenericTypes(shape)}";
     }
 
-    private static string RenderViewBody(PredicateModel shape, string hash)
+    private static string RenderViewBody(PredicateModel shape, string hash, bool supportsOverloadPriority)
     {
         string typeName = "GeneratedWhereQuery_" + hash;
         var fields = new List<string>
@@ -867,7 +883,7 @@ internal static class GeneratedWhereTemplates
         var members = fields
             .Concat(new[] { constructor })
             .Concat(properties)
-            .Concat(shape.Terminals.Ordered().Select(terminal => RenderViewTerminal(shape, terminal, hash)))
+            .Concat(shape.Terminals.Ordered().Select(terminal => RenderViewTerminal(shape, terminal, hash, supportsOverloadPriority)))
             .Where(static member => !string.IsNullOrWhiteSpace(member));
         return GeneratorTemplates.Indent(GeneratorTemplates.JoinNonEmpty(members, "\n\n"), "    ");
     }
@@ -998,7 +1014,7 @@ internal static class GeneratedWhereTemplates
 
     internal static string ViewMethodTypeArguments(PredicateModel shape) => SignatureProjection.TypeArguments(ViewMethodTypeParameters(shape));
 
-    private static string RenderViewTerminal(PredicateModel shape, TerminalModel terminal, string hash)
+    private static string RenderViewTerminal(PredicateModel shape, TerminalModel terminal, string hash, bool supportsOverloadPriority)
     {
         SignatureProjection terminalSlots = terminal.Api.Signature;
         string terminalHash = GeneratorSupport.StableName(terminal.SignatureKey);
@@ -1019,11 +1035,11 @@ internal static class GeneratedWhereTemplates
             TerminalKind.Set => $"private int ExecuteTerminal_{terminalHash}{genericParameters}({terminalParameters})",
             TerminalKind.Remove => $"private int ExecuteTerminal_{terminalHash}{genericParameters}({terminalParameters})",
             TerminalKind.ForEach => terminal.IsFunctor
-                ? $$"""private void ExecuteTerminal_{{terminalHash}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
-                : $$"""private void ExecuteTerminal_{{terminalHash}}{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{actionType}} action)""",
+                ? $$"""private void ExecuteTerminal_{{terminalHash}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
+                : $$"""private void ExecuteTerminal_{{terminalHash}}{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{actionType}} action)""",
             TerminalKind.ForEachEntity => terminal.IsFunctor
-                ? $$"""private void ExecuteTerminal_{{terminalHash}}{{genericAction}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}}){{genericActionConstraint}}"""
-                : $$"""private void ExecuteTerminal_{{terminalHash}}{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{actionType}} action)""",
+                ? $$"""private void ExecuteTerminal_{{terminalHash}}{{genericAction}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}}){{genericActionConstraint}}"""
+                : $$"""private void ExecuteTerminal_{{terminalHash}}{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{actionType}} action)""",
             _ => string.Empty
         };
         string signature = RenderDeferredTerminalSignature(shape, terminal, hash, terminalHash, terminalParameters, actionType, genericParameters, genericAction, genericActionConstraint);
@@ -1125,13 +1141,13 @@ internal static class GeneratedWhereTemplates
             body.Add("_predicateContext = invoker.PredicateContext;");
         }
 
+        if (terminal.IsCallback && terminal.HasContext)
+        {
+            body.Add("context = invoker.Context;");
+        }
+
         if (terminal.IsFunctor && terminal.IsCallback)
         {
-            if (terminal.HasContext)
-            {
-                body.Add("context = invoker.Context;");
-            }
-
             body.Add("action = invoker.Action;");
         }
 
@@ -1146,7 +1162,11 @@ internal static class GeneratedWhereTemplates
                 terminal.Api,
                 signature,
                 RenderDeferredTerminalBody(shape, terminal, hash, terminalSlots, genericParameters, terminalHash),
-                "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]"),
+                GeneratorTemplates.JoinNonEmpty(new[]
+                {
+                    "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
+                    CallbackOverloadPriority(terminal, supportsOverloadPriority)
+                })),
             GeneratorTemplates.RenderBlock(executionSignature, GeneratorTemplates.JoinNonEmpty(body))
         };
         if (terminal.IsCallback || terminal.Kind == TerminalKind.AddOrSet)
@@ -1161,13 +1181,21 @@ internal static class GeneratedWhereTemplates
                 .OrderBy(static components => string.Join("|", components), StringComparer.Ordinal)
                 .Select(components =>
             {
-                string concreteActionType = "GeneratedWhereAction_" + hash + '_' + terminalHash + SignatureProjection.TypeArguments(components);
+                string concreteTypes = SignatureProjection.TypeArguments(
+                    terminal.HasContext ? new[] { "TActionContext" }.Concat(components) : components);
+                string contextParameter = terminal.HasContext ? "ref TActionContext context, " : string.Empty;
+                string contextArgument = terminal.HasContext ? "ref context, " : string.Empty;
+                string concreteActionType = "GeneratedWhereAction_" + hash + '_' + terminalHash + concreteTypes;
                 string method = terminal.HasEntity ? "ForEachEntity" : "ForEach";
                 return GeneratorTemplates.Method(
                     terminal.Api,
-                    $$"""internal {{OperationTypeForTerminal(terminal, hash, terminalHash, SignatureProjection.TypeArguments(components))}} {{method}}({{concreteActionType}} action)""",
-                    $$"""return {{method}}{{SignatureProjection.TypeArguments(components)}}(action);""",
-                    "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+                    $$"""internal {{OperationTypeForTerminal(terminal, hash, terminalHash, concreteTypes)}} {{method}}{{(terminal.HasContext ? "<TActionContext>" : string.Empty)}}({{contextParameter}}{{concreteActionType}} action)""",
+                    $$"""return {{method}}{{concreteTypes}}({{contextArgument}}action);""",
+                    GeneratorTemplates.JoinNonEmpty(new[]
+                    {
+                        "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]",
+                        CallbackOverloadPriority(terminal, supportsOverloadPriority)
+                    }));
             }));
         }
 
@@ -1208,11 +1236,11 @@ internal static class GeneratedWhereTemplates
             TerminalKind.Set => $"Set{genericParameters}({terminalParameters})",
             TerminalKind.Remove => $"Remove{genericParameters}({terminalParameters})",
             TerminalKind.ForEach => terminal.IsFunctor
-                ? $$"""ForEach({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
-                : $$"""ForEach{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{actionType}} action)""",
+                ? $$"""ForEach({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}})"""
+                : $$"""ForEach{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{actionType}} action)""",
             TerminalKind.ForEachEntity => terminal.IsFunctor
-                ? $$"""ForEachEntity{{genericAction}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + terminal.ContextType + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}}){{genericActionConstraint}}"""
-                : $$"""ForEachEntity{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{actionType}} action)""",
+                ? $$"""ForEachEntity{{genericAction}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{SignatureProjection.ContextParameter(terminal.FunctorPassMode, actionType, "action")}}){{genericActionConstraint}}"""
+                : $$"""ForEachEntity{{genericParameters}}({{terminalParameters}}{{(terminalParameters.Length != 0 ? ", " : string.Empty)}}{{(terminal.HasContext ? "ref " + ActionContextType(terminal) + " context, " : string.Empty)}}{{actionType}} action)""",
             _ => string.Empty
         };
         string visibility = terminal.IsFunctor || terminal.IsGeneratedEntityConsumer ? "internal" : "public";
@@ -1284,7 +1312,7 @@ internal static class GeneratedWhereTemplates
         string operation = EcsOperationTemplates.CreationExpression(
             operationType,
             invoker,
-            terminal.HasContext ? terminal.ContextType : null,
+            terminal.HasContext ? ActionContextType(terminal) : null,
             terminal.IsFunctor ? terminal.FunctorType : null,
             functorName: "action");
         setup.Add($"return {operation};");
@@ -1301,7 +1329,7 @@ internal static class GeneratedWhereTemplates
         string invoker = DeferredTerminalInvokerType(predicateHash, terminalHash, invokerArguments);
         return EcsOperationTemplates.OperationType(
             invoker,
-            terminal.HasContext ? terminal.ContextType : null,
+            terminal.HasContext ? ActionContextType(terminal) : null,
             terminal.IsFunctor ? terminal.FunctorType : null);
     }
 
@@ -1324,7 +1352,7 @@ internal static class GeneratedWhereTemplates
             : string.Empty;
         string viewType = "GeneratedWhereQuery_" + hash + PredicateGenericTypes(shape);
         bool mutableContext = terminal.HasContext;
-        string? contextType = mutableContext ? terminal.ContextType : null;
+        string? contextType = mutableContext ? ActionContextType(terminal) : null;
         string? functorType = terminal.IsFunctor || terminal.IsGeneratedEntityConsumer
             ? terminal.FunctorType ?? "TWhereAction"
             : null;
@@ -1387,7 +1415,7 @@ internal static class GeneratedWhereTemplates
 
         string genericCall = terminal.IsGeneratedEntityConsumer
             ? "<TWhereAction>"
-            : terminal.IsFunctor ? string.Empty : SignatureProjection.TypeArguments(terminal.Api.Signature.GenericList("U"));
+            : terminal.IsFunctor ? string.Empty : SignatureProjection.TypeArguments(InvokerGenericList(terminal));
         string invocation = $"view.ExecuteTerminal_{terminalHash}{genericCall}({string.Join(", ", callArguments)});";
         string method = EcsOperationTemplates.InvokeMethod(interfaceType, contextType, functorType);
         string body = GeneratorTemplates.JoinNonEmpty(new[]

@@ -64,6 +64,12 @@ internal static class GeneratedWherePipelineGrammarProof
             .ForEachEntity(static (EntityRef entity, ref Cmp3 cmp3) => cmp3.Value += entity.Index).Invoke();
 
         var terminalState = new Context();
+        world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
+            .ForEach(ref terminalState, static (ref Context state, ref Cmp3 cmp3) => cmp3.Value = 0).Invoke(ref terminalState);
+        world.WhereEntity(in query, static (Entity entity, in Cmp3 cmp3) => cmp3.Value < entity.Index)
+            .ForEachEntity(ref terminalState, static (ref Context state, EntityRef entity) => _ = entity.Index).Invoke(ref terminalState);
+        world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
+            .ForEachEntity(ref terminalState, static (ref Context state, EntityRef entity, ref Cmp3 cmp3) => cmp3.Value += entity.Index).Invoke();
         var action = new WhereFunctorContext();
         var functorWithoutContext = new FunctorW();
         world.Where(in query, static (in Cmp3 cmp3) => cmp3.Value < 0)
