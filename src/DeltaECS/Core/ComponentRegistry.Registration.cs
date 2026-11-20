@@ -13,7 +13,7 @@ public sealed partial class ComponentRegistry
             ThrowHelper.ThrowComponentVisitorConstraintMustBeInterface(interfaceType);
         }
 
-        var key = (typeof(TComponent).TypeHandle, interfaceType.TypeHandle);
+        var key = (typeof(TComponent), interfaceType);
         _interfaceVisitorRoutes.TryAdd(key, route);
     }
 

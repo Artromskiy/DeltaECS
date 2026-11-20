@@ -27,8 +27,7 @@ public sealed partial class World : IDisposable
 
     private readonly ComponentRegistry _layouts;
 
-    private readonly Dictionary<RuntimeTypeHandle, ComponentId> _primaryComponentIdsByType =
-        new(RuntimeTypeHandleComparer.Instance);
+    private readonly Dictionary<Type, ComponentId> _primaryComponentIdsByType = new();
 
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
     private readonly List<Chunk> _freeRecordChunks = new();
@@ -1203,7 +1202,7 @@ public sealed partial class World : IDisposable
     internal bool TryGetComponentSet(ComponentSetId id, out ComponentSet? set)
         => _componentSetCache.TryGet(id, out set);
 
-    internal ComponentSet GetOrCreateComponentSet(RuntimeTypeHandle key, Func<World, ComponentId[]> resolver)
+    internal ComponentSet GetOrCreateComponentSet(Type key, Func<World, ComponentId[]> resolver)
     {
         EnsureExecutionAccess();
         if (_componentSetCache.TryGet(key, out ComponentSet? cached))
@@ -1332,7 +1331,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ComponentId GetPrimaryComponentId<T>()
     {
-        RuntimeTypeHandle type = typeof(T).TypeHandle;
+        Type type = typeof(T);
         if (_primaryComponentIdsByType.TryGetValue(type, out ComponentId componentId))
         {
             return componentId;
@@ -1346,7 +1345,7 @@ public sealed partial class World : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
     {
-        RuntimeTypeHandle type = typeof(T).TypeHandle;
+        Type type = typeof(T);
         if (_primaryComponentIdsByType.TryGetValue(type, out componentId))
         {
             return true;

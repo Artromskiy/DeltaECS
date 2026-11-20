@@ -6,6 +6,34 @@ namespace Delta.ECS.Tests;
 internal sealed class QueryRankMappingTests
 {
     [Test]
+    public void GenericPreparedAccessResolvesRegisteredDataAndTagTypes()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId selected = layouts.Register<QueryRankSelected>(new SchemaId(50_201));
+        ComponentId tag = layouts.Register<QueryRankTag>(new SchemaId(50_202));
+        using var world = new World(layouts);
+        Entity entity = world.Create(selected, tag);
+        Query query = world.WhereAll(selected, tag);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GeneratedForEachRuntime.GetPreparedReadRoute<QueryRankSelected>(in query),
+                Is.EqualTo(GeneratedForEachRuntime.GetPreparedReadRoute<QueryRankSelected>(in query, selected)));
+            Assert.That(GeneratedForEachRuntime.GetPreparedWriteRoute<QueryRankSelected>(in query),
+                Is.EqualTo(GeneratedForEachRuntime.GetPreparedWriteRoute<QueryRankSelected>(in query, selected)));
+            Assert.That(GeneratedForEachRuntime.GetPreparedReadRoute<QueryRankTag>(in query),
+                Is.EqualTo(GeneratedForEachRuntime.GetPreparedReadRoute<QueryRankTag>(in query, tag)));
+            Assert.That(GeneratedForEachRuntime.GetPreparedWriteRoute<QueryRankTag>(in query),
+                Is.EqualTo(GeneratedForEachRuntime.GetPreparedWriteRoute<QueryRankTag>(in query, tag)));
+        });
+
+        var operation = world.ForEach(in query, static (ref QueryRankSelected value, in QueryRankTag _) => value.Value++);
+        operation.Invoke();
+        operation.Invoke();
+        Assert.That(world.Get<QueryRankSelected>(entity).Value, Is.EqualTo(2));
+    }
+
+    [Test]
     public void QueryRowsMapHighIdComponentsInArchetypesWithDifferentLowIdRows()
     {
         var layouts = new ComponentRegistry();
@@ -41,3 +69,5 @@ internal struct QueryRankSelected
 {
     public int Value;
 }
+
+internal struct QueryRankTag { }

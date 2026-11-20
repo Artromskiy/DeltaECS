@@ -232,5 +232,5 @@ public abstract class GeneralComponentTypeVisitor<TConstraint> :
 internal static class ComponentVisitorConstraints
 {
     internal static bool HasMatchingConstraint<TConstraint>(IConstrainedComponentVisitor visitor)
-        => visitor.ConstraintType.Equals(typeof(TConstraint).TypeHandle);
+        => Type.GetTypeFromHandle(visitor.ConstraintType) == typeof(TConstraint);
 }

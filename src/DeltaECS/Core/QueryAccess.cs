@@ -34,7 +34,7 @@ internal sealed class QueryPlan
 {
     private const int TagRouteOffset = -2;
     private IGeneratedDenseBinding? _lastDenseBinding;
-    private Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>? _denseBindings;
+    private Dictionary<Type, IGeneratedDenseBinding>? _denseBindings;
 
     private readonly QuerySpec _description;
     private readonly ComponentMask _allDataMask;
@@ -53,7 +53,7 @@ internal sealed class QueryPlan
     private readonly int[] _readRoutesByComponent;
     private readonly ComponentId[] _dataComponentsByRoute;
     private readonly Type?[] _componentTypesByComponent;
-    private readonly Dictionary<RuntimeTypeHandle, int> _primaryReadRoutesByType;
+    private readonly Dictionary<Type, int> _primaryReadRoutesByType;
     private int _matchingChunkCount;
     private readonly ReadAccess[] _preparedReadAccessesByComponent;
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
@@ -86,9 +86,7 @@ internal sealed class QueryPlan
         _componentTypesByComponent = new Type?[world.Components.Count];
         _preparedReadAccessesByComponent = new ReadAccess[world.Components.Count];
         _preparedWriteAccessesByComponent = new WriteAccess[world.Components.Count];
-        _primaryReadRoutesByType = new Dictionary<RuntimeTypeHandle, int>(
-            _allDataMask.Count,
-            RuntimeTypeHandleComparer.Instance);
+        _primaryReadRoutesByType = new Dictionary<Type, int>(_allDataMask.Count);
         Array.Fill(_readRoutesByComponent, -1);
         PrepareReadRoutes(world);
         for (int archetypeId = 0; archetypeId < world.Archetypes.Count; archetypeId++)
@@ -620,8 +618,8 @@ internal sealed class QueryPlan
         where TBinding : GeneratedDenseBinding<TRows>, new()
         where TRows : struct
     {
-        _denseBindings ??= new Dictionary<RuntimeTypeHandle, IGeneratedDenseBinding>(RuntimeTypeHandleComparer.Instance);
-        RuntimeTypeHandle key = typeof(TBinding).TypeHandle;
+        _denseBindings ??= new Dictionary<Type, IGeneratedDenseBinding>();
+        Type key = typeof(TBinding);
         if (!_denseBindings.TryGetValue(key, out IGeneratedDenseBinding? existing))
         {
             var created = new TBinding();
@@ -634,7 +632,7 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPreparedPrimaryRoute<T>(out int route) => TryGetPrimaryRoute(typeof(T).TypeHandle, out route);
+    private bool TryGetPreparedPrimaryRoute<T>(out int route) => TryGetPrimaryRoute(typeof(T), out route);
 
     private void ValidatePreparedRuntimeType(ComponentId component, Type runtimeType)
     {
@@ -663,7 +661,7 @@ internal sealed class QueryPlan
             if (world.Components.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
-                _primaryReadRoutesByType.Add(runtimeType.TypeHandle, route);
+                _primaryReadRoutesByType.Add(runtimeType, route);
             }
 
             route++;
@@ -700,7 +698,7 @@ internal sealed class QueryPlan
             if (world.Components.TryGetPrimary(runtimeType, out ComponentId primary)
                 && primary == component)
             {
-                _primaryReadRoutesByType.Add(runtimeType.TypeHandle, tagRoute);
+                _primaryReadRoutesByType.Add(runtimeType, tagRoute);
             }
         }
 
@@ -721,7 +719,7 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPrimaryRoute(RuntimeTypeHandle runtimeType, out int route)
+    private bool TryGetPrimaryRoute(Type runtimeType, out int route)
         => _primaryReadRoutesByType.TryGetValue(runtimeType, out route);
 
     private void EnsureArchetypeCapacity(int required)

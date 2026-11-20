@@ -7,8 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 /// <summary>World-owned cache for immutable component sets.</summary>
 internal sealed class ComponentSetCache
 {
-    private readonly Dictionary<RuntimeTypeHandle, ComponentSet> _typed =
-        new(RuntimeTypeHandleComparer.Instance);
+    private readonly Dictionary<Type, ComponentSet> _typed = new();
     private readonly Dictionary<int, List<ComponentSet>> _dynamic = new();
     private readonly Dictionary<ComponentMask, ComponentSetId> _idsByMask = new();
     private ComponentSet?[] _setsById = new ComponentSet?[4];
@@ -26,7 +25,7 @@ internal sealed class ComponentSetCache
         return false;
     }
 
-    internal bool TryGet(RuntimeTypeHandle key, [NotNullWhen(true)] out ComponentSet? set)
+    internal bool TryGet(Type key, [NotNullWhen(true)] out ComponentSet? set)
         => _typed.TryGetValue(key, out set);
 
     internal bool TryGet(ReadOnlySpan<ComponentId> componentIds, [NotNullWhen(true)] out ComponentSet? set)
@@ -49,7 +48,7 @@ internal sealed class ComponentSetCache
         return false;
     }
 
-    internal void Add(RuntimeTypeHandle key, ComponentSet set)
+    internal void Add(Type key, ComponentSet set)
     {
         Register(set);
         _typed[key] = set;
@@ -100,17 +99,6 @@ internal sealed class ComponentSetCache
         _idsByMask.Add(set.Mask, id);
         _setsById[value] = set;
     }
-}
-
-internal sealed class RuntimeTypeHandleComparer : IEqualityComparer<RuntimeTypeHandle>
-{
-    internal static readonly RuntimeTypeHandleComparer Instance = new();
-
-    bool IEqualityComparer<RuntimeTypeHandle>.Equals(RuntimeTypeHandle x, RuntimeTypeHandle y)
-        => x.Value == y.Value;
-
-    int IEqualityComparer<RuntimeTypeHandle>.GetHashCode(RuntimeTypeHandle obj)
-        => obj.Value.GetHashCode();
 }
 
 internal readonly struct ComponentSetId : IEquatable<ComponentSetId>

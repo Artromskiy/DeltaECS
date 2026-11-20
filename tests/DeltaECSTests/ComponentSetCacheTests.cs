@@ -45,7 +45,7 @@ internal sealed class ComponentSetCacheTests
     }
 
     [Test]
-    public void TypedComponentSetUsesTheStableRuntimeTypeHandleKey()
+    public void TypedComponentSetUsesTheRuntimeTypeKey()
     {
         var layouts = new ComponentRegistry();
         ComponentId positionId = layouts.Register<Position>(new SchemaId(90_011));
@@ -53,6 +53,13 @@ internal sealed class ComponentSetCacheTests
         using var world = new World(layouts);
         int factoryCalls = 0;
 
+        ComponentSet registered = world.GetOrCreateComponentSet(
+            new TypedSetKey().GetType(),
+            _ =>
+            {
+                factoryCalls++;
+                return [positionId, velocityId];
+            });
         ReadOnlySpan<ComponentId> first = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<TypedSetKey>(
             world,
             _ =>
@@ -60,8 +67,9 @@ internal sealed class ComponentSetCacheTests
                 factoryCalls++;
                 return [positionId, velocityId];
             });
+        Query query = world.WhereAll(positionId, velocityId);
         ReadOnlySpan<ComponentId> second = GeneratedForEachRuntime.GetGeneratedPrimaryComponentIds<TypedSetKey>(
-            world,
+            in query,
             _ =>
             {
                 factoryCalls++;
@@ -69,6 +77,8 @@ internal sealed class ComponentSetCacheTests
             });
 
         Assert.That(second.Length, Is.EqualTo(2));
+        Assert.That(first[0], Is.EqualTo(registered.ComponentIds[0]));
+        Assert.That(first[1], Is.EqualTo(registered.ComponentIds[1]));
         Assert.That(second[0], Is.EqualTo(first[0]));
         Assert.That(second[1], Is.EqualTo(first[1]));
         Assert.That(factoryCalls, Is.EqualTo(1));

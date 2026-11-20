@@ -18,8 +18,8 @@ public sealed partial class ComponentRegistry
     private readonly List<ComponentRowOperations> _rowOperations = new();
     private readonly List<IGeneratedComponentTypeToken> _componentTypeTokens = new();
     private readonly List<IComponentRegistrationToken> _componentVisitorTokens = new();
-    private readonly Dictionary<(RuntimeTypeHandle ComponentType, RuntimeTypeHandle InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
-    private readonly Dictionary<(RuntimeTypeHandle EnumType, ulong GroupId), ComponentGroupMembers> _componentGroups = new();
+    private readonly Dictionary<(Type ComponentType, Type? InterfaceType), IComponentInterfaceVisitorRoute> _interfaceVisitorRoutes = new();
+    private readonly Dictionary<(Type? EnumType, ulong GroupId), ComponentGroupMembers> _componentGroups = new();
     private readonly Dictionary<string, ComponentId> _componentIdsByAlias = new(StringComparer.Ordinal);
     private readonly Dictionary<ComponentId, List<string>> _aliasesByComponentId = new();
     private int[] _tagIndices = [];
@@ -45,8 +45,8 @@ public sealed partial class ComponentRegistry
             return _componentVisitorTokens[componentId.Value].TryVisit(componentId, visitor);
         }
 
-        RuntimeTypeHandle componentType = _componentTypeTokens[componentId.Value].ComponentType.TypeHandle;
-        var key = (componentType, constrainedVisitor.ConstraintType);
+        Type componentType = _componentTypeTokens[componentId.Value].ComponentType;
+        var key = (componentType, Type.GetTypeFromHandle(constrainedVisitor.ConstraintType));
         if (_interfaceVisitorRoutes.TryGetValue(key, out IComponentInterfaceVisitorRoute? route))
         {
             return route.TryVisit(componentId, visitor);
@@ -70,7 +70,7 @@ public sealed partial class ComponentRegistry
     /// <summary>Gets the generated component IDs assigned to an enum group.</summary>
     /// <remarks>The returned span remains valid if the registry later registers more generated components.</remarks>
     public ReadOnlySpan<ComponentId> GetGroup<TEnum>(TEnum groupId) where TEnum : struct, Enum
-        => _componentGroups.TryGetValue((typeof(TEnum).TypeHandle, GetGroupValue(groupId)), out ComponentGroupMembers? members)
+        => _componentGroups.TryGetValue((typeof(TEnum), GetGroupValue(groupId)), out ComponentGroupMembers? members)
             ? members.GetComponents()
             : [];
 
@@ -146,7 +146,7 @@ public sealed partial class ComponentRegistry
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public void RegisterGeneratedComponentGroup(RuntimeTypeHandle enumType, ulong groupId, ComponentId componentId)
     {
-        var key = (enumType, groupId);
+        var key = (Type.GetTypeFromHandle(enumType), groupId);
         if (!_componentGroups.TryGetValue(key, out ComponentGroupMembers? members))
         {
             members = new ComponentGroupMembers();

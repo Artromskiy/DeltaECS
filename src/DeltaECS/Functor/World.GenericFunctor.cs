@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 
 public sealed partial class World
 {
-    private readonly Dictionary<GenericFunctorKey, List<GenericFunctorEntry>> _genericFunctors = new(GenericFunctorKeyComparer.Instance);
+    private readonly Dictionary<(Type FunctorType, int ArgumentHash), List<GenericFunctorEntry>> _genericFunctors = new();
     private GenericFunctorEntry? _lastGenericFunctorEntry;
     // Copyable operation structs cannot own disposable buffers; World keeps their snapshots until disposal.
     private nint _genericFunctorInputBlocks;
@@ -76,7 +76,7 @@ public sealed partial class World
             return lastEntry.Executor;
         }
 
-        var key = new GenericFunctorKey(functorType.TypeHandle, ComponentSet.ComputeHash(arguments));
+        var key = (functorType, ComponentSet.ComputeHash(arguments));
         if (_genericFunctors.TryGetValue(key, out var entries))
         {
             foreach (var entry in entries)
@@ -305,27 +305,6 @@ public sealed partial class World
     private struct GenericFunctorInputBlock
     {
         internal nint Next;
-    }
-
-    private readonly struct GenericFunctorKey(RuntimeTypeHandle functorType, int argumentHash)
-    {
-        internal readonly RuntimeTypeHandle FunctorType = functorType;
-        internal readonly int ArgumentHash = argumentHash;
-    }
-
-    private sealed class GenericFunctorKeyComparer : IEqualityComparer<GenericFunctorKey>
-    {
-        internal static readonly GenericFunctorKeyComparer Instance = new();
-
-        bool IEqualityComparer<GenericFunctorKey>.Equals(GenericFunctorKey left, GenericFunctorKey right)
-            => left.FunctorType.Value == right.FunctorType.Value && left.ArgumentHash == right.ArgumentHash;
-
-        int IEqualityComparer<GenericFunctorKey>.GetHashCode(GenericFunctorKey key)
-        {
-            long handle = key.FunctorType.Value.ToInt64();
-            int typeHash = (int)handle ^ (int)(handle >> 32);
-            return (typeHash * 397) ^ key.ArgumentHash;
-        }
     }
 
     private sealed class GenericFunctorEntry(Type functorType, ComponentId[] arguments, IGeneratedGenericFunctor executor)

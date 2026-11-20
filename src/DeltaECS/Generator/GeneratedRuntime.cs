@@ -796,7 +796,7 @@ public static partial class GeneratedForEachRuntime
     {
         ThrowHelper.ThrowIfNull(world, nameof(world));
         ThrowHelper.ThrowIfNull(resolver, nameof(resolver));
-        return world.GetOrCreateComponentSet(typeof(TKey).TypeHandle, resolver).ComponentIds;
+        return world.GetOrCreateComponentSet(typeof(TKey), resolver).ComponentIds;
     }
 
     /// <summary>Resolves and caches an ordered primary component set owned by a generated query.</summary>
@@ -812,7 +812,7 @@ public static partial class GeneratedForEachRuntime
         }
 
         ThrowHelper.ThrowIfNull(resolver, nameof(resolver));
-        return query.Owner.GetOrCreateComponentSet(typeof(TKey).TypeHandle, resolver).ComponentIds;
+        return query.Owner.GetOrCreateComponentSet(typeof(TKey), resolver).ComponentIds;
     }
 
     /// <summary>Executes a generated predicate and immediately destroys its matches.</summary>
