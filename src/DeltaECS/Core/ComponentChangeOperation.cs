@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 using static ComponentChangeMasks;
 
 /// <summary>Reports changes to one component registration across the world or within a query.</summary>
-/// <remarks>The first invocation reports matching components as <see cref="ChangeKind.Added"/>. Later invocations report current state changes, including entry into and exit from an optional query.</remarks>
+/// <remarks>Unless initialized by <see cref="Reset"/>, the first invocation reports matching components as <see cref="ChangeKind.Added"/>. Later invocations report changes since the last invocation or reset, including entry into and exit from an optional query.</remarks>
 public sealed class ComponentChangeOperation<T> : IOperation
 {
     [ThreadStatic]
@@ -41,7 +41,7 @@ public sealed class ComponentChangeOperation<T> : IOperation
         }
     }
 
-    /// <summary>Reports additions, modifications, and removals since the previous invocation.</summary>
+    /// <summary>Reports additions, modifications, and removals since the previous invocation or reset.</summary>
     public void Invoke()
     {
         _ = _world.AliveEntityCount;
@@ -110,6 +110,39 @@ public sealed class ComponentChangeOperation<T> : IOperation
             s_invoking = previousInvoking;
             _invoking = false;
         }
+    }
+
+    /// <summary>Discards pending notifications and accepts current matching components as the new baseline.</summary>
+    /// <remarks>Does not invoke the callback or reset other observers. Before the first invocation, captures existing matches without reporting additions.</remarks>
+    public void Reset()
+    {
+        _world.PrepareOperation();
+        if (_invoking)
+        {
+            ThrowHelper.ThrowArchetypeOperationAlreadyRunning();
+        }
+
+        if (!_hasSnapshot)
+        {
+            CaptureCurrentMembership();
+            _hasSnapshot = true;
+            _currentEntities = [];
+            _currentEntityPresence = [];
+        }
+        else
+        {
+            for (int index = 0; index < _membershipChanges.Count; index++)
+            {
+                ComponentMembershipChange change = _membershipChanges[index];
+                bool present = _query is null
+                    ? change.Present
+                    : _world.TryResolveEntityLocation(change.Entity, out Chunk chunk, out int slot) && MatchesQuery(chunk, slot);
+                CommitMembershipChange(change.Entity, present);
+            }
+        }
+
+        _membershipChanges.Clear();
+        _dirtyChunks.Clear();
     }
 
     private static void SetAll(DirtyChunkSet chunks, Chunk chunk)
@@ -499,6 +532,54 @@ public sealed class ComponentChangeOperation<T> : IOperation
 
     }
 
+    private void CaptureCurrentMembership()
+    {
+        bool isTag = _world.Components.TryGetTagIndex(_observer.ComponentId, out int tagIndex);
+        foreach (Archetype archetype in _world.Archetypes)
+        {
+            if ((_query is not null && !_query.MatchesArchetype(archetype))
+                || (!isTag && !archetype.Mask.Contains(_observer.ComponentId)))
+            {
+                continue;
+            }
+
+            for (int chunkIndex = 0; chunkIndex < archetype.ActiveChunkCount; chunkIndex++)
+            {
+                Chunk chunk = archetype.GetActiveChunk(chunkIndex);
+                ReadOnlySpan<Entity> entities = chunk.RawEntities;
+                ReadOnlySpan<ulong> queryMask = default;
+                bool masked = _query is not null && _query.TryGetTagMask(chunk, out queryMask);
+                int wordCount = WordCount(chunk.Count);
+                for (int wordIndex = 0; wordIndex < wordCount; wordIndex++)
+                {
+                    ulong candidates = GetValidWord(chunk.Count, wordIndex);
+                    if (isTag)
+                    {
+                        candidates = Intersect(candidates, chunk.GetTagWord(tagIndex, wordIndex));
+                    }
+                    if (masked)
+                    {
+                        candidates = Intersect(candidates, queryMask[wordIndex]);
+                    }
+
+                    if (IsFullWord(candidates, chunk.Count, wordIndex))
+                    {
+                        foreach (Entity entity in entities.Slice(WordStart(wordIndex), WordLength(chunk.Count, wordIndex)))
+                        {
+                            CommitMembershipChange(entity, true);
+                        }
+                        continue;
+                    }
+
+                    while (candidates != 0)
+                    {
+                        CommitMembershipChange(entities.RefAt(TakeFirstSlot(ref candidates, wordIndex)), true);
+                    }
+                }
+            }
+        }
+    }
+
     private void VisitCurrentEntities()
     {
         bool isTag = _world.Components.TryGetTagIndex(_observer.ComponentId, out int tagIndex);
@@ -644,16 +725,22 @@ public sealed class ComponentChangeOperation<T> : IOperation
         for (int index = 0; index < _processingMembershipChanges.Count; index++)
         {
             ComponentMembershipChange change = _processingMembershipChanges[index];
-            int entityIndex = change.Entity.Index;
-            if (change.Present)
-            {
-                _entities[entityIndex] = change.Entity;
-                MarkEntity(_entityPresence.AsSpan(), entityIndex);
-            }
-            else if (_entities[entityIndex] == change.Entity)
-            {
-                ComponentChangeMasks.SetSlot(_entityPresence.AsSpan(), entityIndex, false);
-            }
+            CommitMembershipChange(change.Entity, change.Present);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void CommitMembershipChange(Entity entity, bool present)
+    {
+        int entityIndex = entity.Index;
+        if (present)
+        {
+            _entities[entityIndex] = entity;
+            MarkEntity(_entityPresence.AsSpan(), entityIndex);
+        }
+        else if (_entities[entityIndex] == entity)
+        {
+            ComponentChangeMasks.SetSlot(_entityPresence.AsSpan(), entityIndex, false);
         }
     }
 
@@ -946,10 +1033,10 @@ public sealed class ComponentChangeOperation<T> : IOperation
 /// <summary>Describes a component addition, modification, or removal.</summary>
 public enum ChangeKind : byte
 {
-    /// <summary>The component is present in the observed set but was absent at the previous invocation.</summary>
+    /// <summary>The component is present in the observed set but was absent at the previous invocation or reset.</summary>
     Added,
 
-    /// <summary>The component was opened for writing since the previous invocation.</summary>
+    /// <summary>The component was opened for writing since the previous invocation or reset.</summary>
     Modified,
 
     /// <summary>The component, its entity, or its membership in the optional query is no longer present.</summary>

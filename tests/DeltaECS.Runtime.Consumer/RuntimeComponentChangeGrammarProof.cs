@@ -58,5 +58,14 @@ public static partial class RuntimeApiGrammarProof
         world.Remove(added, markerId);
         filtered.Invoke();
         Require(changes.Count == 3 && changes[2] == (added, ChangeKind.Added, 0, true));
+
+        changes.Clear();
+        world.GetRef<Position>(added, positionId).Value = 24;
+        filtered.Reset();
+        filtered.Invoke();
+        Require(changes.Count == 0);
+        world.GetRef<Position>(added, positionId).Value = 36;
+        filtered.Invoke();
+        Require(changes.Count == 1 && changes[0] == (added, ChangeKind.Modified, 36, true));
     }
 }

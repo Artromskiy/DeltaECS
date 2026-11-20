@@ -324,6 +324,7 @@ for costs and a complete group/change example.
 world.ForEachChange<T>(ComponentId, ComponentChangeAction<T>) -> ComponentChangeOperation<T>
 world.ForEachChange<T>(in Query, ComponentId, ComponentChangeAction<T>) -> ComponentChangeOperation<T>
 ComponentChangeOperation<T> : IOperation
+ComponentChangeOperation<T>.Reset() -> void
 ComponentChangeAction<T>(Entity, ChangeKind, ref T) -> void
 ChangeKind = Added | Modified | Removed
 ```
@@ -358,6 +359,12 @@ changes.Invoke();
 - Writes through an operation's own callback do not notify itself again.
   Subsequent calls process pending membership and dirty chunks rather than
   rescanning the world; recreating the operation restarts initial reporting.
+- `Reset()` discards this operation's pending notifications and accepts
+  current matching membership without calling its handler. Other observers are
+  unaffected. Before the first invocation it captures existing matches without
+  reporting `Added`; later resets apply pending membership changes and clear
+  dirty masks without rescanning unchanged entities. It cannot be called from
+  the same operation's callback.
 
 For complete code, see [grouping and changes](API-EXAMPLES.md#group-entities-and-observe-changes).
 

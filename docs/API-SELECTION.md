@@ -249,6 +249,13 @@ keeps the old removal separate from the new addition. Never read a `Removed`
 component ref. Writes through an operation's own callback do not notify itself
 again. Build a change operation once: recreating it restarts initial reporting.
 
+Use `changes.Reset()` to discard pending notifications and accept current
+matching components as the new baseline without calling the handler. It affects
+only that observer and also works before the first `Invoke()` to skip initial
+`Added` notifications. The first reset captures current membership; later resets
+apply only pending membership changes and clear dirty masks. New changes after
+the reset are reported normally. Do not reset an operation from its own callback.
+
 ## When a visitor helps
 
 Use `world.Components.Visit(id, visitor)` when an ID selects an unknown CLR type
