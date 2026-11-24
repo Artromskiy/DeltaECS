@@ -3,8 +3,9 @@ extern alias candidateAdapter;
 
 namespace DeltaECS.VersionBenchmarks;
 
-using BaselineIterationScenario = baselineAdapter::DeltaECS.VersionAdapter.IterationScenario;
 using BenchmarkDotNet.Attributes;
+
+using BaselineIterationScenario = baselineAdapter::DeltaECS.VersionAdapter.IterationScenario;
 using CandidateIterationScenario = candidateAdapter::DeltaECS.VersionAdapter.IterationScenario;
 
 [MemoryDiagnoser]

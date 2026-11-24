@@ -529,8 +529,9 @@ internal sealed class SourceOrderRewriter(string mainTypeName, string lineEnding
             UsingDirectiveSyntax[] run = directives.Skip(index).Take(end - index).ToArray();
             UsingDirectiveSyntax[] ordered = run
                 .OrderBy(static directive => directive.GlobalKeyword.IsKind(SyntaxKind.GlobalKeyword) ? 0 : 1)
-                .ThenBy(static directive => IsSystemUsing(directive) ? 0 : 1)
-                .ThenBy(static directive => GetUsingSortName(directive), StringComparer.Ordinal).ToArray();
+                .ThenBy(static directive => directive.Alias is not null)
+                .ThenBy(static directive => directive.Alias is null && IsSystemUsing(directive) ? 0 : 1)
+                .ThenBy(static directive => GetUsingSortName(directive), StringComparer.OrdinalIgnoreCase).ToArray();
             ordered = PreserveLeadingTrivia(run, ordered);
             result.AddRange(AddUsingGroupSpacing(ordered));
             index = end;

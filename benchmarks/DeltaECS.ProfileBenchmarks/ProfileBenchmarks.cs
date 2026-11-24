@@ -3,11 +3,12 @@ extern alias candidateAdapter;
 
 namespace DeltaECS.ProfileBenchmarks;
 
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
+
 using BaselineBatchScenario = baselineAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario;
 using BaselineHasScenario = baselineAdapter::DeltaECS.ProfileAdapter.HasScenario;
 using BaselineScenario = baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario;
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Configs;
 using CandidateBatchScenario = candidateAdapter::DeltaECS.ProfileAdapter.BatchStructuralScenario;
 using CandidateHasScenario = candidateAdapter::DeltaECS.ProfileAdapter.HasScenario;
 using CandidateScenario = candidateAdapter::DeltaECS.ProfileAdapter.ProfileScenario;

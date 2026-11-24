@@ -3,9 +3,10 @@ extern alias candidateAdapter;
 
 namespace DeltaECS.ProfileBenchmarks;
 
-using BaselineScenario = baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
+
+using BaselineScenario = baselineAdapter::DeltaECS.ProfileAdapter.ProfileScenario;
 using CandidateScenario = candidateAdapter::DeltaECS.ProfileAdapter.ProfileScenario;
 
 [MemoryDiagnoser]

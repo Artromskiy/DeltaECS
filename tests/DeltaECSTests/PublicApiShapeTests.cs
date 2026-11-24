@@ -3,6 +3,7 @@ namespace Delta.ECS.Tests;
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using NUnit.Framework;
 
@@ -174,6 +175,20 @@ internal sealed class PublicApiShapeTests
                 typeof(Entity).GetField("Null", BindingFlags.Public | BindingFlags.Static),
                 Is.Null,
                 "The named null handle is replaced by default(Entity).");
+        });
+    }
+
+    [Test]
+    public void EntityEqualityUsesBothFieldsOfAnEightByteHandle()
+    {
+        var entity = new Entity(int.MaxValue, int.MaxValue);
+        Assert.Multiple(() =>
+        {
+            Assert.That(Unsafe.SizeOf<Entity>(), Is.EqualTo(sizeof(ulong)));
+            Assert.That(entity.Equals(new Entity(int.MaxValue, int.MaxValue)), Is.True);
+            Assert.That(entity.Equals(new Entity(-1, int.MaxValue)), Is.False);
+            Assert.That(entity.Equals(new Entity(int.MaxValue, -1)), Is.False);
+            Assert.That(default(Entity).Equals(new Entity(0, 0)), Is.True);
         });
     }
 

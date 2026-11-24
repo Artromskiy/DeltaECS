@@ -1,9 +1,10 @@
 extern alias baselineAdapter;
 extern alias candidateAdapter;
 
-using BaselineScenario = baselineAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
+
+using BaselineScenario = baselineAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario;
 using CandidateScenario = candidateAdapter::DeltaECS.ProfileAdapter.QueryPlanScenario;
 
 namespace DeltaECS.ProfileBenchmarks;

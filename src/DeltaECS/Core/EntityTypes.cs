@@ -32,7 +32,13 @@ public readonly struct Entity(int index, int generation) : IEquatable<Entity>
     public static bool operator !=(Entity left, Entity right) => !left.Equals(right);
 
     /// <summary>Determines whether this handle equals another entity handle.</summary>
-    public bool Equals(Entity other) => Index == other.Index && Generation == other.Generation;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Equals(Entity other)
+#if NET10_0_OR_GREATER
+        => Unsafe.BitCast<Entity, ulong>(this) == Unsafe.BitCast<Entity, ulong>(other);
+#else
+        => ReadBits(this) == ReadBits(other);
+#endif
 
     /// <summary>Determines whether this handle equals the specified object.</summary>
     public override bool Equals(object? obj) => obj is Entity other && Equals(other);
@@ -42,6 +48,17 @@ public readonly struct Entity(int index, int generation) : IEquatable<Entity>
 
     /// <summary>Returns the index and generation as text.</summary>
     public override string ToString() => $"[{Index}:{Generation}]";
+
+#if !NET10_0_OR_GREATER
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong ReadBits(Entity entity)
+    {
+        // A ulong local provides the alignment required for the word read.
+        ulong bits = 0;
+        Unsafe.As<ulong, Entity>(ref bits) = entity;
+        return bits;
+    }
+#endif
 }
 
 /// <summary>Cached selection of entities matching a set of component filters.</summary>
