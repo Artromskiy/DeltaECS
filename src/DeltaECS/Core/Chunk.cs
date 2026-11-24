@@ -180,7 +180,7 @@ internal sealed class Chunk
         return start;
     }
 
-    internal Entity RemoveSwapBack(int slotIndex)
+    internal bool RemoveSwapBack(int slotIndex, out Entity moved)
     {
         if (slotIndex < 0 || slotIndex >= Count)
         {
@@ -188,9 +188,11 @@ internal sealed class Chunk
         }
 
         int lastSlotIndex = Count - 1;
-        var moved = _entities.RefAt(lastSlotIndex);
-        if (slotIndex < lastSlotIndex)
+        bool swapped = slotIndex < lastSlotIndex;
+        moved = default;
+        if (swapped)
         {
+            moved = _entities.RefAt(lastSlotIndex);
             _entities.RefAt(slotIndex) = moved;
             CopySlot(lastSlotIndex, slotIndex);
             _tagMasks?.CopySlotTo(_tagMasks, lastSlotIndex, slotIndex);
@@ -200,7 +202,7 @@ internal sealed class Chunk
         ClearReferenceRows(lastSlotIndex);
         _tagMasks?.ClearRange(lastSlotIndex, 1);
         Count = lastSlotIndex;
-        return slotIndex < lastSlotIndex ? moved : default;
+        return swapped;
     }
 
     // Component layout/type compatibility is validated before these accessors run.

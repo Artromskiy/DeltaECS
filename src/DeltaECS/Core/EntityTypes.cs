@@ -44,7 +44,7 @@ public readonly struct Entity(int index, int generation) : IEquatable<Entity>
     public override bool Equals(object? obj) => obj is Entity other && Equals(other);
 
     /// <summary>Returns a hash code for this entity handle.</summary>
-    public override int GetHashCode() => HashCode.Combine(Index, Generation);
+    public override int GetHashCode() => unchecked((Index * (int)0x9E3779B1u) ^ Generation);
 
     /// <summary>Returns the index and generation as text.</summary>
     public override string ToString() => $"[{Index}:{Generation}]";

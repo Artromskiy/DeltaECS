@@ -92,6 +92,17 @@ internal sealed class ComponentRegistryTests
     }
 
     [Test]
+    public void SignedGroupValueMatchesTheGeneratedUnsignedKey()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId position = layouts.Register<Position>(new SchemaId(70_022));
+
+        layouts.RegisterGeneratedComponentGroup(typeof(SignedComponentGroup).TypeHandle, 128, position);
+
+        Assert.That(layouts.GetGroup(SignedComponentGroup.HighBit).ToArray(), Is.EqualTo(new[] { position }));
+    }
+
+    [Test]
     public void GetAliasesReturnsDistinctAliasesInInsertionOrder()
     {
         var layouts = new ComponentRegistry();
@@ -250,6 +261,11 @@ internal sealed class ComponentRegistryTests
     private enum ComponentGroups
     {
         History,
+    }
+
+    private enum SignedComponentGroup : sbyte
+    {
+        HighBit = sbyte.MinValue,
     }
 
 }

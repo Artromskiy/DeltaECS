@@ -474,5 +474,16 @@ internal sealed class EntityDataPlan
         return false;
     }
 
-    private readonly record struct EntityDataRouteKey(int TargetArchetypeId, int SourceArchetypeId, bool AllowMissing);
+    private readonly struct EntityDataRouteKey(int targetArchetypeId, int sourceArchetypeId, bool allowMissing) : IEquatable<EntityDataRouteKey>
+    {
+        // The target ID is nonnegative. Preserve all source bits, including its -1 sentinel.
+        private readonly ulong _bits = ((ulong)(uint)sourceArchetypeId << 32)
+                                       | ((uint)targetArchetypeId << 1) | (allowMissing ? 1u : 0u);
+
+        public bool Equals(EntityDataRouteKey other) => _bits == other._bits;
+
+        public override bool Equals(object? obj) => obj is EntityDataRouteKey other && Equals(other);
+
+        public override int GetHashCode() => unchecked(((int)_bits * 397) ^ (int)(_bits >> 32));
+    }
 }

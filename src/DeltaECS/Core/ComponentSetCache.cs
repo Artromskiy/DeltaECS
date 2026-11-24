@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 /// <summary>World-owned cache for immutable component sets.</summary>
 internal sealed class ComponentSetCache
@@ -28,24 +29,23 @@ internal sealed class ComponentSetCache
     internal bool TryGet(Type key, [NotNullWhen(true)] out ComponentSet? set)
         => _typed.TryGetValue(key, out set);
 
-    internal bool TryGet(ReadOnlySpan<ComponentId> componentIds, [NotNullWhen(true)] out ComponentSet? set)
+    internal ComponentSet? Get(ReadOnlySpan<ComponentId> componentIds, out int hash)
     {
-        int hash = ComponentSet.ComputeHash(componentIds);
-        if (_dynamic.TryGetValue(hash, out List<ComponentSet>? candidates))
+        int lookupHash = ComponentSet.ComputeHash(componentIds);
+        hash = lookupHash;
+        if (_dynamic.TryGetValue(lookupHash, out List<ComponentSet>? candidates))
         {
             for (int index = 0; index < candidates.Count; index++)
             {
                 ComponentSet candidate = candidates[index];
                 if (candidate.Matches(componentIds))
                 {
-                    set = candidate;
-                    return true;
+                    return candidate;
                 }
             }
         }
 
-        set = null;
-        return false;
+        return null;
     }
 
     internal void Add(Type key, ComponentSet set)
@@ -130,7 +130,7 @@ internal sealed class ComponentSet
     private const uint FnvPrime = 16_777_619u;
 
     internal static readonly ComponentSet Empty =
-        new([], default, []);
+        new([], default, [], ComputeHash([]));
 
     internal ReadOnlySpan<ComponentId> ComponentIds => ComponentIdArray;
 
@@ -144,12 +144,12 @@ internal sealed class ComponentSet
 
     internal ComponentSetId Id { get; private set; }
 
-    internal ComponentSet(ComponentId[] componentIds, ComponentMask mask, int[] tagIndices)
+    internal ComponentSet(ComponentId[] componentIds, ComponentMask mask, int[] tagIndices, int hash)
     {
         ComponentIdArray = componentIds;
         Mask = mask;
         TagIndices = tagIndices;
-        Hash = ComputeHash(componentIds);
+        Hash = hash;
     }
 
     internal static int ComputeHash(ReadOnlySpan<ComponentId> componentIds)
@@ -164,7 +164,8 @@ internal sealed class ComponentSet
         return (int)hash;
     }
 
-    internal bool Matches(ReadOnlySpan<ComponentId> componentIds) => ComponentIdArray.AsSpan().SequenceEqual(componentIds);
+    internal bool Matches(ReadOnlySpan<ComponentId> componentIds)
+        => MemoryMarshal.Cast<ComponentId, int>(ComponentIds).SequenceEqual(MemoryMarshal.Cast<ComponentId, int>(componentIds));
 
     internal void AssignId(ComponentSetId id) => Id = id;
 }

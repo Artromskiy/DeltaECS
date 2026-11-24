@@ -1186,12 +1186,13 @@ public sealed partial class World : IDisposable
             return ComponentSet.Empty;
         }
 
-        if (_componentSetCache.TryGet(componentIds, out ComponentSet? cached))
+        ComponentSet? cached = _componentSetCache.Get(componentIds, out int hash);
+        if (cached is not null)
         {
             return cached;
         }
 
-        ComponentSet set = CreateComponentSet(componentIds);
+        ComponentSet set = CreateComponentSet(componentIds, hash);
         _componentSetCache.Add(set);
         return set;
     }
@@ -2419,9 +2420,9 @@ public sealed partial class World : IDisposable
         int slotIndex = record.SlotIndex;
         int lastSlotIndex = chunk.Count - 1;
         RecordEntityMembershipRange(chunk, slotIndex, 1, present: false);
-        var moved = archetype.RemoveEntity(chunkIndex, slotIndex);
+        bool swapped = archetype.RemoveEntity(chunkIndex, slotIndex, out Entity moved);
         RemoveComponentChangeSwapBack(chunk, slotIndex, lastSlotIndex);
-        if (moved.IsValid)
+        if (swapped)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.Chunk = chunk;
@@ -2481,10 +2482,10 @@ public sealed partial class World : IDisposable
         }
 
         TransferComponentChangeSlot(sourceChunk, sourceSlotIndex, targetChunk, targetSlotIndex);
-        var moved = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex);
+        bool swapped = sourceArchetype.RemoveEntity(sourceChunkIndex, sourceSlotIndex, out Entity moved);
         sourceRecord.Chunk = targetChunk;
         sourceRecord.SlotIndex = targetSlotIndex;
-        if (moved.IsValid)
+        if (swapped)
         {
             ref var movedRecord = ref RecordAt(moved.Index);
             movedRecord.Chunk = sourceChunk;
@@ -2666,14 +2667,14 @@ public sealed partial class World : IDisposable
         return true;
     }
 
-    private ComponentSet CreateComponentSet(ReadOnlySpan<ComponentId> componentIds)
+    private ComponentSet CreateComponentSet(ReadOnlySpan<ComponentId> componentIds, int hash)
     {
         var ownedIds = new ComponentId[componentIds.Length];
         componentIds.CopyTo(ownedIds);
-        return CreateComponentSet(ownedIds);
+        return CreateComponentSet(ownedIds, hash);
     }
 
-    private ComponentSet CreateComponentSet(ComponentId[] componentIds)
+    private ComponentSet CreateComponentSet(ComponentId[] componentIds, int hash)
     {
         ValidateComponentIds(componentIds);
         var dataIds = new ComponentId[componentIds.Length];
@@ -2695,7 +2696,7 @@ public sealed partial class World : IDisposable
 
         Array.Resize(ref dataIds, dataCount);
         Array.Resize(ref tagIndices, tagCount);
-        return new ComponentSet(componentIds, ComponentMask.From(dataIds), tagIndices);
+        return new ComponentSet(componentIds, ComponentMask.From(dataIds), tagIndices, hash);
     }
 
     private void ValidateComponentIds(ReadOnlySpan<ComponentId> componentIds)
@@ -3099,21 +3100,15 @@ public sealed partial class World : IDisposable
 
     private readonly struct TransitionKey(int sourceArchetypeId, ComponentSetId changeSetId, bool isAdd) : IEquatable<TransitionKey>
     {
+        // Archetype IDs are nonnegative, leaving one bit for the operation kind.
+        private readonly ulong _bits = ((ulong)(uint)changeSetId.Value << 32)
+                                       | ((uint)sourceArchetypeId << 1) | (isAdd ? 1u : 0u);
 
-        public int SourceArchetypeId { get; } = sourceArchetypeId;
-        public ComponentSetId ChangeSetId { get; } = changeSetId;
-        public bool IsAdd { get; } = isAdd;
-
-        public bool Equals(TransitionKey other) => SourceArchetypeId == other.SourceArchetypeId
-                                                   && ChangeSetId == other.ChangeSetId && IsAdd == other.IsAdd;
+        public bool Equals(TransitionKey other) => _bits == other._bits;
 
         public override bool Equals(object? obj) => obj is TransitionKey other && Equals(other);
 
-        public override int GetHashCode()
-        {
-            int hash = (SourceArchetypeId * TransitionHashMultiplier) ^ ChangeSetId.Value;
-            return (hash * TransitionHashMultiplier) ^ (IsAdd ? 1 : 0);
-        }
+        public override int GetHashCode() => unchecked(((int)_bits * TransitionHashMultiplier) ^ (int)(_bits >> 32));
     }
 
     private readonly struct TransitionEdge(

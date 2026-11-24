@@ -3,8 +3,8 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 /// <summary>Registers component CLR types and their stable schema identities.</summary>
 public sealed partial class ComponentRegistry
@@ -346,22 +346,14 @@ public sealed partial class ComponentRegistry
     }
 
     private static ulong GetGroupValue<TEnum>(TEnum groupId) where TEnum : struct, Enum
-    {
-        object boxedValue = groupId;
-        IFormatProvider invariant = CultureInfo.InvariantCulture;
-        return Type.GetTypeCode(Enum.GetUnderlyingType(typeof(TEnum))) switch
+        => Type.GetTypeCode(Enum.GetUnderlyingType(typeof(TEnum))) switch
         {
-            TypeCode.SByte => (byte)Convert.ToSByte(boxedValue, invariant),
-            TypeCode.Byte => Convert.ToByte(boxedValue, invariant),
-            TypeCode.Int16 => (ushort)Convert.ToInt16(boxedValue, invariant),
-            TypeCode.UInt16 => Convert.ToUInt16(boxedValue, invariant),
-            TypeCode.Int32 => (uint)Convert.ToInt32(boxedValue, invariant),
-            TypeCode.UInt32 => Convert.ToUInt32(boxedValue, invariant),
-            TypeCode.Int64 => (ulong)Convert.ToInt64(boxedValue, invariant),
-            TypeCode.UInt64 => Convert.ToUInt64(boxedValue, invariant),
+            TypeCode.SByte or TypeCode.Byte => Unsafe.As<TEnum, byte>(ref groupId),
+            TypeCode.Int16 or TypeCode.UInt16 => Unsafe.As<TEnum, ushort>(ref groupId),
+            TypeCode.Int32 or TypeCode.UInt32 => Unsafe.As<TEnum, uint>(ref groupId),
+            TypeCode.Int64 or TypeCode.UInt64 => Unsafe.As<TEnum, ulong>(ref groupId),
             _ => ThrowHelper.ThrowUnsupportedEnumUnderlyingType(typeof(TEnum)),
         };
-    }
 
     private static ComponentRegistrationTypeToken CreateComponentRegistrationTypeToken(IGeneratedComponentTypeToken typeToken)
     {

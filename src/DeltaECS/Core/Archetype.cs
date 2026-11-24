@@ -259,17 +259,17 @@ internal sealed class Archetype
         }
     }
 
-    internal Entity RemoveEntity(int chunkIndex, int slotIndex)
+    internal bool RemoveEntity(int chunkIndex, int slotIndex, out Entity moved)
     {
         var chunk = _chunks[chunkIndex];
-        var moved = chunk.RemoveSwapBack(slotIndex);
+        bool swapped = chunk.RemoveSwapBack(slotIndex, out moved);
         if (chunk.IsEmpty)
         {
             DeactivateChunk(chunkIndex);
         }
 
         PushAvailableChunk(chunkIndex);
-        return moved;
+        return swapped;
     }
 
     internal bool TryGetLastActiveChunk(out int chunkIndex, out Chunk chunk)
