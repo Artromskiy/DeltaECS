@@ -127,7 +127,7 @@ internal sealed class QueryPlan
             return false;
         }
 
-        slots = entry.Slots.AsSpan(0, entry.Count);
+        slots = ArrayAccess.AsReadOnlySpan(entry.Slots, entry.Count);
         return true;
     }
 
@@ -140,7 +140,7 @@ internal sealed class QueryPlan
         }
 
         int wordCount = (chunk.Count + 63) >> 6;
-        mask = entry!.Mask.AsSpan(0, wordCount);
+        mask = ArrayAccess.AsReadOnlySpan(entry!.Mask, wordCount);
         return true;
     }
 
@@ -311,16 +311,17 @@ internal sealed class QueryPlan
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ReadOnlySpan<int> MatchingArchetypes() => _matchingArchetypes.AsSpan(0, _matchingCount);
+    internal ReadOnlySpan<int> MatchingArchetypes() => ArrayAccess.AsReadOnlySpan(_matchingArchetypes, _matchingCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ReadOnlySpan<ArchetypePlan> MatchingPlans() => _matchingPlans.AsSpan(0, _matchingCount);
+    internal ReadOnlySpan<ArchetypePlan> MatchingPlans() => ArrayAccess.AsReadOnlySpan(_matchingPlans, _matchingCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ReadOnlySpan<ChunkPlan> MatchingChunkPlans() => _matchingChunkPlans.AsSpan(0, _matchingChunkCount);
+    internal ReadOnlySpan<ChunkPlan> MatchingChunkPlans() => ArrayAccess.AsReadOnlySpan(_matchingChunkPlans, _matchingChunkCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ReadOnlySpan<int> MatchingChunkPlanIndices() => _matchingChunkPlanIndices.AsSpan(0, _matchingChunkCount);
+    internal ReadOnlySpan<int> MatchingChunkPlanIndices() =>
+        ArrayAccess.AsReadOnlySpan(_matchingChunkPlanIndices, _matchingChunkCount);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal int MatchingPlanIndex(int archetypeId)

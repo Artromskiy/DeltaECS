@@ -30,6 +30,11 @@ internal static class ArrayAccess
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Span<T> AsSpan<T>(T[] array) => array;
 
+    // The caller supplies a prefix length within the array bounds.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static ReadOnlySpan<T> AsReadOnlySpan<T>(T[] array, int length) =>
+        length == 0 ? [] : MemoryMarshal.CreateReadOnlySpan(ref array.GetRefAtZero(), length);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static unsafe Span<T> AsSpan<T>(nint address, int length) where T : unmanaged =>
         length == 0 ? [] : new((void*)address, length);

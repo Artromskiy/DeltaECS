@@ -2006,23 +2006,24 @@ public sealed partial class World : IDisposable
         for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
             Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
+            ref Entity firstEntity = ref ArrayAccess.GetRefAtZero<Entity>(chunk.EntityAddress);
             if (plan.TryGetTagSlots(chunk, out ReadOnlySpan<int> selectedSlots))
             {
                 for (int index = 0; index < selectedSlots.Length; index++)
                 {
-                    _queryEntityScratch.Add(chunk.RawEntities.RefAt(selectedSlots.RefAt(index)));
+                    _queryEntityScratch.Add(Unsafe.Add(ref firstEntity, selectedSlots.RefAt(index)));
                 }
             }
             else
             {
-                Span<Entity> entities = chunk.RawEntities;
                 for (int slotIndex = 0; slotIndex < chunk.Count; slotIndex++)
                 {
-                    _queryEntityScratch.Add(entities.RefAt(slotIndex));
+                    _queryEntityScratch.Add(Unsafe.Add(ref firstEntity, slotIndex));
                 }
             }
         }
 
+        ReadOnlySpan<int> tagIndices = ArrayAccess.AsReadOnlySpan(changeSet.TagIndices, changeSet.TagIndices.Length);
         int changed = 0;
         bool tagsChanged = false;
         int edgeGeneration = BeginBatchEdgeCache();
@@ -2035,7 +2036,7 @@ public sealed partial class World : IDisposable
                 continue;
             }
 
-            bool entityChanged = ApplyTags(chunk, slotIndex, changeSet.TagIndices, isAdd);
+            bool entityChanged = ApplyTags(chunk, slotIndex, tagIndices, isAdd);
             if (!changeSet.Mask.IsEmpty)
             {
                 TransitionEdge edge = GetBatchTransitionEdge(chunk.ArchetypeId, changeSet, isAdd, edgeGeneration);
@@ -2049,7 +2050,7 @@ public sealed partial class World : IDisposable
             if (entityChanged)
             {
                 changed++;
-                tagsChanged |= changeSet.TagIndices.Length != 0;
+                tagsChanged |= !tagIndices.IsEmpty;
             }
         }
 
