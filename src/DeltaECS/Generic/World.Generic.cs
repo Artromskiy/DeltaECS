@@ -19,13 +19,13 @@ public sealed partial class World
     }
 
     /// <summary>Creates one entity with the primary component for <typeparamref name="T"/>.</summary>
-    public Entity Create<T>() => Create(GetPrimaryComponentId<T>());
+    public Entity Create<T>() => Create(_layouts.GetPrimary<T>());
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> into caller-owned storage.</summary>
-    public int Create<T>(int count, Span<Entity> output) => Create(GetPrimaryComponentId<T>(), count, output);
+    public int Create<T>(int count, Span<Entity> output) => Create(_layouts.GetPrimary<T>(), count, output);
 
     /// <summary>Creates entities with the primary component for <typeparamref name="T"/> without retaining handles.</summary>
-    public int Create<T>(int count) => Create(GetPrimaryComponentId<T>(), count);
+    public int Create<T>(int count) => Create(_layouts.GetPrimary<T>(), count);
 
     /// <summary>Adds the component values and tags stored in <paramref name="data"/> to one entity.</summary>
     /// <returns>The number of components and tags added to the entity.</returns>
@@ -78,7 +78,7 @@ public sealed partial class World
     /// </example>
     public bool Add<T>(Entity entity, in T value)
     {
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         return _layouts.IsTag(componentId)
             ? Add(entity, componentId)
             : AddComponentBatch([entity], componentId, in value) == 1;
@@ -89,7 +89,7 @@ public sealed partial class World
     /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Add<T>(ReadOnlySpan<Entity> entities, in T value)
     {
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         return _layouts.IsTag(componentId)
             ? Add(entities, [componentId])
             : AddComponentBatch(entities, componentId, in value);
@@ -97,7 +97,7 @@ public sealed partial class World
 
     /// <summary>Sets the primary component value when the entity already has the component.</summary>
     /// <returns><see langword="true"/> when the value was set.</returns>
-    public bool Set<T>(Entity entity, in T value) => Set(entity, GetPrimaryComponentId<T>(), in value);
+    public bool Set<T>(Entity entity, in T value) => Set(entity, _layouts.GetPrimary<T>(), in value);
 
     /// <summary>Sets the selected component value when the entity already has the component.</summary>
     /// <remarks>For a tag, records a change when the tag is present; tag values are not stored.</remarks>
@@ -112,7 +112,7 @@ public sealed partial class World
     /// <returns>The number of entities whose value or tag change was applied.</returns>
     /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public int Set<T>(ReadOnlySpan<Entity> entities, in T value)
-        => Set(entities, GetPrimaryComponentId<T>(), in value);
+        => Set(entities, _layouts.GetPrimary<T>(), in value);
 
     /// <summary>Sets the selected component on entities that already have it.</summary>
     /// <returns>The number of entities whose value or tag change was applied.</returns>
@@ -137,7 +137,7 @@ public sealed partial class World
 
     /// <summary>Adds or sets the primary component value on one entity.</summary>
     public void AddOrSet<T>(Entity entity, in T value)
-        => AddOrSet(entity, GetPrimaryComponentId<T>(), in value);
+        => AddOrSet(entity, _layouts.GetPrimary<T>(), in value);
 
     /// <summary>Adds or sets the selected component value on one entity.</summary>
     public void AddOrSet<T>(Entity entity, ComponentId componentId, in T value)
@@ -154,7 +154,7 @@ public sealed partial class World
     /// <summary>Adds or sets the primary component value on each entity.</summary>
     /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
     public void AddOrSet<T>(ReadOnlySpan<Entity> entities, in T value)
-        => AddOrSet(entities, GetPrimaryComponentId<T>(), in value);
+        => AddOrSet(entities, _layouts.GetPrimary<T>(), in value);
 
     /// <summary>Adds or sets the selected component value on each entity.</summary>
     /// <exception cref="ArgumentException">The entity span contains duplicates.</exception>
@@ -177,16 +177,16 @@ public sealed partial class World
     public bool Remove<T>(Entity entity)
         => RemoveComponentBatch(
             [entity],
-            GetPrimaryComponentId<T>()) == 1;
+            _layouts.GetPrimary<T>()) == 1;
 
     /// <summary>Removes the primary component for <typeparamref name="T"/> from every eligible entity.</summary>
-    public int Remove<T>(ReadOnlySpan<Entity> entities) => RemoveComponentBatch(entities, GetPrimaryComponentId<T>());
+    public int Remove<T>(ReadOnlySpan<Entity> entities) => RemoveComponentBatch(entities, _layouts.GetPrimary<T>());
 
     /// <summary>Reads the primary component or reports tag presence, returning default for a tag.</summary>
     public bool TryGet<T>(Entity entity, out T value)
     {
         PrepareOperation();
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             value = default!;
             return false;
@@ -206,7 +206,7 @@ public sealed partial class World
     public bool Has<T>(Entity entity)
     {
         PrepareOperation();
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             return false;
         }
@@ -234,7 +234,7 @@ public sealed partial class World
     public T Get<T>(Entity entity)
     {
         PrepareOperation();
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         if (TryGetRegisteredCore(entity, componentId, out T value))
         {
             return value;
@@ -262,7 +262,7 @@ public sealed partial class World
     public ref T GetRef<T>(Entity entity)
     {
         PrepareOperation();
-        return ref GetRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+        return ref GetRefUnchecked<T>(entity, _layouts.GetPrimary<T>());
     }
 
     /// <summary>Returns a read-only reference to one component row.</summary>
@@ -282,13 +282,13 @@ public sealed partial class World
     public ref readonly T GetReadRef<T>(Entity entity)
     {
         PrepareOperation();
-        return ref GetReadRefUnchecked<T>(entity, GetPrimaryComponentId<T>());
+        return ref GetReadRefUnchecked<T>(entity, _layouts.GetPrimary<T>());
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetTrusted<T>(Entity entity, out T value)
     {
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             value = default!;
             return false;
@@ -300,7 +300,7 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetTrusted<T>(ref GeneratedEntityRefView view, out T value)
     {
-        if (!TryGetPrimaryComponentId<T>(out ComponentId componentId))
+        if (!_layouts.TryGetPrimary<T>(out ComponentId componentId))
         {
             value = default!;
             return false;
@@ -310,7 +310,7 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool HasTrusted<T>(Entity entity) => TryGetPrimaryComponentId<T>(out ComponentId componentId)
+    internal bool HasTrusted<T>(Entity entity) => _layouts.TryGetPrimary<T>(out ComponentId componentId)
         && HasTrusted(entity, componentId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -319,7 +319,7 @@ public sealed partial class World
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted<T>(ref GeneratedEntityRefView view)
-        => TryGetPrimaryComponentId<T>(out ComponentId componentId) && HasTrusted<T>(ref view, componentId);
+        => _layouts.TryGetPrimary<T>(out ComponentId componentId) && HasTrusted<T>(ref view, componentId);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasTrusted<T>(ref GeneratedEntityRefView view, ComponentId componentId)
@@ -358,7 +358,7 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal T GetTrusted<T>(Entity entity)
     {
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         return TryGetRegisteredCoreTrusted(entity, componentId, out T value)
             ? value
             : ThrowHelper.ThrowMissingComponent<T>(entity, componentId);
@@ -367,7 +367,7 @@ public sealed partial class World
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal T GetTrusted<T>(ref GeneratedEntityRefView view)
     {
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         return GetTrusted<T>(ref view, componentId);
     }
 
@@ -405,12 +405,12 @@ public sealed partial class World
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRefTrusted<T>(Entity entity) => ref GetRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
+    internal ref T GetRefTrusted<T>(Entity entity) => ref GetRefTrustedUnchecked<T>(entity, _layouts.GetPrimary<T>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetRefTrusted<T>(ref GeneratedEntityRefView view)
     {
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         return ref GetRefTrusted<T>(ref view, componentId);
     }
 
@@ -448,12 +448,12 @@ public sealed partial class World
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefTrusted<T>(Entity entity)
-        => ref GetReadRefTrustedUnchecked<T>(entity, GetPrimaryComponentId<T>());
+        => ref GetReadRefTrustedUnchecked<T>(entity, _layouts.GetPrimary<T>());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref readonly T GetReadRefTrusted<T>(ref GeneratedEntityRefView view)
     {
-        ComponentId componentId = GetPrimaryComponentId<T>();
+        ComponentId componentId = _layouts.GetPrimary<T>();
         return ref GetReadRefTrusted<T>(ref view, componentId);
     }
 

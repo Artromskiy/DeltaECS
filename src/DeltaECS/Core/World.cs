@@ -27,8 +27,6 @@ public sealed partial class World : IDisposable
 
     private readonly ComponentRegistry _layouts;
 
-    private readonly Dictionary<Type, ComponentId> _primaryComponentIdsByType = new();
-
     private readonly ComponentRowArrayPool _componentRowArrayPool = new();
     private readonly List<Chunk> _freeRecordChunks = new();
     private readonly Dictionary<ComponentMask, int> _archetypeByMask = new();
@@ -164,7 +162,6 @@ public sealed partial class World : IDisposable
 
         _queryCache.Clear();
         _componentSetCache.Clear();
-        _primaryComponentIdsByType.Clear();
         _entityDataReaders.Clear();
         _entityDataSourceReadRoutes.Clear();
         _groupedArchetypes.Clear();
@@ -1326,38 +1323,6 @@ public sealed partial class World : IDisposable
                 observer.RecordFilterMembershipRange(entities);
             }
         }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ComponentId GetPrimaryComponentId<T>()
-    {
-        Type type = typeof(T);
-        if (_primaryComponentIdsByType.TryGetValue(type, out ComponentId componentId))
-        {
-            return componentId;
-        }
-
-        componentId = _layouts.GetPrimary<T>();
-        _primaryComponentIdsByType.Add(type, componentId);
-        return componentId;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryGetPrimaryComponentId<T>(out ComponentId componentId)
-    {
-        Type type = typeof(T);
-        if (_primaryComponentIdsByType.TryGetValue(type, out componentId))
-        {
-            return true;
-        }
-
-        if (!_layouts.TryGetPrimary<T>(out componentId))
-        {
-            return false;
-        }
-
-        _primaryComponentIdsByType.Add(type, componentId);
-        return true;
     }
 
     private void PrepareComponentChangeAddRange(Chunk chunk, int slotIndex, int count)

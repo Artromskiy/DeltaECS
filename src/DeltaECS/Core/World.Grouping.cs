@@ -14,15 +14,15 @@ public sealed partial class World
 
     /// <summary>Requires the primary grouping component to equal the supplied value.</summary>
     public Query WhereAll<T>(in T value) where T : struct
-        => CreateQuery(CreateGroupFilter(GetPrimaryComponentId<T>(), in value, GroupMatchKind.All));
+        => CreateQuery(CreateGroupFilter(_layouts.GetPrimary<T>(), in value, GroupMatchKind.All));
 
     /// <summary>Matches the supplied value of a primary grouping component.</summary>
     public Query WhereAny<T>(in T value) where T : struct
-        => CreateQuery(CreateGroupFilter(GetPrimaryComponentId<T>(), in value, GroupMatchKind.Any));
+        => CreateQuery(CreateGroupFilter(_layouts.GetPrimary<T>(), in value, GroupMatchKind.Any));
 
     /// <summary>Excludes the supplied value of a primary grouping component.</summary>
     public Query WhereNone<T>(in T value) where T : struct
-        => CreateQuery(CreateGroupFilter(GetPrimaryComponentId<T>(), in value, GroupMatchKind.None));
+        => CreateQuery(CreateGroupFilter(_layouts.GetPrimary<T>(), in value, GroupMatchKind.None));
 
     internal QuerySpec CreateGroupFilter<T>(ComponentId componentId, in T value, GroupMatchKind kind) where T : struct
     {
