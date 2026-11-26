@@ -14,6 +14,41 @@ or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored
 `artifacts/`; durable conclusions and reproduction details belong here or in a
 linked focused report.
 
+## Cached tag-filtered chunk selection — 2026-11-26
+
+Baseline `c9d02ec` and its working-tree candidate used SkyPirates `66e02e99` and
+`skypirates-20261126-164024-342.json`. Each run loaded a fresh world, then timed
+ticks 788–833 in the headless ReplayRunner, four updates per tick (180 updates).
+Both Release netstandard2.1 kernels ran on .NET 10 ARM64 with tiering disabled.
+Four alternating before/after pairs each contributed seven measured replays per
+variant after two warmups per process. All runs matched hash `37F3135697FF53CF`.
+The Unity Editor was active during measurement.
+
+| Median per replay | Baseline | Candidate | Change |
+| --- | ---: | ---: | ---: |
+| Simulation (ms) | 30.033 | 26.115 | -13.0% |
+| ComponentDependenciesService.Tick (ms) | 5.491 | 3.711 | -32.4% |
+| CorpseSystem.Tick (µs) | 145.499 | 33.436 | -77.0% |
+| Simulation-thread allocations (MiB) | 192.334 | 190.113 | -1.2% |
+
+Total time, mean ± sample standard deviation, was 30.66 ± 4.48 ms, 28.83 ± 7.54 ms for baseline and
+candidate respectively. System timers span the entire `Tick` method. Replay
+loading and hash verification are outside the timed region.
+
+On updates 2–180, the structural additions in `ComponentDependenciesService`
+previously visited 99,345 chunks and those in `CorpseSystem` visited 12,530.
+Both now visit zero, including selection refreshes within those calls. On
+update 1, the dependencies service still applies four additions to 549 distinct
+entities. Its mutation loop visits 25 chunks, with 35 candidate chunk checks
+during selection refreshes inside these calls. The corpse query skips all 70
+candidate chunks on that first update as well.
+
+The plan caches selected chunks until its topology or the world's tag version
+changes. On refresh, a missing required tag excludes an entire archetype.
+The measured improvement covers this replay's mostly stable selections.
+Raw per-run measurements and structural counters are in the ignored
+`artifacts/performance/selected-chunks-skypirates-20261126/` directory.
+
 ## Structural transitions, observer routes and chunk reuse — 2026-10-22
 
 Against `8e7a5c1`, a bounded paired probe at 20, 1,024 and 131,072 entities measured structural transitions with 0/64 data/tag subscriptions and 64 cached queries. Observer-heavy round trips improved by 37–98%; a 131K no-subscriber result was inconclusive. Warm query-binding allocations dropped from 1.58–3.64MB to zero in the large workloads, and single-chunk first-use allocations dropped substantially. Unity was active, so small timing changes are not established wins. The measured mechanism, retained-memory tradeoff, rejected intermediate behavior, correctness coverage and complete tables are in [the report](structural-change-routing-2026-10-22.md).

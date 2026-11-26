@@ -536,7 +536,11 @@ public sealed partial class World : IDisposable
         if (cached.HasTagFilters)
         {
             _queryEntityScratch.Clear();
-            ReadOnlySpan<ChunkPlan> chunks = cached.MatchingChunkPlans();
+            ReadOnlySpan<ChunkPlan> chunks = cached.SelectedChunkPlans();
+            if (chunks.IsEmpty)
+            {
+                return 0;
+            }
             for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
             {
                 Chunk chunk = chunks.RefAt(chunkIndex).Chunk;
@@ -870,6 +874,11 @@ public sealed partial class World : IDisposable
         }
 
         QueryPlan plan = query.Cached;
+        if (plan.HasTagFilters && plan.SelectedChunkPlans().IsEmpty)
+        {
+            execution = default;
+            return false;
+        }
         ReadOnlySpan<ArchetypePlan> matchingPlans = plan.MatchingPlans();
         EnsureGeneratedWhereSourceArchetypeCapacity(matchingPlans.Length);
         _generatedWhereSourceArchetypeCount = matchingPlans.Length;
@@ -2003,7 +2012,11 @@ public sealed partial class World : IDisposable
     private int ApplyQueryComponentsByEntity(QueryPlan plan, ComponentSet changeSet, bool isAdd)
     {
         _queryEntityScratch.Clear();
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
+        if (chunks.IsEmpty)
+        {
+            return 0;
+        }
         for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
         {
             Chunk chunk = chunks.RefAt(chunkIndex).Chunk;

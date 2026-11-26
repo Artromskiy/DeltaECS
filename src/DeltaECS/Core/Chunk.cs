@@ -94,13 +94,13 @@ internal sealed class Chunk
     {
         if (tagCount != 0)
         {
-            (_tagMasks ??= new ChunkTagMasks(Capacity)).EnsureTagCapacity(tagCount);
+            (_tagMasks ??= new ChunkTagMasks(Capacity, _archetype)).EnsureTagCapacity(tagCount);
         }
     }
 
     internal bool HasTag(int tagIndex, int slotIndex) => _tagMasks?.Contains(tagIndex, slotIndex) ?? false;
 
-    internal bool SetTag(int tagIndex, int slotIndex) => (_tagMasks ??= new ChunkTagMasks(Capacity)).Set(tagIndex, slotIndex);
+    internal bool SetTag(int tagIndex, int slotIndex) => (_tagMasks ??= new ChunkTagMasks(Capacity, _archetype)).Set(tagIndex, slotIndex);
 
     internal bool ClearTag(int tagIndex, int slotIndex) => _tagMasks?.Clear(tagIndex, slotIndex) ?? false;
 
@@ -230,6 +230,7 @@ internal sealed class Chunk
 
     internal void SetArchetypeLocation(Archetype archetype, int archetypeIndex)
     {
+        _tagMasks?.SetOwner(archetype);
         _archetype = archetype;
         archetype.GroupingOwner?.MarkGroupingDirty(this);
         ArchetypeId = archetype.Id;

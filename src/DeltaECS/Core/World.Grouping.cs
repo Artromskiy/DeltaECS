@@ -92,12 +92,9 @@ public sealed partial class World
         {
             return;
         }
-        foreach (ref readonly ChunkPlan chunk in plan.MatchingChunkPlans())
+        foreach (ref readonly ChunkPlan chunk in plan.SelectedChunkPlans())
         {
-            if (!plan.TryGetTagSlots(chunk.Chunk, out ReadOnlySpan<int> slots) || !slots.IsEmpty)
-            {
-                MarkGroupingDirty(chunk.Chunk);
-            }
+            MarkGroupingDirty(chunk.Chunk);
         }
     }
 

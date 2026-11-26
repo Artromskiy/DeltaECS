@@ -17,6 +17,7 @@ internal sealed class Archetype
     private NativeMemory<int> _availableChunkPositions = new(0);
     private NativeMemory<int> _activeChunkIndices = new(0);
     private Chunk[] _activeChunks = [];
+    private int[] _chunksWithTag = [];
     private NativeMemory<int> _activeChunkPositions = new(0);
     private readonly List<QueryPlanLink> _queryPlans = new();
     private bool _deferQueryPlanUpdates;
@@ -123,6 +124,20 @@ internal sealed class Archetype
 
         return index >= 0;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasTag(int tagIndex) => (uint)tagIndex < (uint)_chunksWithTag.Length && _chunksWithTag[tagIndex] != 0;
+
+    internal void AddTaggedChunk(int tagIndex)
+    {
+        if (tagIndex >= _chunksWithTag.Length)
+        {
+            Array.Resize(ref _chunksWithTag, Math.Max(tagIndex + 1, _chunksWithTag.Length * 2));
+        }
+        _chunksWithTag[tagIndex]++;
+    }
+
+    internal void RemoveTaggedChunk(int tagIndex) => _chunksWithTag[tagIndex]--;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasAvailableChunk(int requestedCount, bool allowFreeRecordBlocks = true)

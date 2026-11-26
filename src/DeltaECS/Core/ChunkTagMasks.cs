@@ -10,6 +10,7 @@ internal sealed class ChunkTagMasks
     private const int WordShift = 6;
     private const int WordMask = (1 << WordShift) - 1;
     private int _wordsPerTag;
+    private Archetype? _owner;
 
     private ulong[] _summaries = [];
     private ulong[] _words = [];
@@ -18,8 +19,25 @@ internal sealed class ChunkTagMasks
 
     internal int TagCapacity => _summaries.Length;
 
-    internal ChunkTagMasks(int capacity = Chunk.MaxCapacity)
-        => _wordsPerTag = (capacity + WordMask) >> WordShift;
+    internal ChunkTagMasks(int capacity = Chunk.MaxCapacity, Archetype? owner = null)
+    {
+        _wordsPerTag = (capacity + WordMask) >> WordShift;
+        _owner = owner;
+    }
+
+    internal void SetOwner(Archetype owner)
+    {
+        if (ReferenceEquals(owner, _owner))
+        {
+            return;
+        }
+        foreach (int tag in _activeTags)
+        {
+            _owner?.RemoveTaggedChunk(tag);
+            owner.AddTaggedChunk(tag);
+        }
+        _owner = owner;
+    }
 
     internal void EnsureSlotCapacity(int capacity)
     {
@@ -293,6 +311,7 @@ internal sealed class ChunkTagMasks
         Array.Clear(_words, 0, _words.Length);
         foreach (int tag in _activeTags)
         {
+            _owner?.RemoveTaggedChunk(tag);
             _activeTagFlags[tag] = false;
         }
         _activeTags.Clear();
@@ -330,10 +349,12 @@ internal sealed class ChunkTagMasks
         int position = _activeTags.BinarySearch(tagIndex);
         if (active)
         {
+            _owner?.AddTaggedChunk(tagIndex);
             _activeTags.Insert(~position, tagIndex);
         }
         else
         {
+            _owner?.RemoveTaggedChunk(tagIndex);
             _activeTags.RemoveAt(position);
         }
     }

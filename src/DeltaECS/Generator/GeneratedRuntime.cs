@@ -1024,15 +1024,14 @@ public static partial class GeneratedForEachRuntime
         ThrowHelper.ThrowIfNull(world, nameof(world));
         QueryPlan plan = ValidateQuery(world, in query);
         ThrowHelper.ThrowIfNegative(requestedWorkerCount, nameof(requestedWorkerCount));
-        if (plan.MatchingChunkPlans().Length <= 1)
+        if (plan.SelectedChunkPlans().Length <= 1)
         {
             ExecuteGeneratedWhereForEach(world, plan, ref invoker, writeComponentIndices);
             return;
         }
 
         RecordComponentWrites(plan, writeComponentIndices);
-        world.PrepareComponentChangeObserverChunks(plan.MatchingChunkPlans());
-        plan.PrepareTagSlotCache();
+        world.PrepareComponentChangeObserverChunks(plan.SelectedChunkPlans());
         var executor = world.GetParallelQueryExecutor<TInvoker>();
         world.EnterParallelExecution();
         world.BeginQueryLease();
@@ -1057,7 +1056,7 @@ public static partial class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
         world.BeginQueryLease();
         return new GeneratedDenseExecution(world, plans, chunks, queryPlan: plan);
     }
@@ -1068,7 +1067,7 @@ public static partial class GeneratedForEachRuntime
     public static GeneratedReadDenseExecution OpenReadDense(World world, in Query query)
     {
         QueryPlan plan = ValidateQuery(world, in query);
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
         world.BeginQueryLease();
         return new GeneratedReadDenseExecution(world, chunks, plan);
     }
@@ -1080,7 +1079,7 @@ public static partial class GeneratedForEachRuntime
     {
         QueryPlan plan = ValidateQuery(world, in query);
         ReadOnlySpan<ArchetypePlan> plans = plan.MatchingPlans();
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
         world.BeginQueryLease();
         return new GeneratedDenseExecution(world, plans, chunks, queryPlan: plan);
     }
@@ -1189,7 +1188,7 @@ public static partial class GeneratedForEachRuntime
                 return;
             }
 
-            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+            ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
             Span<ulong> writeMask = stackalloc ulong[Chunk.WordCount];
             for (int chunkIndex = 0; chunkIndex < chunks.Length; chunkIndex++)
             {
@@ -1236,7 +1235,7 @@ public static partial class GeneratedForEachRuntime
 
         try
         {
-            ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+            ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
             Span<ulong> writeMask = stackalloc ulong[Chunk.WordCount];
             for (int i = 0; i < chunks.Length; i++)
             {
@@ -1326,7 +1325,7 @@ public static partial class GeneratedForEachRuntime
         var execution = new GeneratedDenseExecution(
             world,
             plan.MatchingPlans(),
-            plan.MatchingChunkPlans(),
+            plan.SelectedChunkPlans(),
             ownsLease: true,
             queryPlan: plan);
         try

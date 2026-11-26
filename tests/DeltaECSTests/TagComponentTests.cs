@@ -11,6 +11,72 @@ internal sealed class TagComponentTests
 
     internal static readonly int[] expected = [1, 2, 5, 6, 7, 12];
     [Test]
+    public void TagSelectionFollowsMembershipAndWholeChunkTransfers()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId position = layouts.Register<Position>(new SchemaId(1));
+        ComponentId marked = layouts.Register<MarkedTag>(new SchemaId(2));
+        ComponentId extra = layouts.Register<ExtraData>(new SchemaId(3));
+        using var world = new World(layouts);
+        var entities = new Entity[2 * Chunk.MaxCapacity];
+        world.Create([position], entities);
+
+        Query source = world.WhereAll(position).WhereNone(extra);
+        Query taggedSource = source.WhereAll(marked);
+        Query taggedTarget = world.WhereAll(extra).WhereAll(marked);
+        Assert.That(taggedSource.Cached.SelectedChunkPlans().Length, Is.Zero);
+        Assert.That(world.Add(in taggedSource, extra), Is.Zero);
+
+        world.Add(entities[0], marked);
+        world.Add(entities[1], marked);
+        world.Add(entities[^1], marked);
+        Assert.That(taggedSource.Cached.SelectedChunkPlans().Length, Is.EqualTo(2));
+        world.Remove(entities[0], marked);
+        Assert.That(Count(world, in taggedSource), Is.EqualTo(2));
+        world.Destroy(entities[1]);
+        Assert.That(taggedSource.Cached.SelectedChunkPlans().Length, Is.EqualTo(1));
+
+        Assert.That(taggedTarget.Cached.SelectedChunkPlans().Length, Is.Zero);
+        Assert.That(world.Add(in source, extra), Is.EqualTo(entities.Length - 1));
+        Assert.That(taggedSource.Cached.SelectedChunkPlans().Length, Is.Zero);
+        Assert.That(taggedTarget.Cached.SelectedChunkPlans().Length, Is.EqualTo(1));
+        Assert.That(world.Remove(in taggedTarget, marked), Is.EqualTo(1));
+        Assert.That(world.Destroy(in taggedTarget), Is.Zero);
+        world.Add(entities[^1], marked);
+        Assert.That(world.Destroy(in taggedTarget), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void CachedIterationsFollowTagChangesAcrossExistingChunks()
+    {
+        var layouts = new ComponentRegistry();
+        ComponentId value = layouts.Register<TagValue>(new SchemaId(1));
+        ComponentId marked = layouts.Register<MarkedTag>(new SchemaId(2));
+        using var world = new World(layouts);
+        var entities = new Entity[3 * Chunk.MaxCapacity];
+        world.Create([value], entities);
+
+        Entity first = entities[0];
+        Entity middle = entities[Chunk.MaxCapacity];
+        Entity last = entities[^1];
+        Query query = world.WhereAll(value).WhereAll(marked);
+        var serial = world.ForEach(in query, static (ref TagValue data) => data.Value++);
+        var parallel = world.ForEachParallel(in query, static (ref TagValue data) => data.Value += 10, workerCount: 2);
+        world.Add(first, marked);
+        world.Add(middle, marked);
+        serial.Invoke();
+        parallel.Invoke();
+
+        world.Remove(first, marked);
+        world.Add(last, marked);
+        serial.Invoke();
+        parallel.Invoke();
+        Assert.That(world.Get<TagValue>(first).Value, Is.EqualTo(11));
+        Assert.That(world.Get<TagValue>(middle).Value, Is.EqualTo(22));
+        Assert.That(world.Get<TagValue>(last).Value, Is.EqualTo(11));
+    }
+
+    [Test]
     public void TagsAreStoredWithoutRowsAndFilterGeneratedQueries()
     {
         var layouts = new ComponentRegistry();

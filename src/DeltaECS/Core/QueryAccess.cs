@@ -3,6 +3,7 @@ namespace Delta.ECS;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 /// <summary>Non-generic query access token for a read row.</summary>
 public readonly struct ReadAccess
@@ -59,6 +60,8 @@ internal sealed class QueryPlan
     private readonly WriteAccess[] _preparedWriteAccessesByComponent;
     private int _matchingCount;
     private bool _matchingChunkPlansDirty;
+    private readonly List<ChunkPlan>? _selectedChunks;
+    private long _selectionVersion = -1;
     private TagSlotCacheEntry?[] _tagSlotsByChunk = [];
     private readonly object _tagSlotGate = new();
 
@@ -69,8 +72,9 @@ internal sealed class QueryPlan
 
     internal int MatchingArchetypeVersion { get; private set; }
 
-    internal bool HasTagFilters
-        => _allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0;
+    internal bool HasTagFilters => _selectedChunks is not null;
+
+    internal long ChunkSelectionVersion => HasTagFilters ? ((long)MatchingVersion << 32) | (uint)Owner.TagVersion : MatchingVersion;
 
     internal QueryPlan(World world, QuerySpec spec)
     {
@@ -80,6 +84,10 @@ internal sealed class QueryPlan
         (_allDataMask, _allTagIndices) = PartitionQueryMask(world, spec.AllMask);
         (_anyDataMask, _anyTagIndices) = PartitionQueryMask(world, spec.AnyMask);
         (_noneDataMask, _noneTagIndices) = PartitionQueryMask(world, spec.NoneMask);
+        if (_allTagIndices.Length != 0 || _anyTagIndices.Length != 0 || _noneTagIndices.Length != 0)
+        {
+            _selectedChunks = new List<ChunkPlan>();
+        }
         _weakReference = new WeakReference<QueryPlan>(this);
         _readRoutesByComponent = new int[world.Components.Count];
         _dataComponentsByRoute = new ComponentId[_allDataMask.Count];
@@ -319,6 +327,21 @@ internal sealed class QueryPlan
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<ChunkPlan> MatchingChunkPlans() => ArrayAccess.AsReadOnlySpan(_matchingChunkPlans, _matchingChunkCount);
 
+    internal ReadOnlySpan<ChunkPlan> SelectedChunkPlans()
+    {
+        if (_selectedChunks is null)
+        {
+            return MatchingChunkPlans();
+        }
+
+        long version = ChunkSelectionVersion;
+        if (Volatile.Read(ref _selectionVersion) != version)
+        {
+            RefreshSelectedChunks(_selectedChunks, version);
+        }
+        return ArrayAccess.AsSpan(_selectedChunks);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<int> MatchingChunkPlanIndices() =>
         ArrayAccess.AsReadOnlySpan(_matchingChunkPlanIndices, _matchingChunkCount);
@@ -471,6 +494,8 @@ internal sealed class QueryPlan
             _denseBindings.Clear();
         }
         _lastDenseBinding = null;
+        _selectedChunks?.Clear();
+        _selectionVersion = -1;
         _matchingArchetypes = [];
         _matchingPlans = [];
         _matchingChunkPlans = [];
@@ -546,6 +571,47 @@ internal sealed class QueryPlan
             }
         }
         return false;
+    }
+
+    private void RefreshSelectedChunks(List<ChunkPlan> selected, long version)
+    {
+        lock (_tagSlotGate)
+        {
+            if (_selectionVersion == version)
+            {
+                return;
+            }
+
+            selected.Clear();
+            foreach (ref readonly ArchetypePlan plan in MatchingPlans())
+            {
+                if (plan.ChunkCount == 0 || !HasRequiredTags(plan.Archetype))
+                {
+                    continue;
+                }
+                for (int i = 0; i < plan.ChunkCount; i++)
+                {
+                    ref readonly ChunkPlan chunk = ref plan.ChunkArray.RefAt(i);
+                    if (!TryGetTagSlots(chunk.Chunk, out ReadOnlySpan<int> slots) || !slots.IsEmpty)
+                    {
+                        selected.Add(chunk);
+                    }
+                }
+            }
+            Volatile.Write(ref _selectionVersion, version);
+        }
+    }
+
+    private bool HasRequiredTags(Archetype archetype)
+    {
+        foreach (int tag in _allTagIndices)
+        {
+            if (!archetype.HasTag(tag))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private bool MatchesGroups(Archetype archetype)

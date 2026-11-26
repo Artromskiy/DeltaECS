@@ -28,7 +28,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
     private int _entityCount;
     private bool _entityMode;
     private QueryPlan? _cachedPlan;
-    private int _cachedPlanVersion = -1;
+    private long _cachedPlanVersion = -1;
     private QueryPlan? _cachedRangePlan;
     private int _cachedRangeVersion = -1;
     private int _cachedRangeWorkerCount;
@@ -287,12 +287,12 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
 
     private void BuildChunkList(QueryPlan plan)
     {
-        if (ReferenceEquals(_cachedPlan, plan) && _cachedPlanVersion == plan.MatchingVersion)
+        if (ReferenceEquals(_cachedPlan, plan) && _cachedPlanVersion == plan.ChunkSelectionVersion)
         {
             return;
         }
 
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
+        ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
         EnsureChunkCapacity(chunks.Length);
         EnsureChunkOffsetCapacity(chunks.Length + 1);
         _chunkOffsets.RefAt(0) = 0;
@@ -308,7 +308,7 @@ internal sealed class StaticParallelQueryExecutor<TInvoker> : IDisposable
         _chunkCount = chunks.Length;
         _totalEntityCount = totalEntityCount;
         _cachedPlan = plan;
-        _cachedPlanVersion = plan.MatchingVersion;
+        _cachedPlanVersion = plan.ChunkSelectionVersion;
         _cachedRangePlan = null;
         _cachedRangeVersion = -1;
         _cachedRangeWorkerCount = 0;

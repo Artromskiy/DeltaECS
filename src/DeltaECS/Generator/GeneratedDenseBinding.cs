@@ -4,6 +4,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 /// <summary>Query-owned compiler-support cache for a generated, typed row signature.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
@@ -12,7 +13,7 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
 {
     private TRows[] _rows = [];
     private int _count;
-    private int _version = -1;
+    private long _version = -1;
     private int[] _writes = [];
     private QueryPlan? _queryPlan;
     private bool _hasTagFilters;
@@ -57,9 +58,10 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ReadOnlySpan<TRows> GetRows(QueryPlan plan)
     {
-        if (_version != plan.MatchingVersion)
+        long version = plan.ChunkSelectionVersion;
+        if (Volatile.Read(ref _version) != version)
         {
-            Refresh(plan);
+            Refresh(plan, version);
         }
         return _rows.AsSpan(0, _count);
     }
@@ -74,24 +76,32 @@ public abstract class GeneratedDenseBinding<TRows> : IGeneratedDenseBinding
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private void Refresh(QueryPlan plan)
+    private void Refresh(QueryPlan plan, long version)
     {
-        ReadOnlySpan<ChunkPlan> chunks = plan.MatchingChunkPlans();
-        if (_rows.Length < chunks.Length)
+        lock (plan)
         {
-            Array.Resize(ref _rows, Math.Max(chunks.Length, _rows.Length * 2));
+            if (_version == version)
+            {
+                return;
+            }
+
+            ReadOnlySpan<ChunkPlan> chunks = plan.SelectedChunkPlans();
+            if (_rows.Length < chunks.Length)
+            {
+                Array.Resize(ref _rows, Math.Max(chunks.Length, _rows.Length * 2));
+            }
+            for (int index = 0; index < chunks.Length; index++)
+            {
+                ref readonly ChunkPlan chunk = ref chunks[index];
+                _rows[index] = BindRows(chunk.ComponentRows, new GeneratedBoundChunk(chunk.Chunk, plan));
+            }
+            if (_count > chunks.Length)
+            {
+                _rows.AsSpan(chunks.Length, _count - chunks.Length).Clear();
+            }
+            _count = chunks.Length;
+            Volatile.Write(ref _version, version);
         }
-        for (int index = 0; index < chunks.Length; index++)
-        {
-            ref readonly ChunkPlan chunk = ref chunks[index];
-            _rows[index] = BindRows(chunk.ComponentRows, new GeneratedBoundChunk(chunk.Chunk, plan));
-        }
-        if (_count > chunks.Length)
-        {
-            _rows.AsSpan(chunks.Length, _count - chunks.Length).Clear();
-        }
-        _count = chunks.Length;
-        _version = plan.MatchingVersion;
     }
 
     void IGeneratedDenseBinding.Clear()
