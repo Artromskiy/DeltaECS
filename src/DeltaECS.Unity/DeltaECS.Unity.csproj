@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <PackageId>DeltaECS.Unity</PackageId>
-    <Version>0.0.75</Version>
+    <Version>0.0.76</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <EnableDefaultItems>false</EnableDefaultItems>
     <NoBuild>true</NoBuild>
