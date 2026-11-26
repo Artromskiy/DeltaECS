@@ -112,6 +112,12 @@ on the workload and hardware, so compare the scenario closest to yours.
 
 ## Unity
 
+Install `com.artromskiy.deltaecs` through UPM for the runtime and source
+generator. Install `com.artromskiy.deltaecs.unity` to add scene authoring and the
+entity inspector. Unity projects using NuGetForUnity can install the
+`DeltaECS.Unity` NuGet package for the same integration.
+See the [Unity installation guide](src/DeltaECS.Unity/README.md).
+
 See DeltaECS used in the Sky Pirates Unity project, including its entity-view system.
 
 ## Learn more

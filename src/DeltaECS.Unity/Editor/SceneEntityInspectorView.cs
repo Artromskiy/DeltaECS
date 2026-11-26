@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using Delta;
 using Delta.ECS;
 
 using UnityEditor;
@@ -924,7 +923,7 @@ namespace Delta.ECS.Unity.Editor
                 return entity.ToString();
             }
 
-            if (value is float3 vector)
+            if (ComponentPropertyBagFields.TryGetDeltaFloat3(value, out Vector3 vector))
             {
                 return $"({vector.x:G}, {vector.y:G}, {vector.z:G})";
             }
@@ -1058,9 +1057,9 @@ namespace Delta.ECS.Unity.Editor
             {
                 vectorField.SetValueWithoutNotify(vector3);
             }
-            else if (control is Vector3Field float3Field && value is float3 vector)
+            else if (control is Vector3Field float3Field && ComponentPropertyBagFields.TryGetDeltaFloat3(value, out Vector3 vector))
             {
-                float3Field.SetValueWithoutNotify(new Vector3(vector.x, vector.y, vector.z));
+                float3Field.SetValueWithoutNotify(vector);
             }
             else if (control is Vector4Field vector4Field && value is Vector4 vector4)
             {

@@ -1,0 +1,31 @@
+{
+  "name": "com.artromskiy.deltaecs",
+  "version": "0.0.75",
+  "displayName": "DeltaECS",
+  "description": "DeltaECS runtime and C# source generator for Unity.",
+  "unity": "6000.7",
+  "keywords": [
+    "ecs",
+    "entity-component-system",
+    "unity"
+  ],
+  "author": {
+    "name": "Artromskiy"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Artromskiy/DeltaECS.git",
+    "directory": "src/DeltaECS.Unity/Packaging/Core"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "Runtime/",
+    "Runtime.meta",
+    "Documentation~/",
+    "CHANGELOG.md",
+    "LICENSE.md"
+  ]
+}

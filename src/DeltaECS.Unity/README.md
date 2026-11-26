@@ -3,7 +3,7 @@
 Unity scene authoring and editor integration for DeltaECS. This package
 requires Unity 6.7 (`6000.7`) or newer.
 
-## Install
+## Install with Unity Package Manager
 
 Add the npm-compatible registry and package to the Unity project's
 `Packages/manifest.json`:
@@ -18,19 +18,34 @@ Add the npm-compatible registry and package to the Unity project's
     }
   ],
   "dependencies": {
-    "com.artromskiy.deltaecs.unity": "0.0.74"
+    "com.artromskiy.deltaecs.unity": "0.0.75"
   }
 }
 ```
 
 Keep the project's existing `dependencies` and `scopedRegistries` entries when
-adding these values. The core `DeltaECS` runtime and `DeltaECS.Generators` are
-separate NuGet packages and are not included in this UPM package.
+adding these values. The extension automatically installs `com.artromskiy.deltaecs`,
+which supplies the runtime and the source generator. For ECS without scene
+authoring or the entity inspector, install `com.artromskiy.deltaecs` alone.
+
+## Install with NuGetForUnity
+
+In a Unity project with [NuGetForUnity](https://github.com/GlitchEnzo/NuGetForUnity)
+installed, install `DeltaECS.Unity` from the NuGet window. It pulls in the same
+version of `DeltaECS` and `DeltaECS.Generators`. The Runtime and Editor sources,
+assets and Unity GUIDs are shared with the UPM package.
+
+For projects with a minimal Unity manifest, enable the built-in JSON Serialize
+and UI Toolkit modules (`com.unity.modules.jsonserialize` and
+`com.unity.modules.uielements`). UPM installs both automatically.
+
+Use one installation method per Unity project. Before switching, remove the
+extension, runtime and generator from the previous package manager to avoid
+duplicate assemblies and GUIDs.
 
 ## Register components
 
-Install `DeltaECS.Generators` in the assembly that declares components, then
-mark component structs with `ComponentSchemaAttribute`:
+Mark component structs with `ComponentSchemaAttribute`:
 
 ```csharp
 using Delta.ECS;

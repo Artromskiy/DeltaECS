@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 
-using Delta;
 using Delta.ECS;
 using Delta.ECS.Unity;
 
@@ -18,6 +18,11 @@ namespace Delta.ECS.Unity.Editor
 
     internal static class ComponentPropertyBagFields
     {
+        private static readonly Type DeltaFloat3Type = Type.GetType("Delta.float3, DeltaMaths");
+        private static readonly FieldInfo DeltaFloat3X = DeltaFloat3Type?.GetField("x");
+        private static readonly FieldInfo DeltaFloat3Y = DeltaFloat3Type?.GetField("y");
+        private static readonly FieldInfo DeltaFloat3Z = DeltaFloat3Type?.GetField("z");
+
         internal static ComponentPropertyBinding[] Build(VisualElement parent, Type componentType,
             object value, bool canWrite, Action<string[], object> onChanged,
             Func<string, Entity, Action<object>, VisualElement> createEntityField)
@@ -38,6 +43,19 @@ namespace Delta.ECS.Unity.Editor
                 bindings, onChanged, createEntityField);
             propertyBag.Accept(visitor, ref value);
             return bindings.ToArray();
+        }
+
+        internal static bool TryGetDeltaFloat3(object value, out Vector3 vector)
+        {
+            if (value is null || value.GetType() != DeltaFloat3Type)
+            {
+                vector = default;
+                return false;
+            }
+
+            vector = new Vector3((float)DeltaFloat3X.GetValue(value), (float)DeltaFloat3Y.GetValue(value),
+                (float)DeltaFloat3Z.GetValue(value));
+            return true;
         }
 
         private static VisualElement CreateFieldControl(string label, Type type, object value,
@@ -99,11 +117,12 @@ namespace Delta.ECS.Unity.Editor
                 field.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
                 control = field;
             }
-            else if (type == typeof(float3))
+            else if (type == DeltaFloat3Type)
             {
-                float3 vector = value == null ? default : (float3)value;
-                var field = new Vector3Field(label) { value = new Vector3(vector.x, vector.y, vector.z) };
-                field.RegisterValueChangedCallback(evt => onChanged(new float3(evt.newValue.x, evt.newValue.y, evt.newValue.z)));
+                TryGetDeltaFloat3(value, out Vector3 vector);
+                var field = new Vector3Field(label) { value = vector };
+                field.RegisterValueChangedCallback(evt => onChanged(
+                    Activator.CreateInstance(type, evt.newValue.x, evt.newValue.y, evt.newValue.z)));
                 control = field;
             }
             else if (type == typeof(Vector2))

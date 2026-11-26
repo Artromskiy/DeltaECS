@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: 98ef5afde3124e74a65835fb91e3a6fd
+labels:
+- RoslynAnalyzer
+PluginImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  platformData:
+  - first:
+      Any:
+    second:
+      enabled: 0
+      settings: {}
+  - first:
+      Editor: Editor
+    second:
+      enabled: 0
+      settings:
+        DefaultValueInitialized: true
+  isExplicitlyReferenced: 0
+  validateReferences: 0

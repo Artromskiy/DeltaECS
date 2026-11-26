@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <authors>Artromskiy</authors>
+    <description>Unity scene authoring and editor integration for DeltaECS. Install with NuGetForUnity.</description>
+    <license type="expression">MIT</license>
+    <readme>README.md</readme>
+    <repository type="git" url="https://github.com/Artromskiy/DeltaECS" />
+    <tags>unity ecs entity-component-system</tags>
+    <dependencies>
+      <group targetFramework="netstandard2.1">
+        <dependency id="DeltaECS" version="[$version$]" />
+        <dependency id="DeltaECS.Generators" version="[$version$]" include="All" />
+      </group>
+    </dependencies>
+    <contentFiles>
+      <files include="any/any/**/*" buildAction="None" />
+    </contentFiles>
+  </metadata>
+  <files>
+    <file src="Packaging/NuGet/_._" target="lib/netstandard2.1" />
+    <file src="Runtime/**/*" target="contentFiles/any/any/Runtime" />
+    <file src="Editor/**/*" target="contentFiles/any/any/Editor" />
+    <file src="Runtime.meta" target="contentFiles/any/any" />
+    <file src="Editor.meta" target="contentFiles/any/any" />
+    <file src="../../docs/packages/DeltaECS.Unity.README.md" target="README.md" />
+  </files>
+</package>

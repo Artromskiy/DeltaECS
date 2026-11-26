@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: 48d2ae0ef6274649b8f6c67658db807b
+PluginImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  platformData:
+  - first:
+      Any:
+    second:
+      enabled: 1
+      settings: {}
+  - first:
+      Editor: Editor
+    second:
+      enabled: 1
+      settings:
+        DefaultValueInitialized: true
+  isExplicitlyReferenced: 0
+  validateReferences: 1

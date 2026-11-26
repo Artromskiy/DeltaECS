@@ -1,6 +1,6 @@
 {
   "name": "com.artromskiy.deltaecs.unity",
-  "version": "0.0.74",
+  "version": "0.0.75",
   "displayName": "DeltaECS Unity",
   "description": "Unity scene authoring and editor integration for DeltaECS.",
   "unity": "6000.7",
@@ -20,6 +20,11 @@
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "com.artromskiy.deltaecs": "0.0.75",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0"
   },
   "files": [
     "Runtime/",
