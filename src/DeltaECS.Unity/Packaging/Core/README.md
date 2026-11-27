@@ -13,7 +13,7 @@ registry and runtime package to the project's `Packages/manifest.json`:
     }
   ],
   "dependencies": {
-    "com.artromskiy.deltaecs": "0.0.77"
+    "com.artromskiy.deltaecs": "0.0.78"
   }
 }
 ```
