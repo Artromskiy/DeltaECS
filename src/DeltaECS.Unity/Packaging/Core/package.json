@@ -1,6 +1,6 @@
 {
   "name": "com.artromskiy.deltaecs",
-  "version": "0.0.76",
+  "version": "0.0.77",
   "displayName": "DeltaECS",
   "description": "DeltaECS runtime and C# source generator for Unity.",
   "unity": "6000.7",
