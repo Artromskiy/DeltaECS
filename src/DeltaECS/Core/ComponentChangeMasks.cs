@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 internal static class ComponentChangeMasks
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static int WordCount(int count) => (count + 63) >> 6;
+    internal static int WordCount(int count) => (int)(((uint)count + 63u) >> 6);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static int WordStart(int wordIndex) => wordIndex << 6;

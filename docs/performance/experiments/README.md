@@ -14,6 +14,21 @@ or measurement quality. Raw BenchmarkDotNet and JIT output stays under ignored
 `artifacts/`; durable conclusions and reproduction details belong here or in a
 linked focused report.
 
+## Entity record capacity growth — 2026-11-27
+
+Single and batch creation reserve room for the live entity count plus the requested count, reusing freed indices first. When the table fills, it grows by one eighth of its capacity (at least eight slots), or directly to the requested size for a larger batch. The 70 change observers in this replay share the world's capacity target.
+
+SkyPirates `6e12935e` replayed `skypirates-20261126-164024-342.json` in Fast mode on .NET 10 ARM64 with tiering disabled. The released 0.0.76 baseline (`0212b82`) and the candidate each ran in two processes in A/B/B/A order, with two warmups and seven measured replays per process. All runs produced hash `37F3135697FF53CF` after 45 updates. Timing and allocation figures cover the simulation thread.
+
+| Median per replay | 0.0.76 | Geometric growth | Change |
+| --- | ---: | ---: | ---: |
+| World setup | 189 ms | 124 ms | −34.4% |
+| Setup allocations | 953.4 MiB | 254.1 MiB | −73.4% |
+| Simulation | 21.9 ms | 11.5 ms | −47.5% |
+| Simulation allocations | 189.9 MiB | 21.3 MiB | −88.8% |
+
+Mean simulation time ± sample standard deviation was 28.5 ± 13.2 ms for the baseline and 12.0 ± 1.58 ms for the candidate. After snapshot loading, 60,533 records occupied a table of 67,471 slots. All five subsequent creates fit. A separate doubling experiment reserved 119,950 slots at the same point. Unused record and observer array space after load was 4.14 MiB with one-eighth growth and 35.4 MiB with doubling. Raw results are in `artifacts/performance/fast-skypirates-20261127/record-growth-final.csv` and `record-growth-doubling-arrays.csv`.
+
 ## Cached tag-filtered chunk selection — 2026-11-26
 
 Baseline `c9d02ec` and its working-tree candidate used SkyPirates `66e02e99` and

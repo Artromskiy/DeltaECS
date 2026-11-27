@@ -16,6 +16,7 @@ using System.Threading;
 public sealed partial class World : IDisposable
 {
     private const int DefaultInitialCapacity = 1024;
+    private const int MaxEntityRecordGrowthCapacity = 0x7FEFFFFF; // Portable ceiling for optional headroom in non-byte arrays.
     private const int InitialFreeRecordCapacity = 16;
     private const int QueryCacheSweepInterval = 64;
     private const int InitialDestroyScratchCapacity = 32;
@@ -1588,9 +1589,9 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
+        ReserveEntityRecords(count);
         BeginQueryPlanBatch();
         DeferQueryPlanUpdates(archetype);
-        EnsureEntityRecordCapacity(checked(_records.Count + count));
         bool appendOnly = _freeCount == 0 && _freeRecordChunks.Count == 0;
         int appendedRecordStart = _records.Count;
         Span<EntityRecord> appendedRecords = appendOnly ? _records.Append(count) : default;
@@ -1687,9 +1688,9 @@ public sealed partial class World : IDisposable
             return 0;
         }
 
+        ReserveEntityRecords(count);
         BeginQueryPlanBatch();
         DeferQueryPlanUpdates(archetype);
-        EnsureEntityRecordCapacity(checked(_records.Count + count));
         bool appendOnly = _freeCount == 0 && _freeRecordChunks.Count == 0;
         int appendedRecordStart = _records.Count;
         Span<EntityRecord> appendedRecords = appendOnly ? _records.Append(count) : default;
@@ -2753,15 +2754,20 @@ public sealed partial class World : IDisposable
         return index;
     }
 
-    private void EnsureEntityRecordCapacity(int capacity)
+    private void ReserveEntityRecords(int createCount)
     {
-        if (capacity <= _records.Capacity)
+        // Both free lists supply reusable indices before a new record is appended.
+        int required = checked(_aliveEntityCount + createCount);
+        int capacity = _records.Capacity;
+        if (required <= capacity)
         {
             return;
         }
 
-        _records.EnsureCapacity(capacity);
-        EnsureComponentChangeObserverCapacity(_records.Capacity);
+        long preferred = (long)capacity + Math.Max(8, capacity / 8);
+        int nextCapacity = Math.Max(required, (int)Math.Min(preferred, MaxEntityRecordGrowthCapacity));
+        EnsureComponentChangeObserverCapacity(nextCapacity);
+        _records.Capacity = nextCapacity;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

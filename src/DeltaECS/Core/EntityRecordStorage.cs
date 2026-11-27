@@ -12,15 +12,7 @@ internal sealed class EntityRecordStorage
     internal int Capacity
     {
         get => _items.Length;
-        set => EnsureCapacity(value);
-    }
-
-    internal void EnsureCapacity(int capacity)
-    {
-        if (capacity > _items.Length)
-        {
-            Array.Resize(ref _items, capacity);
-        }
+        set => Array.Resize(ref _items, value);
     }
 
     internal void Clear()
@@ -30,26 +22,14 @@ internal sealed class EntityRecordStorage
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Add(EntityRecord value)
-    {
-        if (Count == _items.Length)
-        {
-            int capacity = _items.Length == 0
-                ? 4
-                : checked(_items.Length * 2);
-            EnsureCapacity(capacity);
-        }
-
-        _items[Count++] = value;
-    }
+    internal void Add(EntityRecord value) => _items[Count++] = value;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Span<EntityRecord> Append(int count)
     {
-        EnsureCapacity(checked(Count + count));
-        int start = Count;
+        Span<EntityRecord> records = _items.AsSpan(Count, count);
         Count += count;
-        return _items.AsSpan(start, count);
+        return records;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

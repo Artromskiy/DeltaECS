@@ -5,6 +5,13 @@ using NUnit.Framework;
 [TestFixture]
 internal sealed class ComponentChangeMasksSpanTests
 {
+    [TestCase(int.MaxValue - 63, 33_554_431)]
+    [TestCase(int.MaxValue, 33_554_432)]
+    public void WordCountSupportsLargeRecordCapacities(int capacity, int expectedWords)
+    {
+        Assert.That(ComponentChangeMasks.WordCount(capacity), Is.EqualTo(expectedWords));
+    }
+
     [Test]
     public void CopyBitsPreservesBitsOutsideUnalignedRange()
     {

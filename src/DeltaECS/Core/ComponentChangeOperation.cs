@@ -513,23 +513,22 @@ public sealed class ComponentChangeOperation<T> : IOperation
     {
         if (capacity > _entities.Length)
         {
-            Array.Resize(ref _entities, capacity);
             if (!_hasSnapshot)
             {
                 Array.Resize(ref _currentEntities, capacity);
             }
+            Array.Resize(ref _entities, capacity);
         }
 
         int requiredWords = WordCount(capacity);
         if (requiredWords > _entityPresence.Length)
         {
-            Array.Resize(ref _entityPresence, requiredWords);
             if (!_hasSnapshot)
             {
                 Array.Resize(ref _currentEntityPresence, requiredWords);
             }
+            Array.Resize(ref _entityPresence, requiredWords);
         }
-
     }
 
     private void CaptureCurrentMembership()
