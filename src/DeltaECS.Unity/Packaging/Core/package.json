@@ -26,6 +26,10 @@
     "Runtime.meta",
     "Documentation~/",
     "CHANGELOG.md",
-    "LICENSE.md"
+    "CHANGELOG.md.meta",
+    "LICENSE.md",
+    "LICENSE.md.meta",
+    "README.md.meta",
+    "package.json.meta"
   ]
 }
